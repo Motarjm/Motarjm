@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Torgman - Translate Scientific Texts</title>
+
+  <link rel="stylesheet" href="/static/Torgman.css" />
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <script src="/static/Torgman.js" defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-content">
+      <div class="logo">
+        <i class="fas fa-language"></i>
+        <span class="logo-text">Torgman</span>
+      </div>
+      <nav>
+        <a href="#" title="Home"><i class="fas fa-home"></i><span>Home</span></a>
+        <a href="#" title="Upload"><i class="fas fa-upload"></i><span>Upload</span></a>
+        <a href="#" title="About"><i class="fas fa-info-circle"></i><span>About</span></a>
+        <a href="#" title="Contact"><i class="fas fa-envelope"></i><span>Contact</span></a>
+      </nav>
+    </div>
+  </aside>
+
+  <main class="container">
+    <h1 class="title">Torgman</h1>
+    <p class="subtitle">Translate Texts from English to Arabic</p>
+
+    <div class="upload-card" id="uploadArea">
+      <i class="fas fa-file-upload upload-icon"></i>
+      <p class="upload-text">Drag & Drop your .txt file here<br>or click below to select</p>
+      <input type="file" id="fileInput" accept=".txt" hidden />
+      <button id="selectFileBtn">Choose File</button>
+    </div>
+
+    <button id="translateBtn" class="translate-btn">Translate</button>
+    <a id="downloadLink" style="display: none;">Download Translated File</a>
+    <p id="status"></p>
+
+    <footer>
+      Made by the <strong>Torgman Team</strong>
+    </footer>
+  </main>
+</body>
+</html>
