@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+import os
 from app.routers import translate
 
 app = FastAPI()
@@ -10,14 +11,18 @@ app = FastAPI()
 # Keep your router
 app.include_router(translate.router)
 
-# Absolute path to your backend/app folder
-BASE_DIR = Path("D:/Torgman/Motarjm/backend/app").resolve()
+# get absolute path to backend/app folder
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# go two directories up to root
+STATIC_DIR = os.path.join(BASE_DIR, "..", "..", "frontend", "static")
+TEMPLATES_DIR = os.path.join(BASE_DIR, "..", "..", "frontend" ,"templates")
 
 # Serve static files
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+app.mount("/static", StaticFiles(directory= STATIC_DIR), name="static")
 
 # Load HTML templates
-templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 # Serve the main frontend page
 @app.get("/", response_class=HTMLResponse)
