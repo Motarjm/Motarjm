@@ -1,13 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from pydantic import BaseModel
 from backend.app.services.translation_service import translate_text, translate_file_content
+from backend.app.models.models import TranslationRequest
+
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
-
-class TranslationRequest(BaseModel):
-    text: str
-    source_lang: str = "en"
-    target_lang: str = "ar"
 
 @router.get("/text")
 def translate(request: TranslationRequest):
