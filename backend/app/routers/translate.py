@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from backend.app.services.translation_service import translate_text, translate_file_content
-from backend.app.models.models import TranslationRequest
+from app.services.translation_service import translate_text, translate_file_content
+from app.models.models import TranslationRequest
 
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
