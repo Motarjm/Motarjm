@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
-from app.services.translation_service import translate_text, translate_file_content
+from backend.app.services.translation_service import translate_text, translate_file_content
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
 

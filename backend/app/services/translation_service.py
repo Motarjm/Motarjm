@@ -1,4 +1,5 @@
 import requests
+
 def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
     
     base_url = "https://api.mymemory.translated.net/get"
