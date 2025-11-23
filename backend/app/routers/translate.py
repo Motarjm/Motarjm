@@ -22,6 +22,10 @@ async def translate_txt_file(
     source_lang: str = "en",
     target_lang: str = "ar"
 ):
+    if not file.endswith(".txt"):
+        raise HTTPException(status_code=400, detail="Only .txt files are allowed")
+    if file.content_type not in ["text/plain"]:
+        raise HTTPException(status_code=400, detail="Invalid file content type. Expected text/plain")
     
     try:
         content = (await file.read()).decode("utf-8")
@@ -37,7 +41,11 @@ async def translate_pdf_file(
     source_lang: str = "en",
     target_lang: str = "ar"
 ):
-     
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
+    if file.content_type not in ["application/pdf"]:
+        raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
+    
     try:
         pdf_content = await file.read()
         pdf_file = BytesIO(pdf_content)
