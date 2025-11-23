@@ -9,7 +9,7 @@ model = InferenceClient(
     api_key=os.getenv("HUGGINGFACE_API_KEY"),
 )
 
-TEMPERATURE = os.getenv("TEMPERATURE")
+TEMPERATURE = float(os.getenv("TEMPERATURE"))
 
 # only import 'model' and 'TEMPERATURE' objects
 __all__ = ["model", "TEMPERATURE"]
