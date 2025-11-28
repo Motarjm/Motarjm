@@ -22,7 +22,7 @@ async def translate_txt_file(
     source_lang: str = "en",
     target_lang: str = "ar"
 ):
-    if not file.endswith(".txt"):
+    if not file.filename.endswith(".txt"):
         raise HTTPException(status_code=400, detail="Only .txt files are allowed")
     if file.content_type not in ["text/plain"]:
         raise HTTPException(status_code=400, detail="Invalid file content type. Expected text/plain")

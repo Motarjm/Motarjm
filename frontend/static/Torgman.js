@@ -59,7 +59,15 @@ translateBtn.addEventListener("click", async () => {
     const formData = new FormData();
     formData.append("file", selectedFile);
 
-    const response = await fetch("/translate/file", {
+    if (selectedFile.name.endsWith(".txt")) {
+  endpoint = "/translate/text_file";
+    } else if (selectedFile.name.endsWith(".pdf")) {
+  endpoint = "/translate/pdf_file";
+    } else {
+  console.error("Unsupported file type");
+    }
+
+    const response = await fetch(endpoint, {
       method: "POST",
       body: formData,
     });
