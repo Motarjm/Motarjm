@@ -32,7 +32,7 @@ async def translate_txt_file(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid file or encoding")
 
-    translated_text = translate_file_content(content, source_lang, target_lang)
+    translated_text = translate_file_content_txt(content, source_lang, target_lang)
     return {"translated_text": translated_text}
 
 @router.post("/pdf_file")
@@ -54,5 +54,5 @@ async def translate_pdf_file(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid PDF file")
 
-    translated_text = translate_file_content(content, source_lang, target_lang)
-    return {"translated_text": translated_text}
+    pdf_file = translate_file_content_pdf(content, pdf_file, source_lang, target_lang)
+    return {"pdf_file": pdf_file}
