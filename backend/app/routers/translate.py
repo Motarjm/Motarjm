@@ -49,8 +49,7 @@ async def translate_pdf_file(
     try:
         pdf_content = await file.read()
         pdf_file = BytesIO(pdf_content)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        content = extract_pdf_text(pdf_reader)
+        content = extract_pdf_text(pdf_file)
 
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid PDF file")
