@@ -1,6 +1,6 @@
 import requests
 from app.config.config import *
-from app.services.prompts import *
+from app.helpers.prompts import *
 
 
 def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
