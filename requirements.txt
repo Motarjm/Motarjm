@@ -1,3 +1,4 @@
+reportlab
 python-dotenv
 huggingface-hub
 annotated-types==0.7.0
