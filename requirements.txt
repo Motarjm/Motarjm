@@ -26,3 +26,10 @@ uvicorn[standard]
 python-multipart
 PyPDF2==3.0.1
 pdfplumber==0.11.8
+langchain==0.3.0
+pymupdf
+paddlex[ocr]
+doclayout_yolo
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
+paddlepaddle==3.2.2
+paddleocr @ git+https://github.com/PaddlePaddle/PaddleOCR.git
