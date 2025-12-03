@@ -3,7 +3,8 @@ import cv2
 from doclayout_yolo import YOLOv10
 from huggingface_hub import hf_hub_download
 from paddleocr import PaddleOCR
-
+from PIL import Image
+import numpy as np
 
 def pdf_to_images(pdf_file):
     """Generator that yields PIL Images one page at a time"""
@@ -15,7 +16,7 @@ def pdf_to_images(pdf_file):
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             pix = None
 
-            yield img
+            yield np.array(img)
 
 
 def yolo_predict(image, device="cpu"):
@@ -40,18 +41,22 @@ def yolo_predict(image, device="cpu"):
     )
 
     # Annotate and save the result
-    annotated_frame = det_res[0].plot(pil=True, line_width=5, font_size=20)
-    cv2.imwrite("result.jpg", annotated_frame)
-
+    #annotated_frame = result[0].plot(pil=True, line_width=5, font_size=20)
+    #cv2.imwrite("result.jpg", annotated_frame)
+    
     return result[0].names, result[0].boxes.data
 
 
 def ocr_predict(image, device="cpu"):
     """
-        Returns the result of paddleOCR
-        The output is a tuple of:
-            - List[str], a list of strings of extracted text, line by line
-            - List[List[int]], 4 integers per text, representing (x1 y1 x2 y2)
+    Arguments:
+        - image, numpy.array
+        
+    Returns the result of paddleOCR
+    
+    The output is a tuple of:
+        - List[str], a list of strings of extracted text, line by line
+        - List[List[int]], 4 integers per text, representing (x1 y1 x2 y2)
 
         """
     ocr = PaddleOCR(
@@ -73,7 +78,7 @@ def is_bbox_inside(small_bbox, large_bbox, tolerance=5):
     Allow small margin of error
 
     Returns:
-        bool
+        True or False
     """
     return (small_bbox[0] >= large_bbox[0] - tolerance and
             small_bbox[1] >= large_bbox[1] - tolerance and
@@ -87,7 +92,7 @@ def extract_text_from_image(image):
     Extracts text from image
 
     Arguments:
-        - image
+        - image, numpy.array
 
     Returns:
         - ocr_text List[dict]: Each index represents a block of text in the page
@@ -101,7 +106,7 @@ def extract_text_from_image(image):
 
     ocr_text = []
 
-    for block_num in range(len(yolo_result_boxes)):
+    for block_num in range(len(yolo_result_data)):
 
         block_text = ""
 
@@ -135,7 +140,7 @@ def extract_text_from_pdf(pdf_file):
     the inner index represent the different blocks of text inside a page
 
     Arguments:
-        - pdf_file
+        - pdf_file, str
 
     Returns:
         - page_contents, List[list[dict]]:
