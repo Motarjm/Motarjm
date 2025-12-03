@@ -1,0 +1,42 @@
+name: Motarjm
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pip
+  - pip:
+    - reportlab
+    - python-dotenv
+    - huggingface-hub
+    - annotated-types==0.7.0
+    - anyio==4.11.0
+    - blinker==1.9.0
+    - certifi==2025.10.5
+    - charset-normalizer==3.4.4
+    - click==8.3.0
+    - fastapi==0.119.1
+    - Flask==3.1.2
+    - idna==3.11
+    - itsdangerous==2.2.0
+    - Jinja2==3.1.6
+    - MarkupSafe==3.0.3
+    - MyApplication==0.1.0
+    - pydantic==2.12.3
+    - pydantic_core==2.41.4
+    - requests==2.32.5
+    - sniffio==1.3.1
+    - starlette==0.48.0
+    - typing-inspection==0.4.2
+    - typing_extensions==4.15.0
+    - Werkzeug==3.1.3
+    - uvicorn[standard]
+    - python-multipart
+    - PyPDF2==3.0.1
+    - langchain==0.3.0
+    - pymupdf
+    - paddlex[ocr]
+    - doclayout_yolo
+    - --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
+    - paddlepaddle==3.2.2
+    - paddleocr @ git+https://github.com/PaddlePaddle/PaddleOCR.git
