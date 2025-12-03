@@ -32,7 +32,6 @@ dependencies:
     - Werkzeug==3.1.3
     - uvicorn[standard]
     - python-multipart
-    - PyPDF2==3.0.1
     - langchain==0.3.0
     - pymupdf
     - paddlex[ocr]
@@ -40,3 +39,5 @@ dependencies:
     - --extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cpu/
     - paddlepaddle==3.2.2
     - paddleocr @ git+https://github.com/PaddlePaddle/PaddleOCR.git
+    - arabic_reshaper
+    - python-bidi
