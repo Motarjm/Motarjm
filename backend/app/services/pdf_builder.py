@@ -7,7 +7,7 @@ from bidi.algorithm import get_display
 
 FONT_SIZE = 10
 
-pdfmetrics.registerFont(TTFont('Arabic', 'Amiri-Regular.ttf'))
+# pdfmetrics.registerFont(TTFont('Arabic', 'Amiri-Regular.ttf'))
 
 def build_pdf(translated_pages, original_pdf_path, output_path ="translated.pdf"):
     """
