@@ -1,17 +1,13 @@
-const fileInput = document.getElementById("fileInput");
-const selectFileBtn = document.getElementById("selectFileBtn");
-const uploadArea = document.getElementById("uploadArea");
+// File upload handling
+const fileInput = document.getElementById('fileInput');
+//const fileList = document.getElementById('fileList');
+const uploadArea = document.querySelector('.upload-area');
 const translateBtn = document.getElementById("translateBtn");
-const downloadLink = document.getElementById("downloadLink");
 const statusText = document.getElementById("status");
 
-let selectedFile = null;
+//fileInput.addEventListener('change', handleFiles);
 
-// Choose File Button
-selectFileBtn.addEventListener("click", (e) => {
-  e.stopPropagation();
-  fileInput.click();
-});
+let selectedFile = null;
 
 // File selected manually
 fileInput.addEventListener("change", (e) => {
@@ -19,22 +15,27 @@ fileInput.addEventListener("change", (e) => {
   updateUploadCard();
 });
 
-// Drag and Drop
-uploadArea.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  uploadArea.classList.add("dragging");
+// Drag and drop
+uploadArea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = 'var(--terracotta)';
+    uploadArea.style.background = 'rgba(193, 80, 46, 0.03)';
 });
 
-uploadArea.addEventListener("dragleave", () => {
-  uploadArea.classList.remove("dragging");
+uploadArea.addEventListener('dragleave', () => {
+    uploadArea.style.borderColor = 'rgba(107, 125, 92, 0.3)';
+    uploadArea.style.background = 'linear-gradient(to bottom, transparent 0%, rgba(245, 241, 232, 0.5) 100%)';
 });
 
-uploadArea.addEventListener("drop", (e) => {
-  e.preventDefault();
-  uploadArea.classList.remove("dragging");
-  selectedFile = e.dataTransfer.files[0];
-  updateUploadCard();
+uploadArea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = 'rgba(107, 125, 92, 0.3)';
+    uploadArea.style.background = 'linear-gradient(to bottom, transparent 0%, rgba(245, 241, 232, 0.5) 100%)';
+    selectedFile = e.dataTransfer.files[0];
+      updateUploadCard();
+//    handleFiles({ target: { files: e.dataTransfer.files } });
 });
+
 
 function updateUploadCard() {
   const text = uploadArea.querySelector(".upload-text");
@@ -45,7 +46,61 @@ function updateUploadCard() {
   }
 }
 
-// Connect to FastAPI backend
+
+function handleFiles(e) {
+    const files = Array.from(e.target.files);
+    fileList.innerHTML = '';
+
+    files.forEach(file => {
+        const fileItem = document.createElement('div');
+        fileItem.className = 'file-item';
+        fileItem.innerHTML = `
+            <div class="file-info">
+                <div class="file-name">${file.name}</div>
+                <div class="file-size">${(file.size / 1024).toFixed(2)} كيلوبايت</div>
+            </div>
+            <span class="file-check">✓</span>
+        `;
+        fileList.appendChild(fileItem);
+    });
+}
+
+// Translation functions
+function swapLanguages() {
+    const sourceLang = document.getElementById('sourceLang');
+    const targetLang = document.getElementById('targetLang');
+    const sourceText = document.getElementById('sourceText');
+    const targetText = document.getElementById('targetText');
+
+    // Swap language selections
+    const tempLang = sourceLang.value;
+    sourceLang.value = targetLang.value;
+    targetLang.value = tempLang;
+
+    // Swap text content
+    const tempText = sourceText.value;
+    sourceText.value = targetText.value;
+    targetText.value = tempText;
+}
+
+function translateText() {
+    const sourceText = document.getElementById('sourceText').value;
+    const targetText = document.getElementById('targetText');
+
+    if (!sourceText.trim()) {
+        alert('الرجاء إدخال نص للترجمة');
+        return;
+    }
+
+
+    // Simulated translation (in real app, this would call a translation API)
+    targetText.value = 'جارٍ الترجمة...';
+
+    setTimeout(() => {
+        targetText.value = `[ترجمة تجريبية]\n${sourceText}`;
+    }, 1000);
+}
+
 translateBtn.addEventListener("click", async () => {
   if (!selectedFile) {
     alert("Please select or drop a file first!");
