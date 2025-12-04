@@ -1,6 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from app.services.translation_service import translate_text, translate_file_content
-from app.services.pdf_service import extract_pdf_content, translate_pdf_content
+from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
 from app.models.models import TranslationRequest
 
 from io import BytesIO

@@ -1,7 +1,7 @@
 import requests
 from app.config.config import *
 from app.helpers.prompts import *
-from pdf_builder import *
+from app.services.pdf_builder import *
 
 def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
     sys_prompt = SYSTEM_PROMPT.format(source_lang = source_lang, target_lang = target_lang)
