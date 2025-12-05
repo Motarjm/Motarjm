@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تُرجمان - مقارنة المستندات</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Gulzar&family=Mirza:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/editing_interface.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/editing_interface.js" defer></script>
+</head>
+<body>
+
+    <div class="main-container">
+
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+
+                <span class="logo">تُرجمان</span>
+
+                <h3 class="sidebar-title" id="sidebarTitle">صفحات المستند</h3>
+                <p class="page-info" id="pageInfo">3 صفحات</p>
+
+                <div class="sidebar-buttons">
+                    <button class="sidebar-btn toggle-compare" id="toggleCompareBtn">مقارنة</button>
+                    <button class="sidebar-btn" onclick="window.history.back()">رجوع</button>
+
+                    <button class="sidebar-btn export-btn" onclick="downloadDocument()">⬇ PDF</button>
+                    <button class="sidebar-btn export-btn" onclick="exportWord()">Word</button>
+                </div>
+            </div>
+
+            <div class="pages-list" id="pagesList">
+                <div class="page-thumbnail active" data-page="1">
+                    <div class="page-number">صفحة 1</div>
+                    <div class="page-preview">
+                        تقرير الاقتصاد العالمي - شهد الاقتصاد العالمي تغييرات كبيرة...
+                    </div>
+                </div>
+                <div class="page-thumbnail" data-page="2">
+                    <div class="page-number">صفحة 2</div>
+                    <div class="page-preview">
+                        التحول الرقمي والابتكار - أصبح التحول الرقمي ضرورياً للشركات...
+                    </div>
+                </div>
+                <div class="page-thumbnail" data-page="3">
+                    <div class="page-number">صفحة 3</div>
+                    <div class="page-preview">
+                        الاستدامة والمسؤولية - أصبحت الاستدامة مصدر قلق بالغ الأهمية...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="editor-area active" id="editorArea">
+            <div style="width: 100%; max-width: 21cm;">
+
+                <div class="document-page" id="page-1">
+                    <div class="page-header">
+                        <h1 class="page-title">تقرير الاقتصاد العالمي</h1>
+                        <p class="page-subtitle">تحليل شامل للتطورات الاقتصادية العالمية</p>
+                    </div>
+                    <div class="content-section">
+                        <h2 class="section-heading">المقدمة</h2>
+                        <p class="content-paragraph" contenteditable="true">
+                            شهد الاقتصاد العالمي تغييرات كبيرة خلال العقد الماضي، حيث أدت العولمة والتقدم التكنولوجي إلى تشكيل مشهد اقتصادي جديد. تتسم هذه الفترة بزيادة الترابط الاقتصادي، وظهور قوى اقتصادية جديدة، وتسارع وتيرة الابتكار. هذه العوامل تفرض تحديات وفرصاً جديدة على الحكومات والشركات والأفراد على حد سواء.
+                        </p>
+                        <p class="content-paragraph" contenteditable="true">
+                            ظهرت شركات التكنولوجيا كلاعبين رئيسيين في السوق العالمية، وأصبح تأثيرها يمتد ليشمل جميع القطاعات الاقتصادية. يعد فهم هذه الديناميكيات الجديدة أمراً حيوياً لتوجيه السياسات الاقتصادية المستقبلية وضمان نمو مستدام وعادل.
+                        </p>
+                    </div>
+                    <div class="page-footer">
+                        <span>تُرجمان - محرر المستندات</span>
+                        <span>صفحة 1 من 3</span>
+                    </div>
+                </div>
+
+                <div class="document-page" id="page-2">
+                    <div class="content-section">
+                        <h2 class="section-heading">التحول الرقمي والابتكار</h2>
+                        <p class="content-paragraph" contenteditable="true">
+                            أصبح التحول الرقمي ضرورياً للشركات للبقاء تنافسية في السوق العالمية. يشمل ذلك تبني تقنيات مثل الذكاء الاصطناعي، والبيانات الضخمة، والحوسبة السحابية لتحسين الكفاءة وتطوير منتجات وخدمات جديدة. الابتكار هو القوة الدافعة الرئيسية لهذا التحول.
+                        </p>
+                    </div>
+                    <div class="page-footer">
+                        <span>تُرجمان - محرر المستندات</span>
+                        <span>صفحة 2 من 3</span>
+                    </div>
+                </div>
+
+                <div class="document-page" id="page-3">
+                    <div class="content-section">
+                        <h2 class="section-heading">الاستدامة والمسؤولية الاجتماعية</h2>
+                        <p class="content-paragraph" contenteditable="true">
+                            أصبحت الاستدامة مصدر قلق بالغ الأهمية للمستثمرين والمستهلكين والحكومات. تزداد الضغوط على الشركات لتبني ممارسات مسؤولة بيئياً واجتماعياً. من المتوقع أن يلعب الاقتصاد الأخضر دوراً أكبر في النمو الاقتصادي المستقبلي.
+                        </p>
+                    </div>
+                    <div class="page-footer">
+                        <span>تُرجمان - محرر المستندات</span>
+                        <span>صفحة 3 من 3</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="comparison-area" id="comparisonArea">
+
+            <div class="comparison-page-wrapper" id="wrapper-original">
+                <h3 class="comparison-page-title original-title">النص الأصلي (العربية)</h3>
+                <div class="comparison-doc-page original-page" id="comp-page-1-ar">
+                    <div class="content-section">
+                        <h2 class="section-heading">المقدمة</h2>
+                        <p class="content-paragraph">شهد الاقتصاد العالمي تغييرات كبيرة خلال العقد الماضي، حيث أدت العولمة والتقدم التكنولوجي إلى تشكيل مشهد اقتصادي جديد. تتسم هذه الفترة بزيادة الترابط الاقتصادي، وظهور قوى اقتصادية جديدة، وتسارع وتيرة الابتكار. هذه العوامل تفرض تحديات وفرصاً جديدة على الحكومات والشركات والأفراد على حد سواء.</p>
+                        <p class="content-paragraph">ظهرت شركات التكنولوجيا كلاعبين رئيسيين في السوق العالمية، وأصبح تأثيرها يمتد ليشمل جميع القطاعات الاقتصادية. يعد فهم هذه الديناميكيات الجديدة أمراً حيوياً لتوجيه السياسات الاقتصادية المستقبلية وضمان نمو مستدام وعادل.</p>
+                    </div>
+                </div>
+                <div class="comparison-doc-page original-page" id="comp-page-2-ar">
+                    <div class="content-section">
+                        <h2 class="section-heading">التحول الرقمي والابتكار</h2>
+                        <p class="content-paragraph">أصبح التحول الرقمي ضرورياً للشركات للبقاء تنافسية في السوق العالمية. يشمل ذلك تبني تقنيات مثل الذكاء الاصطناعي، والبيانات الضخمة، والحوسبة السحابية لتحسين الكفاءة وتطوير منتجات وخدمات جديدة. الابتكار هو القوة الدافعة الرئيسية لهذا التحول.</p>
+                    </div>
+                </div>
+                <div class="comparison-doc-page original-page" id="comp-page-3-ar">
+                    <div class="content-section">
+                        <h2 class="section-heading">الاستدامة والمسؤولية الاجتماعية</h2>
+                        <p class="content-paragraph">أصبحت الاستدامة مصدر قلق بالغ الأهمية للمستثمرين والمستهلكين والحكومات. تزداد الضغوط على الشركات لتبني ممارسات مسؤولة بيئياً واجتماعياً. من المتوقع أن يلعب الاقتصاد الأخضر دوراً أكبر في النمو الاقتصادي المستقبلي.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="comparison-page-wrapper" id="wrapper-backtranslation">
+                <h3 class="comparison-page-title backtranslation-title">إعادة الترجمة (الإنجليزية)</h3>
+                <div class="comparison-doc-page backtranslation-page" id="comp-page-1-en-back">
+                    <div class="content-section">
+                        <h2 class="section-heading">Introduction</h2>
+                        <p class="content-paragraph">The global economy has witnessed great changes during the last decade, where globalization and technological progress led to the formation of a new economic scene. This period is marked by an increase in economic interconnectivity, the appearance of new economic powers, and the acceleration of the pace of innovation. These factors impose challenges and opportunities alike on governments, companies, and individuals.</p>
+                        <p class="content-paragraph">Technology corporations have emerged as main players in the global market, and their influence extends to encompass all economic sectors. Understanding these new dynamics is a vital matter for guiding future economic policies and guaranteeing sustainable and fair growth.</p>
+                    </div>
+                </div>
+                <div class="comparison-doc-page backtranslation-page" id="comp-page-2-en-back">
+                    <div class="content-section">
+                        <h2 class="section-heading">Digital Transformation and Innovation</h2>
+                        <p class="content-paragraph">Digital transformation has become essential for companies to remain competitive in the global market. This includes adopting technologies such as AI, big data, and cloud computing to improve efficiency and develop new products and services. Innovation is the primary driving power behind this transformation.</p>
+                    </div>
+                </div>
+                <div class="comparison-doc-page backtranslation-page" id="comp-page-3-en-back">
+                    <div class="content-section">
+                        <h2 class="section-heading">Sustainability and Social Responsibility</h2>
+                        <p class="content-paragraph">Sustainability has become a critically important source of concern for investors, consumers, and governments. Pressure is increasing on companies to adopt environmentally and socially responsible practices. The green economy is expected to play a larger role in future economic growth.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="comparison-page-wrapper" id="wrapper-translation">
+                <h3 class="comparison-page-title translation-title">الترجمة النهائية (الإنجليزية)</h3>
+                <div class="comparison-doc-page translation-page" id="comp-page-1-en-final">
+                    <div class="content-section">
+                        <h2 class="section-heading">Introduction</h2>
+                        <p class="content-paragraph">The global economy has undergone substantial changes over the past decade. Globalization and technological advancements have shaped a new economic landscape characterized by increased interdependence, the rise of new economic powers, and a rapid pace of innovation. These factors present governments, businesses, and individuals with both challenges and opportunities.</p>
+                        <p class="content-paragraph">Technology firms have established themselves as major players in the global market, with their influence spanning all economic sectors. Comprehending these new dynamics is crucial for directing future economic policies and ensuring sustainable, equitable growth.</p>
+                    </div>
+                </div>
+                <div class="comparison-doc-page translation-page" id="comp-page-2-en-final">
+                    <div class="content-section">
+                        <h2 class="section-heading">Digital Transformation and Innovation</h2>
+                        <p class="content-paragraph">Digital transformation is now essential for businesses to maintain global competitiveness. This involves implementing technologies like Artificial Intelligence, Big Data, and cloud computing to boost efficiency and develop novel products and services. Innovation is the core driver of this transition.</p>
+                    </div>
+                </div>
+                <div class="comparison-doc-page translation-page" id="comp-page-3-en-final">
+                    <div class="content-section">
+                        <h2 class="section-heading">Sustainability and Social Responsibility</h2>
+                        <p class="content-paragraph">Sustainability has become a paramount concern for investors, consumers, and governments alike. There is growing pressure on corporations to adopt environmentally and socially responsible practices. The green economy is anticipated to play a significant role in future economic expansion.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+</body>
+</html>

@@ -28,6 +28,10 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 async def serve_home(request: Request):
     return templates.TemplateResponse("Torgman.html", {"request": request})
 
+@app.get("/editing", response_class=HTMLResponse)
+async def serve_home(request: Request):
+    return templates.TemplateResponse("editing_interface.html", {"request": request})
+
 # Keep your original root endpoint
 @app.get("/api", tags=["Root"])
 def root():
