@@ -29,8 +29,12 @@ async def serve_home(request: Request):
     return templates.TemplateResponse("Torgman.html", {"request": request})
 
 @app.get("/editing", response_class=HTMLResponse)
-async def serve_home(request: Request):
+async def editing(request: Request):
     return templates.TemplateResponse("editing_interface.html", {"request": request})
+
+@app.get("/compare", response_class=HTMLResponse)
+async def compare(request: Request):
+    return templates.TemplateResponse("compare_interface.html", {"request": request})
 
 # Keep your original root endpoint
 @app.get("/api", tags=["Root"])
