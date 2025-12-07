@@ -1,9 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
 from app.models.models import TranslationRequest
-
 from io import BytesIO
-from app.services.extract_text import extract_text_from_pdf
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
 
@@ -49,10 +47,9 @@ async def translate_pdf_file(
     try:
         pdf_content = await file.read()
         pdf_file = BytesIO(pdf_content)
-        content = extract_text_from_pdf(pdf_file)
 
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid PDF file")
 
-    pdf_file = translate_file_content_pdf(content, pdf_file, source_lang, target_lang)
+    pdf_file = translate_file_content_pdf(pdf_file, source_lang, target_lang)
     return {"pdf_file": pdf_file}

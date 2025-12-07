@@ -1,3 +1,4 @@
+from io import BytesIO
 import pymupdf
 import cv2
 from doclayout_yolo import YOLOv10
@@ -6,7 +7,7 @@ from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
 
-def pdf_to_images(pdf_file):
+def pdf_to_images(pdf_file: BytesIO):
     """Generator that yields PIL Images one page at a time"""
     with pymupdf.open(pdf_file) as doc:
         for page_num in range(len(doc)):
@@ -134,13 +135,13 @@ def extract_text_from_image(image):
     return ocr_text
 
 
-def extract_text_from_pdf(pdf_file):
+def extract_text_from_pdf(pdf_file: BytesIO):
     """
     Takes a pdf file and returns a List[List[dict]], outer index represent the different pages
     the inner index represent the different blocks of text inside a page
 
     Arguments:
-        - pdf_file, str
+        - pdf_file, BytesIO: a file stored in RAM, can be used by open() function
 
     Returns:
         - page_contents, List[list[dict]]:
