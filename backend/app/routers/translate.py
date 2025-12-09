@@ -51,5 +51,6 @@ async def translate_pdf_file(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid PDF file")
 
-    pdf_file = translate_file_content_pdf(pdf_file, source_lang, target_lang)
-    return {"pdf_file": pdf_file}
+    translated_content = translate_file_content_pdf(pdf_file, source_lang, target_lang)
+
+    # return {"pdf_file": pdf_file}
