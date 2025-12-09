@@ -144,19 +144,19 @@ def extract_text_from_pdf(pdf_file: BytesIO):
         - pdf_file, BytesIO: a file stored in RAM, can be used by open() function
 
     Returns:
-        - page_contents, List[list[dict]]:
+        - all_content, List[list[dict]]:
             The dict contains:
                 - text, str: the text in the given block
                 - bbox, tuple(int): x0, y0, x1, y1 -> the bounding boxes of the given text
 
     """
-    page_contents = []
+    all_content = []
     for image in pdf_to_images(pdf_file):
-        page_contents.append(
+        all_content.append(
             extract_text_from_image(image)
         )
 
-    return page_contents
+    return all_content
 
 
 
