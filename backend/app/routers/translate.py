@@ -1,8 +1,9 @@
+import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
 from app.models.models import TranslationRequest
-
 from io import BytesIO
+from fastapi.responses import StreamingResponse
 from app.services.extract_text import extract_text_from_pdf
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
@@ -37,22 +38,39 @@ async def translate_txt_file(
 
 @router.post("/pdf_file")
 async def translate_pdf_file(
-    file: UploadFile,
+    file: UploadFile = File(...),
     source_lang: str = "en",
     target_lang: str = "ar"
 ):
+    print("filename:", file.filename)
+    print("content_type:", file.content_type)
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
-    if file.content_type not in ["application/pdf"]:
+    if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
     
     try:
-        pdf_content = await file.read()
-        pdf_file = BytesIO(pdf_content)
-        content = extract_text_from_pdf(pdf_file)
+        pdf_bytes = await file.read()
 
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid PDF file")
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+            temp.write(pdf_bytes)
+            temp_path = temp.name
 
-    pdf_file = translate_file_content_pdf(content, pdf_file, source_lang, target_lang)
-    return {"pdf_file": pdf_file}
+        
+        content = extract_text_from_pdf(temp_path)
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid PDF file: {str(e)}")
+
+    #pdf_file.seek(0)
+    output_file = translate_file_content_pdf(content, temp_path, source_lang, target_lang)
+
+    #output_file.seek(0)
+
+    return StreamingResponse(
+        output_file,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=translated_{file.filename}"
+        }
+    )
