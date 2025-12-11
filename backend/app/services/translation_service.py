@@ -1,7 +1,7 @@
 from io import BytesIO
 import requests
 from app.config.config import *
-from app.helpers.prompts import *
+from app.core.prompts import *
 from app.services.pdf_builder import *
 from app.services.extract_text import *
 
