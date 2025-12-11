@@ -159,6 +159,3 @@ def extract_text_from_pdf(pdf_file: BytesIO):
 
     return all_content
 
-
-print(extract_text_from_pdf("story.pdf"))
-
