@@ -4,35 +4,28 @@ from app.config.config import *
 from app.core.prompts import *
 from app.services.pdf_builder import *
 from app.services.extract_text import *
+from app.core.workflow import *
+
+# we should use a class that intializes the graph and only invokes it to translation
+# instead of initializin each time we need to translate
 
 def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
-    sys_prompt = SYSTEM_PROMPT.format(source_lang = source_lang, target_lang = target_lang)
-    trans_prompt = (TRANSLATE_PROMPT
-                    .format(source_lang=source_lang,
-                                           target_lang=target_lang,
-                                           source_text=text))
-    messages = [
-        {
-            "role":"system",
-            "content":sys_prompt
-        },
-        {
-            "role":"user",
-            "content":trans_prompt
-        }
-    ]
+    graph = build_graph()
+
+    state = State(
+        source_text=text,
+        source_lang=source_lang,
+        target_lang=target_lang)
+
     try:
-        completion = model.chat.completions.create(
-            messages= messages,
-            temperature=TEMPERATURE
-        )
+        response = graph.invoke(state)
 
     except requests.exceptions.RequestException as e:
         raise Exception(f"Network or HTTP error during translation: {e}")
     except ValueError:
         raise Exception("Failed to parse API response as JSON")
 
-    translated = completion.choices[0].message.content
+    translated = response["current_translation"]
     if not translated:
         raise Exception("Translation failed or no text returned from API")
 
@@ -64,6 +57,7 @@ def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_la
         translated_blocks = []
         for block in page:
             translated_text = translate_text(block["text"], "en", "ar")
+
             translated_blocks.append({
                 "text":translated_text,
                 "bbox":block["bbox"]
