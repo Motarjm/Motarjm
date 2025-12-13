@@ -72,5 +72,3 @@ def translate_file_content_pdf(pdf_file: BytesIO, source_lang: str = "en", targe
         translated_content.append(translated_blocks)
 
     return translated_content
-
-
