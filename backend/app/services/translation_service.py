@@ -41,12 +41,12 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") 
 def translate_file_content_txt(file_content: str, source_lang: str = "en", target_lang: str = "ar") -> str:
     return translate_text(file_content, source_lang, target_lang)
 
-def translate_file_content_pdf(pdf_file: BytesIO, source_lang: str = "en", target_lang: str = "ar") -> list[list[dict]]:
+def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_lang: str = "ar") -> list[list[dict]]:
     """
     translates file content
 
     Args:
-         - pdf_file, BytesIO: a file stored in RAM, can be used by open() function
+         - pdf_file, str: pdf file path
          - source_lang, str: source language to translate from
          - target_lang, str: target language to translate into
 

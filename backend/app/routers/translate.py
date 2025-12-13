@@ -2,6 +2,7 @@ import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
 from app.models.models import TranslationRequest
+from app.services.extract_text import *
 from io import BytesIO
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
@@ -48,7 +49,7 @@ async def translate_pdf_file(
         raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
     
     try:
-        pdf_content = await file.read()
+        pdf_bytes = await file.read()
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
             temp.write(pdf_bytes)
