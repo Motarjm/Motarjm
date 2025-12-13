@@ -1,8 +1,9 @@
 from io import BytesIO
 import pymupdf
-import cv2
 from doclayout_yolo import YOLOv10
 from huggingface_hub import hf_hub_download
+# the below line must be imported before paddleocr package to resolve langchain import error
+from app.patches.patch_langchain_imports import *
 from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
@@ -157,6 +158,4 @@ def extract_text_from_pdf(pdf_file: BytesIO):
         )
 
     return all_content
-
-
 
