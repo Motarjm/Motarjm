@@ -3,8 +3,6 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
 from app.models.models import TranslationRequest
 from io import BytesIO
-from fastapi.responses import StreamingResponse
-from app.services.extract_text import extract_text_from_pdf
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
 
@@ -50,27 +48,18 @@ async def translate_pdf_file(
         raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
     
     try:
-        pdf_bytes = await file.read()
+        pdf_content = await file.read()
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
             temp.write(pdf_bytes)
             temp_path = temp.name
 
-        
-        content = extract_text_from_pdf(temp_path)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid PDF file")
 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid PDF file: {str(e)}")
-
-    #pdf_file.seek(0)
-    output_file = translate_file_content_pdf(content, temp_path, source_lang, target_lang)
-
-    #output_file.seek(0)
-
-    return StreamingResponse(
-        output_file,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename=translated_{file.filename}"
-        }
-    )
+    translated_content = translate_file_content_pdf(temp_path, source_lang, target_lang)
+    return {
+        "source_language": source_lang,
+        "target_language": target_lang,
+        "data": translated_content
+    }
