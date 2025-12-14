@@ -89,6 +89,10 @@ EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with 
 
 **Translation**:
 {translation}
+
+Only Provide a JSON object with:
+- "reason": Brief explanation of identified errors and their severity
+- "score": Numerical score (0-100)
 """
 
 ADVISOR_SYS_PROMPT = """You are a senior translation editor with extensive expertise in linguistic nuance, cultural adaptation, and translation quality. Your role is to review translations and provide actionable suggestions for improvement.
