@@ -2,7 +2,6 @@ from io import BytesIO
 import requests
 from app.config.config import *
 from app.core.prompts import *
-from app.services.pdf_builder import *
 from app.services.extract_text import *
 from app.core.workflow import *
 
@@ -66,3 +65,5 @@ def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_la
         translated_content.append(translated_blocks)
 
     return translated_content
+
+translate_file_content_pdf("story.pdf")

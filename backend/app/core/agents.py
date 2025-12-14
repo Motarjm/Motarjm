@@ -3,8 +3,9 @@ import re
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 from app.core.llms import *
+from app.core.graph_models import *
 
-def translator_agent(state: State):
+def translator_agent(state: State) -> dict:
   """
   Translates the given text and returns output translation
   """
