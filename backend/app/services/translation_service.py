@@ -66,4 +66,4 @@ def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_la
 
     return translated_content
 
-translate_file_content_pdf("story.pdf")
+
