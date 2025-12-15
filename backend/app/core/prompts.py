@@ -24,13 +24,7 @@ Produce a revised translation that fully implements all of the senior editor's s
 - Preserve accurate meaning while implementing all suggestions
 - Keep aspects of the original translation that weren't critiqued
 - Prioritize the senior editor’s guidance over the previous translation when conflicts exist.
-- When the editor suggests alternatives, choose the one that best fits the context
-
-
-## Output
-
-Provide ONLY the revised translation text. No explanations, notes, or commentary.
-"""
+- When the editor suggests alternatives, choose the one that best fits the context"""
 
 
 TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback:
@@ -46,7 +40,8 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 
 **Senior Editor's Feedback**:
 {advice}
-"""
+
+Provide ONLY the revised translation text. No explanations, notes, or commentary."""
 
 EVALUATOR_SYS_PROMPT ="""You are an expert translation evaluator using the Error Span Annotation (ESA) framework. Evaluate translations by combining error span marking with holistic scoring.
 
@@ -70,12 +65,7 @@ After marking all errors, assign a holistic score from 0-100 considering all mar
 **30-39**: Very poor. Multiple critical errors or pervasive major errors.
 **20-29**: Severely deficient. Major portions wrong or incomprehensible.
 **10-19**: Critically flawed. Most content incorrect.
-**0-9**: Unusable. Wrong language or gibberish.
-
-## Output
-Only Provide a JSON object with:
-- "reason": Brief explanation of identified errors and their severity
-- "score": Numerical score (0-100)"""
+**0-9**: Unusable. Wrong language or gibberish."""
 
 # if you used with_sturcture_output, remove the "Only" in the evaluator sys prompt above so that the model can output freely and i only parse the json
 
@@ -92,8 +82,7 @@ EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with 
 
 Only Provide a JSON object with:
 - "reason": Brief explanation of identified errors and their severity
-- "score": Numerical score (0-100)
-"""
+- "score": Numerical score (0-100)"""
 
 ADVISOR_SYS_PROMPT = """You are a senior translation editor with extensive expertise in linguistic nuance, cultural adaptation, and translation quality. Your role is to review translations and provide actionable suggestions for improvement.
 
@@ -115,11 +104,7 @@ Analyze the source text and translation, then provide specific, constructive edi
 - Be specific: Point to exact words, phrases, or segments that need improvement
 - Be constructive: Explain why something is problematic and suggest alternatives
 - Prioritize: Focus on issues that most impact quality (accuracy > style)
-- Consider context: Account for register, domain, and purpose
-
-## Output Format
-- Provide suggestions only.
-"""
+- Consider context: Account for register, domain, and purpose"""
 
 ADVISOR_PROMPT="""Please review this translation and provide editorial suggestions for improvement:
 
@@ -131,4 +116,6 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 
 **Translation**:
 {translation}
-"""
+
+## Output Format
+- Provide suggestions only."""

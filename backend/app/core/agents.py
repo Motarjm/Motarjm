@@ -19,17 +19,20 @@ def translator_agent(state: State) -> dict:
   # empty string, no advice
   if not advice:
     sys_prompt = SystemMessage(
-        content=TRANSLATOR_SYS_PROMPT)
+        content=TRANSLATOR_SYS_PROMPT,
+        agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
         content=TRANSLATOR_PROMPT.format(source_text = source_text,
                                          target_lang = target_lang,
-                                        source_lang = source_lang))
+                                        source_lang = source_lang),
+        agent="TRANSLATOR")
 
   # use advice and current translation
   else:
     sys_prompt = SystemMessage(
-        content=TRANSLATOR_ADVICE_SYS_PROMPT)
+        content=TRANSLATOR_ADVICE_SYS_PROMPT,
+        agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
         content=TRANSLATOR_ADVICE_PROMPT.format(source_text = source_text,
@@ -37,14 +40,15 @@ def translator_agent(state: State) -> dict:
                                                 advice = advice,
                                                 target_lang = target_lang,
                                                 source_lang = source_lang
-                                                ))
+                                                ),
+        agent="TRANSLATOR")
 
 
   prompt = [sys_prompt, user_prompt]
 
   translation = translator.invoke(prompt).content
 
-  return {"messages": prompt + [AIMessage(content=translation)],
+  return {"messages": prompt + [AIMessage(content=translation, agent="TRANSLATOR")],
           "current_translation": translation}
 
 
@@ -61,7 +65,8 @@ def evaluator_agent(state: State):
   target_lang = state.target_lang
 
   sys_prompt = SystemMessage(
-      content= EVALUATOR_SYS_PROMPT)
+      content= EVALUATOR_SYS_PROMPT,
+      agent="EVALUATOR")
 
   user_prompt = HumanMessage(
       content=EVALUATOR_PROMPT.format
@@ -70,7 +75,8 @@ def evaluator_agent(state: State):
           translation= translation,
           target_lang = target_lang,
           source_lang = source_lang
-        ))
+        ),
+       agent="EVALUATOR")
 
 
   prompt = [sys_prompt, user_prompt]
@@ -78,11 +84,14 @@ def evaluator_agent(state: State):
   response = evaluator.invoke(prompt).content
 
   # transform response string into json, we should later use 'with_structued_output'
-  matched = re.search(r'\{.*\}', response, re.DOTALL).group(0)
+  if matched := re.search(r'\{.*\}', response, re.DOTALL):
+    matched = matched.group(0)
+    score = int(json.loads(matched)["score"])
 
-  score = int(json.loads(matched)["score"])
+  else:
+    score = 0
 
-  return {"messages": prompt + [AIMessage(content= response)],
+  return {"messages": prompt + [AIMessage(content= response, agent="EVALUATOR")],
           "current_score": score}
 
 
@@ -90,6 +99,7 @@ def advisor_agent(state: State):
   """suggest revisions on the translation"""
 
   source_text = state.source_text
+  messages = state.messages
 
   # get current translation
   translation = state.current_translation
@@ -98,7 +108,8 @@ def advisor_agent(state: State):
   target_lang = state.target_lang
 
   sys_prompt = SystemMessage(
-      content= ADVISOR_SYS_PROMPT)
+      content= ADVISOR_SYS_PROMPT,
+      agent="ADVISOR")
 
 
   user_prompt = HumanMessage(
@@ -108,14 +119,21 @@ def advisor_agent(state: State):
           translation= translation,
           target_lang = target_lang,
           source_lang = source_lang
-        ))
+        ),
+       agent="ADVISOR")
+  
+  # get past messages of advisor agent
+  history = []
+  for msg in messages:
+      if msg.agent == "ADVISOR" and not isinstance(msg, SystemMessage):
+          history.append(msg)
 
 
-  prompt = [sys_prompt, user_prompt]
+  prompt = [sys_prompt] + history + [user_prompt]
 
   advice = advisor.invoke(prompt).content
 
-  return {"messages": prompt + [AIMessage(content= advice)],
+  return {"messages": prompt + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
 
 
