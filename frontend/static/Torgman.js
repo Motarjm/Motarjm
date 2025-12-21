@@ -4,6 +4,7 @@ const fileInput = document.getElementById('fileInput');
 const uploadArea = document.querySelector('.upload-area');
 const translateBtn = document.getElementById("translateBtn");
 const statusText = document.getElementById("status");
+const downloadLink = document.getElementById("downloadLink");
 
 //fileInput.addEventListener('change', handleFiles);
 
