@@ -7,6 +7,10 @@ TRANSLATOR_SYS_PROMPT = """You are an expert translator with deep knowledge of l
 
 TRANSLATOR_PROMPT="""Translate the following text from {source_lang} to {target_lang} without any explanations:
 
+**Previous Context**:
+{prev_context}
+
+**Source Text**:
 {source_text}"""
 
 
@@ -31,6 +35,9 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
+
+**Previous Context**:
+{prev_context}
 
 **Original Source Text**:
 {source_text}
@@ -67,12 +74,15 @@ After marking all errors, assign a holistic score from 0-100 considering all mar
 **10-19**: Critically flawed. Most content incorrect.
 **0-9**: Unusable. Wrong language or gibberish."""
 
-# if you used with_sturcture_output, remove the "Only" in the evaluator sys prompt above so that the model can output freely and i only parse the json
+# if you used with_sturcture_output, remove the "Only" in the evaluator prompt below so that the model can output freely and i only parse the json
 
 EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with reason and score:
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
+
+**Previous Context**:
+{prev_context}
 
 **Original Text**:
 {source_text}
@@ -110,6 +120,9 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
+
+**Previous Context**:
+{prev_context}
 
 **Source Text**:
 {source_text}

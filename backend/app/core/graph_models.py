@@ -9,6 +9,7 @@ class State(BaseModel):
   source_lang: str
   target_lang: str
   source_text: str
+  prev_context: str
   messages: Annotated[List[AnyMessage], operator.add] = []
   current_translation: str = ""
   current_advice: str = ""

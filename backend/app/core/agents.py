@@ -12,7 +12,7 @@ def translator_agent(state: State) -> dict:
   source_text = state.source_text
   source_lang = state.source_lang
   target_lang = state.target_lang
-
+  prev_context = state.prev_context
   advice = state.current_advice
   translation = state.current_translation
 
@@ -25,7 +25,8 @@ def translator_agent(state: State) -> dict:
     user_prompt = HumanMessage(
         content=TRANSLATOR_PROMPT.format(source_text = source_text,
                                          target_lang = target_lang,
-                                        source_lang = source_lang),
+                                        source_lang = source_lang,
+                                        prev_context = prev_context),
         agent="TRANSLATOR")
 
   # use advice and current translation
@@ -39,7 +40,8 @@ def translator_agent(state: State) -> dict:
                                                 translation = translation,
                                                 advice = advice,
                                                 target_lang = target_lang,
-                                                source_lang = source_lang
+                                                source_lang = source_lang,
+                                                prev_context = prev_context
                                                 ),
         agent="TRANSLATOR")
 
@@ -57,10 +59,9 @@ def evaluator_agent(state: State):
   Evaluates the translation using source text and the translation
   """
   source_text = state.source_text
-
+  prev_context = state.prev_context
   # get current translation
   translation = state.current_translation
-
   source_lang = state.source_lang
   target_lang = state.target_lang
 
@@ -74,7 +75,8 @@ def evaluator_agent(state: State):
           source_text = source_text,
           translation= translation,
           target_lang = target_lang,
-          source_lang = source_lang
+          source_lang = source_lang,
+          prev_context = prev_context
         ),
        agent="EVALUATOR")
 
@@ -100,10 +102,9 @@ def advisor_agent(state: State):
 
   source_text = state.source_text
   messages = state.messages
-
+  prev_context = state.prev_context
   # get current translation
   translation = state.current_translation
-
   source_lang = state.source_lang
   target_lang = state.target_lang
 
@@ -118,7 +119,8 @@ def advisor_agent(state: State):
           source_text = source_text,
           translation= translation,
           target_lang = target_lang,
-          source_lang = source_lang
+          source_lang = source_lang,
+          prev_context = prev_context
         ),
        agent="ADVISOR")
   
