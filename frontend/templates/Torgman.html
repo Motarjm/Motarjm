@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تُرجمان</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/Torgman.css" />
+    <script src="/static/Torgman.js" defer></script>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Hero Section -->
+        <section class="hero-section">
+            <div class="logo-container">
+                <h1 class="logo">تُرجمان</h1>
+            </div>
+            <div class="accent-line"></div>
+            <h2 class="hero-title">ترجم مستنداتك باحترافية وسرعة</h2>
+            <p class="hero-subtitle">
+                منصة احترافية متكاملة لترجمة المستندات بكل سهولة. نوفر لك أدوات قوية وسريعة لترجمة ملفاتك بدقة عالية.
+            </p>
+        </section>
+
+        <div class="main-grid">
+            <div class="upload-section card">
+                <h2 class="section-title">رفع المستندات</h2>
+
+                <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">اسحب وأفلت ملفاتك هنا</div>
+                    <div class="upload-hint">أو اضغط للاختيار • PDF, TXT</div>
+                </div>
+
+                <!-- single file only, backend supports txt and pdf -->
+                <input type="file" id="fileInput" class="file-input" accept=".txt,.pdf">
+                <!-- download link placed under translate button -->
+                <!-- <a id="downloadLink" style="display: none;">Download Translated File</a> -->
+
+                <button id="translateBtn" class="translate-btn">ترجم المستندات</button>
+                <a id="downloadLink" style="display: none;">إضغط للتحميل</a>
+                <p id="status"></p>
+            </div>
+
+            <div class="translator-section card">
+                <h3 class="section-title">ترجمة فورية</h3>
+
+                <div class="lang-selector">
+                    <select class="lang-btn" id="sourceLang">
+                        <option value="ar" selected>العربية</option>
+                        <option value="en">English</option>
+                        <option value="fr">Français</option>
+                        <option value="es">Español</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+
+                    <button class="swap-btn" onclick="swapLanguages()">⇄</button>
+
+                    <select class="lang-btn" id="targetLang">
+                        <option value="en" selected>English</option>
+                        <option value="ar">العربية</option>
+                        <option value="fr">Français</option>
+                        <option value="es">Español</option>
+                        <option value="de">Deutsch</option>
+                    </select>
+                </div>
+
+                <textarea class="text-area" id="sourceText" placeholder="اكتب النص هنا للترجمة..."></textarea>
+
+                <button class="translate-btn" onclick="translateText()">ترجم الآن</button>
+
+                <textarea class="text-area" id="targetText" placeholder="ستظهر الترجمة هنا..." readonly></textarea>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ترجمان - وضع التدقيق والتحرير</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Reem+Kufi:wght@400;500;700&family=Merriweather:wght@300;400;700&family=Gulzar&family=Mirza:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/compare_interface.js" defer></script>
+    <link rel="stylesheet" href="/static/compare_interface.css" />
+</head>
+<body>
+
+    <div class="main-container">
+
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+
+                <span class="logo">تُرجمان</span>
+
+                <h3 class="sidebar-title" id="sidebarTitle">وضع التحرير</h3>
+
+                <button class="sidebar-btn" onclick="window.history.back()">رجوع</button>
+            </div>
+        </div>
+
+        <div class="document-area">
+            <div class="document-container">
+
+                <div style="text-align: center; margin-bottom: 2rem; color: #9ca3af; font-family: 'IBM Plex Sans Arabic'; font-size: 0.9rem;">
+                    انقر على أي جملة للمقارنة. يمكنك التحرير مباشرةً في النص النهائي.
+                </div>
+
+                <div class="segment">
+                    <div class="final-text-wrapper">
+                        <span class="seg-id">1</span>
+                        <div class="final-text" contenteditable="true">
+                            The global economy has undergone <span class="add">substantial shifts</span> over the past decade.
+                        </div>
+                    </div>
+                    <div class="comparison-panel">
+                        <div class="tab-nav">
+                            <button class="tab-btn active" onclick="switchTab(event, 'translation-1')">الترجمة</button>
+                            <button class="tab-btn" onclick="switchTab(event, 'backtranslation-1')">إعادة الترجمة</button>
+                        </div>
+
+                        <div class="tab-content active" id="translation-1">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        شهد الاقتصاد العالمي تغييرات كبيرة خلال العقد الماضي.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-en">
+                                    <h4>الترجمة</h4>
+                                    <div class="comp-text">
+                                        The global economy has undergone <span class="add">substantial shifts</span> over the past decade.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="backtranslation-1">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        شهد الاقتصاد العالمي تغييرات كبيرة خلال العقد الماضي.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-back">
+                                    <h4>إعادة الترجمة</h4>
+                                    <div class="comp-text">
+                                        The global economy witnessed <span class="diff">huge changes</span> during the last decade.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="segment" onclick="toggleSegment(this)">
+                    <div class="final-text-wrapper">
+                        <span class="seg-id">2</span>
+                        <div class="final-text" contenteditable="true">
+                            Globalization and technological advancements have shaped a new economic landscape.
+                        </div>
+                    </div>
+                    <div class="comparison-panel">
+                        <div class="tab-nav">
+                            <button class="tab-btn active" onclick="switchTab(event, 'translation-2')">الترجمة</button>
+                            <button class="tab-btn" onclick="switchTab(event, 'backtranslation-2')">إعادة الترجمة</button>
+                        </div>
+
+                        <div class="tab-content active" id="translation-2">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        أدت العولمة والتقدم التكنولوجي إلى تشكيل مشهد اقتصادي جديد.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-en">
+                                    <h4>الترجمة</h4>
+                                    <div class="comp-text">
+                                        Globalization and technological advancements have shaped a new economic landscape.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="backtranslation-2">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        أدت العولمة والتقدم التكنولوجي إلى تشكيل مشهد اقتصادي جديد.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-back">
+                                    <h4>إعادة الترجمة</h4>
+                                    <div class="comp-text">
+                                        Globalization and tech progress led to the formation of a new economic scene.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="segment" onclick="toggleSegment(this)">
+                    <div class="final-text-wrapper">
+                        <span class="seg-id">3</span>
+                        <div class="final-text" contenteditable="true">
+                            This era is characterized by heightened economic interdependence.
+                        </div>
+                    </div>
+                    <div class="comparison-panel">
+                        <div class="tab-nav">
+                            <button class="tab-btn active" onclick="switchTab(event, 'translation-3')">الترجمة</button>
+                            <button class="tab-btn" onclick="switchTab(event, 'backtranslation-3')">إعادة الترجمة</button>
+                        </div>
+
+                        <div class="tab-content active" id="translation-3">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        تتسم هذه الفترة بزيادة الترابط الاقتصادي.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-en">
+                                    <h4>الترجمة</h4>
+                                    <div class="comp-text">
+                                        This era is characterized by heightened economic interdependence.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="backtranslation-3">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        تتسم هذه الفترة بزيادة الترابط الاقتصادي.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-back">
+                                    <h4>إعادة الترجمة</h4>
+                                    <div class="comp-text">
+                                        This period is marked by an increase in economic interconnectivity.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="segment" onclick="toggleSegment(this)">
+                    <div class="final-text-wrapper">
+                        <span class="seg-id">4</span>
+                        <div class="final-text" contenteditable="true">
+                            The emergence of new economic powers, and an <span class="add">accelerating</span> pace of innovation.
+                        </div>
+                    </div>
+                    <div class="comparison-panel">
+                        <div class="tab-nav">
+                            <button class="tab-btn active" onclick="switchTab(event, 'translation-4')">الترجمة</button>
+                            <button class="tab-btn" onclick="switchTab(event, 'backtranslation-4')">إعادة الترجمة</button>
+                        </div>
+
+                        <div class="tab-content active" id="translation-4">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        وظهور قوى اقتصادية جديدة، وتسارع وتيرة الابتكار.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-en">
+                                    <h4>الترجمة</h4>
+                                    <div class="comp-text">
+                                        The emergence of new economic powers, and an <span class="add">accelerating</span> pace of innovation.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="backtranslation-4">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        وظهور قوى اقتصادية جديدة، وتسارع وتيرة الابتكار.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-back">
+                                    <h4>إعادة الترجمة</h4>
+                                    <div class="comp-text">
+                                        And the appearance of new economic powers, and fast innovation.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="segment" onclick="toggleSegment(this)">
+                    <div class="final-text-wrapper">
+                        <span class="seg-id">5</span>
+                        <div class="final-text" contenteditable="true">
+                            Digital transformation has become <span class="add">imperative</span> for businesses to maintain competitiveness.
+                        </div>
+                    </div>
+                    <div class="comparison-panel">
+                        <div class="tab-nav">
+                            <button class="tab-btn active" onclick="switchTab(event, 'translation-5')">الترجمة</button>
+                            <button class="tab-btn" onclick="switchTab(event, 'backtranslation-5')">إعادة الترجمة</button>
+                        </div>
+
+                        <div class="tab-content active" id="translation-5">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        أصبح التحول الرقمي ضرورياً للشركات للبقاء تنافسية.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-en">
+                                    <h4>الترجمة</h4>
+                                    <div class="comp-text">
+                                        Digital transformation has become <span class="add">imperative</span> for businesses to maintain competitiveness.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="backtranslation-5">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        أصبح التحول الرقمي ضرورياً للشركات للبقاء تنافسية.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-back">
+                                    <h4>إعادة الترجمة</h4>
+                                    <div class="comp-text">
+                                        Digital transformation became necessary for companies to stay competitive.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="segment" onclick="toggleSegment(this)">
+                    <div class="final-text-wrapper">
+                        <span class="seg-id">6</span>
+                        <div class="final-text" contenteditable="true">
+                             This entails the adoption of technologies such as Artificial Intelligence.
+                        </div>
+                    </div>
+                    <div class="comparison-panel">
+                        <div class="tab-nav">
+                            <button class="tab-btn active" onclick="switchTab(event, 'translation-6')">الترجمة</button>
+                            <button class="tab-btn" onclick="switchTab(event, 'backtranslation-6')">إعادة الترجمة</button>
+                        </div>
+
+                        <div class="tab-content active" id="translation-6">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        يشمل ذلك تبني تقنيات مثل الذكاء الاصطناعي.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-en">
+                                    <h4>الترجمة</h4>
+                                    <div class="comp-text">
+                                        This entails the adoption of technologies such as Artificial Intelligence.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="backtranslation-6">
+                            <div class="comparison-grid">
+                                <div class="comp-col col-ar">
+                                    <h4>النص الأصلي</h4>
+                                    <div class="comp-text">
+                                        يشمل ذلك تبني تقنيات مثل الذكاء الاصطناعي.
+                                    </div>
+                                </div>
+                                <div class="comp-col col-back">
+                                    <h4>إعادة الترجمة</h4>
+                                    <div class="comp-text">
+                                        This includes adopting tech like AI.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+
+</body>
+</html>
