@@ -1,0 +1,81 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Mirza&family=Gulzar&family=Reem+Kufi:wght@400;500;600;700&family=Merriweather:wght@300;400;700&display=swap');
+
+:root {
+  --cream: #fffef9;
+  --sand: #f5f1e8;
+  --terracotta: #c1502e;
+  --deep-terracotta: #8b3a23;
+  --gold: #d4af37;
+  --olive: #6b7d5c;
+  --charcoal: #2d2d2d;
+  --soft-shadow: rgba(45, 45, 45, 0.08);
+  --blue-accent: #2c7da0;
+  --green-accent: #498d5c;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  background: linear-gradient(to bottom, var(--cream) 0%, var(--sand) 100%);
+  min-height: 100vh;
+  color: var(--charcoal);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image:
+    linear-gradient(30deg, transparent 45%, rgba(107, 125, 92, 0.02) 45%, rgba(107, 125, 92, 0.02) 55%, transparent 55%),
+    linear-gradient(150deg, transparent 45%, rgba(193, 80, 46, 0.02) 45%, rgba(193, 80, 46, 0.02) 55%, transparent 55%);
+  background-size: 80px 80px;
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: 0;
+}
+
+.app-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Global responsive breakpoints */
+@media (max-width: 1024px) {
+  .main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 2rem 1rem;
+  }
+
+  .logo {
+    font-size: 3.5rem !important;
+  }
+
+  .hero-title {
+    font-size: 1.8rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.1rem;
+  }
+
+  .card {
+    padding: 1.5rem;
+  }
+
+  .upload-area {
+    padding: 2.5rem 1.5rem;
+  }
+}

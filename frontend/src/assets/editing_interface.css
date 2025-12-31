@@ -1,0 +1,138 @@
+/* PDF Viewer Interface Styles */
+
+.pdf-viewer-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #e8e4db;
+}
+
+.top-bar {
+  width: 100%;
+  background: var(--sand);
+  border-bottom: 1px solid rgba(107, 125, 92, 0.2);
+  flex-shrink: 0;
+}
+
+.top-bar-content {
+  background: var(--cream);
+  padding: 0.8rem 2rem;
+  border-bottom: 2px solid rgba(107, 125, 92, 0.15);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-direction: row-reverse;  /* Added: logo right, button left */
+
+}
+
+.top-bar .logo {
+    font-family: 'Gulzar', cursive;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--terracotta);
+  text-shadow: 1px 1px 0 var(--gold), 2px 2px 4px rgba(193, 80, 46, 0.2);
+  letter-spacing: 2px;
+}
+
+.download-btn {
+  background: var(--terracotta);
+  color: var(--cream);
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 3px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: 0.2s;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+.download-btn:hover {
+  background: var(--deep-terracotta);
+}
+
+.documents-container {
+  flex: 1;
+  display: flex;
+  gap: 0;
+  overflow-y: auto;
+  height: 100%;
+  direction: ltr;
+}
+
+.documents-container::-webkit-scrollbar {
+  width: 10px;
+  background: #f0f0f0;
+}
+
+.documents-container::-webkit-scrollbar-thumb {
+  background: #b0b0b0;
+  border-radius: 8px;
+}
+
+.documents-container::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+.document-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--sand);
+  height: 100%;
+}
+
+.document-column:first-child {
+  border-left: 1px solid rgba(107, 125, 92, 0.2);
+}
+
+.column-title {
+  font-family: 'Mirza', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 1rem;
+  text-align: center;
+  color: var(--terracotta);
+  background: var(--cream);
+  border-bottom: 2px solid rgba(107, 125, 92, 0.15);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.pdf-wrapper {
+  flex: 1;
+  background: #e8e4db;
+  padding: 1.5rem;
+  height: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+  scrollbar-width: none;
+}
+
+.pdf-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.pdf-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.pdf-page-canvas {
+  background: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.loading-message {
+  text-align: center;
+  padding: 2rem;
+  color: var(--olive);
+  font-size: 1rem;
+}
