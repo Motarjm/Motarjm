@@ -4,7 +4,6 @@ from app.config.config import *
 from app.core.prompts import *
 from app.services.extract_text import *
 from app.core.workflow import *
-
 # we should use a class that intializes the graph and only invokes it to translation
 # instead of initializin each time we need to translate
 
@@ -14,7 +13,9 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") 
     state = State(
         source_text=text,
         source_lang=source_lang,
-        target_lang=target_lang)
+        target_lang=target_lang,
+        max_iterations=1,
+        prev_context="",)
 
     try:
         response = graph.invoke(state)
@@ -33,12 +34,12 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") 
 def translate_file_content_txt(file_content: str, source_lang: str = "en", target_lang: str = "ar") -> str:
     return translate_text(file_content, source_lang, target_lang)
 
-def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_lang: str = "ar") -> list[list[dict]]:
+def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str = "en", target_lang: str = "ar") -> list[list[dict]]:
     """
     translates file content
 
     Args:
-         - pdf_file, str: pdf file path
+         - pdf_bytes, bytes: a stream of bytes representing the pdf file
          - source_lang, str: source language to translate from
          - target_lang, str: target language to translate into
 
@@ -49,7 +50,7 @@ def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_la
                 - text, str: the text in the given block
                 - bbox, tuple(int): x0, y0, x1, y1 -> the bounding boxes of the given text
     """
-    content = extract_text_from_pdf(pdf_file)
+    content = extract_text_from_pdf(pdf_bytes)
 
     translated_content = []
     for page in content:
@@ -63,7 +64,6 @@ def translate_file_content_pdf(pdf_file: str, source_lang: str = "en", target_la
             })
 
         translated_content.append(translated_blocks)
-
+        
     return translated_content
-
 

@@ -8,9 +8,9 @@ from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
 
-def pdf_to_images(pdf_file: BytesIO):
+def pdf_to_images(pdf_bytes: bytes):
     """Generator that yields PIL Images one page at a time"""
-    with pymupdf.open(pdf_file) as doc:
+    with pymupdf.open(stream=pdf_bytes, filetype="pdf") as doc:
         for page_num in range(len(doc)):
             page = doc[page_num]
             mat = pymupdf.Matrix(1, 1)
@@ -136,13 +136,13 @@ def extract_text_from_image(image):
     return ocr_text
 
 
-def extract_text_from_pdf(pdf_file: BytesIO):
+def extract_text_from_pdf(pdf_bytes: bytes):
     """
     Takes a pdf file and returns a List[List[dict]], outer index represent the different pages
     the inner index represent the different blocks of text inside a page
 
     Arguments:
-        - pdf_file, BytesIO: a file stored in RAM, can be used by open() function
+        - pdf_file, bytes: a stream of bytes representing the pdf file
 
     Returns:
         - all_content, List[list[dict]]:
@@ -152,7 +152,7 @@ def extract_text_from_pdf(pdf_file: BytesIO):
 
     """
     all_content = []
-    for image in pdf_to_images(pdf_file):
+    for image in pdf_to_images(pdf_bytes):
         all_content.append(
             extract_text_from_image(image)
         )
