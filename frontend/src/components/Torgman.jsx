@@ -35,13 +35,37 @@ const Torgman = () => {
     setIsTranslating(true);
     setStatus('جارٍ المعالجة...');
     
-    setTimeout(() => {
-      const blob = new Blob([`Translated content of ${fileName}`], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
+    try {
+      // 1. Prepare form data for the backend
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('source_lang', 'en'); // Example static values
+      formData.append('target_lang', 'ar');
+
+      // 2. Fetch the PDF from your FastAPI endpoint
+      const response = await fetch('http://localhost:8000/translate/pdf_file?source_lang=en&target_lang=ar', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('فشلت عملية الترجمة على الخادم');
+      }
+
+      // 3. Receive the response as a binary BLOB
+      const blob = await response.blob();
+      
+      // 4. Create a temporary URL for the browser
+      const url = window.URL.createObjectURL(blob);
+      
       setDownloadUrl(url);
-      setStatus('تمت الترجمة بنجاح');
+      setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+    } catch (error) {
+      console.error("Translation Error:", error);
+      setStatus('حدث خطأ أثناء الاتصال بالخادم');
+    } finally {
       setIsTranslating(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -97,7 +121,7 @@ const Torgman = () => {
               </button>
             ) : (
               <div className="results-actions">
-                <a href={downloadUrl} download="translated_file.txt" className="translate-btn download-btn">
+                <a href={downloadUrl} download="translated_file.pdf" className="translate-btn download-btn">
                   تحميل الملف
                 </a>
                 <button className="translate-btn edit-btn" onClick={() => navigate('/compare')}>

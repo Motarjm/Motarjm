@@ -9,6 +9,8 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 
 // Set the workerSrc for PDF.js
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.isEvalSupported = false;
+
 
 const PDFViewer = ({ pdfUrl, loadingMessage = 'جاري تحميل المستند...', errorMessage = 'خطأ في تحميل المستند' }) => {
   const containerRef = useRef(null);
@@ -24,7 +26,7 @@ const PDFViewer = ({ pdfUrl, loadingMessage = 'جاري تحميل المستن�
       if (!container) return;
       container.innerHTML = '';
       try {
-        const loadingTask = pdfjsLib.getDocument( pdfUrl);
+        const loadingTask = pdfjsLib.getDocument(pdfUrl);
         const pdf = await loadingTask.promise;
         if (!isMounted) return;
         for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
