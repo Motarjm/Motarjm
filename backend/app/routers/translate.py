@@ -1,10 +1,11 @@
 import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
 from app.services.build_pdf import ArabicPDFBuilder
 from app.models.models import TranslationRequest
 from io import BytesIO
+import base64
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
 
@@ -70,15 +71,44 @@ async def translate_pdf_file(
     # 5. Reset buffer position to the start
     buffer.seek(0)
     
-    # send pdf file
+    pdf_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+    
+    # 6. Return JSON response with base64 PDF
+    return JSONResponse({
+        "translated_contents": translated_contents,
+        "pdf": pdf_base64,
+        "filename": "translated.pdf"
+    })
+
+@router.post("/generate-edited-pdf")
+async def generate_edited_pdf(request: dict):
+    # Extract translated_contents from the dict
+    translated_contents = request.get("translated_contents")
+    original_pdf = request.get("original_pdf")
+    
+    if not translated_contents:
+        raise HTTPException(status_code=400, detail="translated_contents is required")
+    
+    # Validate structure
+    if not isinstance(translated_contents, list):
+        raise HTTPException(status_code=400, detail="translated_contents must be a list")
+    
+    # Build the PDF
+    builder = ArabicPDFBuilder()
+    buffer = BytesIO()
+    
+    builder.build(translated_pages = translated_contents, 
+                original_pdf_bytes=base64.b64decode(original_pdf),
+                  output=buffer)
+    
+    buffer.seek(0)
+    
     return StreamingResponse(
         buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=translated.pdf"}
+        headers={
+            "Content-Disposition": "attachment; filename=edited_translation.pdf"
+        }
     )
+        
     
-    # return {
-    #     "source_language": source_lang,
-    #     "target_language": target_lang,
-    #     "data": translated_content
-    # }
