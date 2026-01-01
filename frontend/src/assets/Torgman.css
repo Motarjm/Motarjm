@@ -61,7 +61,7 @@
 
 .main-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;  /* Swapped: translator left, upload right */
+  
   gap: 2.5rem;
   animation: slideUp 0.8s ease-out 0.2s both;
 }
@@ -91,7 +91,6 @@
   background: linear-gradient(to bottom, var(--terracotta), transparent);
 }
 
-
 .section-title {
   font-family: 'Mirza', sans-serif;
   font-size: 1.8rem;
@@ -100,6 +99,8 @@
   font-weight: 700;
   position: relative;
   padding-bottom: 0.75rem;
+  text-align: center;
+
 }
 
 .section-title::after {
@@ -120,7 +121,6 @@
   cursor: pointer;
   transition: all 0.3s ease;
   background: linear-gradient(to bottom, transparent 0%, rgba(245, 241, 232, 0.5) 100%);
-
 }
 
 .upload-area:hover {
@@ -136,11 +136,6 @@
   transition: all 0.3s ease;
 }
 
-.upload-area:hover .upload-icon {
-  opacity: 1;
-  transform: scale(1.05);
-}
-
 .upload-text {
   color: var(--charcoal);
   font-size: 1.2rem;
@@ -154,101 +149,102 @@
   font-weight: 400;
 }
 
-.file-input {
-  display: none;
+/* --- NEW: CLEAN FILE LIST STYLING (Replaced .file-item/info) --- */
+.file-list-container {
+  margin: 1.5rem 0;
 }
 
-.translator-section {
+.file-card {
+  background: white;
+  border: 1px solid rgba(107, 125, 92, 0.15);
+  padding: 1rem 1.2rem;
+  border-radius: 8px;
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.translator-section::after {
-  background: linear-gradient(to bottom, var(--gold), transparent);
-}
-
-.lang-selector {
-  display: flex;
-  gap: 1rem;
   align-items: center;
-  justify-content: center;
-  padding: 1rem 0;
+  gap: 1.2rem;
+  direction: rtl;
+  animation: fadeIn 0.3s ease;
 }
 
-.lang-btn {
+.file-type-icon {
+  font-size: 1.5rem;
   background: var(--sand);
-  border: 1px solid rgba(107, 125, 92, 0.2);
-  color: var(--charcoal);
-  padding: 0.7rem 1.2rem;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
-  font-weight: 500;
-  font-size: 0.95rem;
-  min-width: 120px;
-}
-
-.lang-btn:hover {
-  background: var(--cream);
-  border-color: var(--terracotta);
-}
-
-.lang-btn:focus {
-  outline: none;
-  border-color: var(--terracotta);
-  box-shadow: 0 0 0 3px rgba(193, 80, 46, 0.1);
-}
-
-.swap-btn {
-  background: var(--terracotta);
-  border: none;
-  color: var(--cream);
-  padding: 0.65rem;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  border-radius: 8px;
+}
+
+.file-details {
+  flex: 1;
+  text-align: right;
+}
+
+.file-name {
   font-weight: 600;
-}
-
-.swap-btn:hover {
-  background: var(--deep-terracotta);
-  transform: rotate(180deg);
-}
-
-.text-area {
-  background: var(--sand);
-  border: 1px solid rgba(107, 125, 92, 0.2);
-  border-radius: 2px;
-  padding: 1.2rem;
   color: var(--charcoal);
-  font-family: 'IBM Plex Sans Arabic', sans-serif;
-  font-size: 1rem;
-  resize: vertical;
-  min-height: 140px;
-  transition: all 0.2s ease;
-  line-height: 1.8;
-  width: 100%;
+  font-size: 0.95rem;
+  display: block;
 }
 
-.text-area:focus {
-  outline: none;
-  border-color: var(--terracotta);
-  background: var(--cream);
-  box-shadow: 0 0 0 3px rgba(193, 80, 46, 0.1);
-}
-
-.text-area::placeholder {
+.file-meta {
+  font-size: 0.8rem;
   color: var(--olive);
-  opacity: 0.6;
+  margin-top: 4px;
 }
+
+.remove-file {
+  background: none;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 5px;
+  transition: color 0.2s;
+}
+
+.remove-file:hover { color: var(--terracotta); }
+
+/* --- NEW: UNIFIED BUTTONS AND PLACEMENT --- */
+.action-area {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.results-actions {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+}
+
+.download-btn {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  max-width: 200px;
+}
+
+.edit-btn {
+  background: var(--charcoal) !important; /* Overriding gradient for distinction */
+  flex: 1;
+  max-width: 200px;
+}
+
+.edit-btn:hover {
+  background: #333 !important;
+}
+
+.status-msg {
+  margin-top: 1.2rem;
+  font-size: 0.9rem;
+  color: var(--olive);
+  font-weight: 500;
+}
+
 
 .translate-btn {
   background: linear-gradient(135deg, var(--terracotta) 0%, var(--deep-terracotta) 100%);
@@ -264,21 +260,7 @@
   letter-spacing: 0.5px;
   position: relative;
   overflow: hidden;
-}
-
-.translate-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
   width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s ease;
-}
-
-.translate-btn:hover::before {
-  left: 100%;
 }
 
 .translate-btn:hover {
@@ -286,32 +268,7 @@
   box-shadow: 0 6px 20px rgba(193, 80, 46, 0.25);
 }
 
-.translate-btn:active {
-  transform: translateY(0);
-}
-
 .translate-btn:disabled {
   opacity: 0.6;
-}
-
-.status-text {
-  margin-top: 1rem;
-  text-align: center;
-cursor: not-allowed;
-  color: var(--olive);
-  font-size: 0.95rem;
-}
-
-.download-link {
-  display: inline-block;
-  margin-top: 1rem;
-  color: var(--terracotta);
-  text-decoration: none;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.download-link:hover {
-  color: var(--deep-terracotta);
-  text-decoration: underline;
+  cursor: not-allowed;
 }

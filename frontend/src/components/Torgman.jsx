@@ -1,173 +1,112 @@
 // Torgman.jsx
-// Migrated from Torgman.html and Torgman.js to React
 import React, { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 
-const LANGUAGES = [
-  { value: 'ar', label: 'العربية' },
-  { value: 'en', label: 'English' },
-  { value: 'fr', label: 'Français' },
-  { value: 'es', label: 'Español' },
-  { value: 'de', label: 'Deutsch' },
-];
-
+// Added navigateTo prop to handle page switching
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
   const [status, setStatus] = useState('');
   const [downloadUrl, setDownloadUrl] = useState('');
-  const [sourceLang, setSourceLang] = useState('ar');
-  const [targetLang, setTargetLang] = useState('en');
-  const [sourceText, setSourceText] = useState('');
-  const [targetText, setTargetText] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false); // Track loading state
   const fileInputRef = useRef();
+  const navigate = useNavigate();
+  
 
-  // File upload handlers
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    setSelectedFile(file);
-    setFileName(file ? file.name : '');
+    if (file) {
+      setSelectedFile(file);
+      setFileName(file.name);
+      setDownloadUrl(''); // Reset if new file uploaded
+      setStatus('');
+    }
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    setSelectedFile(file);
-    setFileName(file ? file.name : '');
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  // File translation handler (simulated)
+  // OLD: const handleTranslateFile = async () => { ... }
+  // NEW: Refined with loading states and button logic
   const handleTranslateFile = async () => {
     if (!selectedFile) {
-      alert('Please select or drop a file first!');
+      alert('الرجاء اختيار ملف أولاً');
       return;
     }
-    setStatus('Translating... Please wait.');
-    setDownloadUrl('');
-    // Simulate translation delay
+    setIsTranslating(true);
+    setStatus('جارٍ المعالجة...');
+    
     setTimeout(() => {
-      const blob = new Blob([`[ترجمة تجريبية]
-${fileName}`], { type: 'text/plain' });
+      const blob = new Blob([`Translated content of ${fileName}`], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
-      setStatus('Translation complete.');
-    }, 1200);
-  };
-
-  // Language swap
-  const swapLanguages = () => {
-    setSourceLang(targetLang);
-    setTargetLang(sourceLang);
-    setSourceText(targetText);
-    setTargetText(sourceText);
-  };
-
-  // Text translation (simulated)
-  const handleTranslateText = () => {
-    if (!sourceText.trim()) {
-      alert('الرجاء إدخال نص للترجمة');
-      return;
-    }
-    setTargetText('جارٍ الترجمة...');
-    setTimeout(() => {
-      setTargetText(`[ترجمة تجريبية]\n${sourceText}`);
-    }, 1000);
+      setStatus('تمت الترجمة بنجاح');
+      setIsTranslating(false);
+    }, 1500);
   };
 
   return (
     <div className="container">
-      {/* Hero Section */}
       <section className="hero-section">
         <div className="logo-container">
           <h1 className="logo">تُرجمان</h1>
         </div>
         <div className="accent-line"></div>
         <h2 className="hero-title">ترجم مستنداتك باحترافية وسرعة</h2>
-        <p className="hero-subtitle">
-          منصة احترافية متكاملة لترجمة المستندات بكل سهولة. نوفر لك أدوات قوية وسريعة لترجمة ملفاتك بدقة عالية ومعايير احترافية
-        </p>
       </section>
+
       <div className="main-grid">
         <div className="upload-section card">
           <h2 className="section-title">رفع المستندات</h2>
+          
+          {/* Upload Area */}
           <div
             className="upload-area"
             onClick={() => fileInputRef.current.click()}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
           >
-            <div className="upload-icon">📄</div>
-            <div className="upload-text">
-              {fileName ? `Selected: ${fileName}` : 'اسحب وأفلت ملفاتك هنا'}
-            </div>
-            <div className="upload-hint">أو اضغط للاختيار • PDF, DOC, DOCX, TXT</div>
+            <div className="upload-icon">📤</div>
+            <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
+            <div className="upload-hint">PDF, DOCX, TXT (الحد الأقصى 10MB)</div>
           </div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            className="file-input"
-            multiple={false}
-            accept=".pdf,.doc,.docx,.txt"
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
-          <div className="file-list">
-            {fileName && (
-              <div className="file-item">
-                <div className="file-info">
+          <input type="file" ref={fileInputRef} className="file-input" style={{ display: 'none' }} onChange={handleFileChange} />
+
+          {/* NEW: Clean File Item Display */}
+          {fileName && (
+            <div className="file-list-container">
+              <div className="file-card">
+                <span className="file-type-icon">📄</span>
+                <div className="file-details">
                   <div className="file-name">{fileName}</div>
-                  <div className="file-size">{selectedFile ? (selectedFile.size / 1024).toFixed(2) : 0} كيلوبايت</div>
+                  <div className="file-meta">
+                    {(selectedFile?.size / 1024).toFixed(1)} KB • جاهز للترجمة
+                  </div>
                 </div>
-                <span className="file-check">✓</span>
+                <button className="remove-file" onClick={() => {setFileName(''); setSelectedFile(null);}}>✕</button>
+              </div>
+            </div>
+          )}
+
+          {/* NEW: Button Logic with identical styling */}
+          <div className="action-area">
+            {!downloadUrl ? (
+              <button 
+                className="translate-btn" 
+                onClick={handleTranslateFile}
+                disabled={!selectedFile || isTranslating}
+              >
+                {isTranslating ? 'جاري التحميل...' : 'ترجم المستندات'}
+              </button>
+            ) : (
+              <div className="results-actions">
+                <a href={downloadUrl} download="translated_file.txt" className="translate-btn download-btn">
+                  تحميل الملف
+                </a>
+                <button className="translate-btn edit-btn" onClick={() => navigate('/compare')}>
+                  انتقل للتعديل
+                </button>
               </div>
             )}
+            {status && <p className="status-msg">{status}</p>}
           </div>
-          <button className="translate-btn" onClick={handleTranslateFile}>ترجم المستندات</button>
-          {downloadUrl && (
-            <a href={downloadUrl} download="translated.txt" style={{ display: 'inline-block' }}>إضغط للتحميل</a>
-          )}
-          <p>{status}</p>
-        </div>
-        <div className="translator-section card">
-          <h3 className="section-title">ترجمة فورية</h3>
-          <div className="lang-selector">
-            <select
-              className="lang-btn"
-              value={sourceLang}
-              onChange={e => setSourceLang(e.target.value)}
-            >
-              {LANGUAGES.map(lang => (
-                <option key={lang.value} value={lang.value}>{lang.label}</option>
-              ))}
-            </select>
-            <button className="swap-btn" onClick={swapLanguages}>⇄</button>
-            <select
-              className="lang-btn"
-              value={targetLang}
-              onChange={e => setTargetLang(e.target.value)}
-            >
-              {LANGUAGES.map(lang => (
-                <option key={lang.value} value={lang.value}>{lang.label}</option>
-              ))}
-            </select>
-          </div>
-          <textarea
-            className="text-area"
-            value={sourceText}
-            onChange={e => setSourceText(e.target.value)}
-            placeholder="اكتب النص هنا للترجمة..."
-          />
-          <button className="translate-btn" onClick={handleTranslateText}>ترجم الآن</button>
-          <textarea
-            className="text-area"
-            value={targetText}
-            readOnly
-            placeholder="ستظهر الترجمة هنا..."
-          />
         </div>
       </div>
     </div>

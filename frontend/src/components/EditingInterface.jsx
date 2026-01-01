@@ -4,9 +4,6 @@ import React from 'react';
 import PDFViewer from './PDFViewer';
 import '../assets/editing_interface.css';
 
-// import ARABIC_PDF_URL from '/MQM_study.pdf';
-// import ENGLISH_PDF_URL from '/MQM_study.pdf';
-
 const ARABIC_PDF_URL = '/static/MQM_study.pdf';
 const ENGLISH_PDF_URL = '/static/MQM_study.pdf';
 
