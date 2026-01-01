@@ -174,13 +174,13 @@ class ArabicPDFBuilder:
         
         Args:
             canvas_obj: ReportLab Canvas object to draw on
-            block: Dict with 'text' and 'bbox' keys
+            block: Dict with 'original_text', "translated_text", and 'bbox' keys
             page_width: Width of the page
             page_height: Height of the page
         """
         # Extract bounding box coordinates and text
         x0, y0, x1, y1 = block['bbox']
-        text = block['text'].strip()
+        text = block['translated_text'].strip()
 
         # Calculate dimensions
         box_width = x1 - x0

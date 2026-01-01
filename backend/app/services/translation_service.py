@@ -59,7 +59,8 @@ def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str = "en", target
             translated_text = translate_text(block["text"], "en", "ar")
 
             translated_blocks.append({
-                "text":translated_text,
+                "original_text":block["text"],
+                "translated_text":translated_text,
                 "bbox":block["bbox"]
             })
 
