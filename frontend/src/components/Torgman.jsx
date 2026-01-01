@@ -8,7 +8,9 @@ const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
   const [status, setStatus] = useState('');
-  const [downloadUrl, setDownloadUrl] = useState('');
+  const [downloadUrl, setDownloadUrl] = useState(''); 
+  const [translatedContents, setTranslatedContents] = useState(null);
+  const [pdfBase64, setPdfBase64] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false); // Track loading state
   const fileInputRef = useRef();
   const navigate = useNavigate();
@@ -21,6 +23,8 @@ const Torgman = () => {
       setSelectedFile(file);
       setFileName(file.name);
       setDownloadUrl(''); // Reset if new file uploaded
+      setTranslatedContents(null);
+      setPdfBase64(null);
       setStatus('');
     }
   };
@@ -53,11 +57,32 @@ const Torgman = () => {
       }
 
       // 3. Receive the response as a binary BLOB
-      const blob = await response.blob();
+      // const blob = await response.blob();
       
-      // 4. Create a temporary URL for the browser
-      const url = window.URL.createObjectURL(blob);
-      
+      // // 4. Create a temporary URL for the browser
+      // const url = window.URL.createObjectURL(blob);
+
+      const data = await response.json();
+
+      const blob = new Blob([Uint8Array.from(atob(data.pdf), c => c.charCodeAt(0))], 
+                        { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      setTranslatedContents(data.translated_contents);
+
+      const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            // Split and get only the base64 part (after the comma)
+            const base64String = reader.result.split(',')[1];
+            resolve(base64String);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(selectedFile);
+    });
+
+      // save orignal pdf file
+      setPdfBase64(base64);
       setDownloadUrl(url);
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
     } catch (error) {
@@ -124,7 +149,10 @@ const Torgman = () => {
                 <a href={downloadUrl} download="translated_file.pdf" className="translate-btn download-btn">
                   تحميل الملف
                 </a>
-                <button className="translate-btn edit-btn" onClick={() => navigate('/compare')}>
+                <button className="translate-btn edit-btn" onClick={() => navigate('/compare', { 
+                              state: { translatedContents: translatedContents,
+                                        originalPdf: pdfBase64 }
+                            })}>  
                   انتقل للتعديل
                 </button>
               </div>
