@@ -5,6 +5,36 @@ from app.core.prompts import *
 from app.core.llms import *
 from app.core.graph_models import *
 
+
+def provider_invoke(role, prompt):
+  """
+  Returns model response based on available providers
+  
+  Arguments:
+    - role, str: takes as input 'role' of the agent: 'translator', 'evaluator', 'advisor'
+    - prompt, list
+    
+  Returns:
+    - response: output of '.invoke()'
+  """
+  # if all providers fail, raise error
+  response = None
+  last_error = None
+  # try each provider, if there is error skip it and go to the next one
+  for i in range(len(providers)):
+    try:
+      response = providers[i][role].invoke(prompt)
+      break
+    
+    # Too many requests
+    except Exception as e:
+      last_error = e
+  
+  if response is None:
+    raise RuntimeError("ALl Model providers failed") from last_error
+    
+  return response
+
 def translator_agent(state: State) -> dict:
   """
   Translates the given text and returns output translation
@@ -48,7 +78,8 @@ def translator_agent(state: State) -> dict:
 
   prompt = [sys_prompt, user_prompt]
 
-  translation = translator.invoke(prompt).content
+#  translation = translator.invoke(prompt).content
+  translation = provider_invoke("translator", prompt).content
 
   return {"messages": prompt + [AIMessage(content=translation, agent="TRANSLATOR")],
           "current_translation": translation}
@@ -83,7 +114,8 @@ def evaluator_agent(state: State):
 
   prompt = [sys_prompt, user_prompt]
 
-  response = evaluator.invoke(prompt).content
+  # response = evaluator.invoke(prompt).content
+  response = provider_invoke("evaluator", prompt).content
 
   # transform response string into json, we should later use 'with_structued_output'
   if matched := re.search(r'\{.*\}', response, re.DOTALL):
@@ -133,7 +165,8 @@ def advisor_agent(state: State):
 
   prompt = [sys_prompt] + history + [user_prompt]
 
-  advice = advisor.invoke(prompt).content
+  # advice = advisor.invoke(prompt).content
+  advice = provider_invoke("advisor", prompt).content
 
   return {"messages": prompt + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
