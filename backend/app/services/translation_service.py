@@ -77,5 +77,3 @@ def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str = "en", target
     return translated_content
 
 
-
-translate_file_content_pdf("hi")
