@@ -43,3 +43,5 @@ def build_graph():
     # Compile
     graph = workflow.compile()
     return graph
+
+graph = build_graph()

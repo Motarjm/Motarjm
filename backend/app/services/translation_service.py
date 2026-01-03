@@ -3,13 +3,11 @@ import requests
 from app.config.config import *
 from app.core.prompts import *
 from app.services.extract_text import *
-from app.core.workflow import *
-# we should use a class that intializes the graph and only invokes it to translation
-# instead of initializin each time we need to translate
+from app.core.workflow import graph
+
 
 def translate_text(prev_text:str, text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
-    graph = build_graph()
-
+    
     state = State(
         source_text=text,
         source_lang=source_lang,
