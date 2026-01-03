@@ -7,15 +7,15 @@ from app.core.workflow import *
 # we should use a class that intializes the graph and only invokes it to translation
 # instead of initializin each time we need to translate
 
-def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
+def translate_text(prev_text:str, text: str, source_lang: str = "en", target_lang: str = "ar") -> str:
     graph = build_graph()
 
     state = State(
         source_text=text,
         source_lang=source_lang,
         target_lang=target_lang,
-        max_iterations=1,
-        prev_context="",)
+        max_iterations=2,
+        prev_context=prev_text,)
 
     try:
         response = graph.invoke(state)
@@ -27,7 +27,9 @@ def translate_text(text: str, source_lang: str = "en", target_lang: str = "ar") 
 
     translated = response["current_translation"]
     if not translated:
-        raise Exception("Translation failed or no text returned from API")
+        print(text)
+    
+    #    raise Exception("Translation failed or no text returned from API")
 
     return translated
 
@@ -55,8 +57,14 @@ def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str = "en", target
     translated_content = []
     for page in content:
         translated_blocks = []
-        for block in page:
-            translated_text = translate_text(block["text"], "en", "ar")
+        prev_text = ""
+        for i in range(len(page)):
+            block = page[i]
+            if i != 0:
+                prev_text = page[i - 1]["text"]
+            
+            print("translated")
+            translated_text = translate_text(prev_text, block["text"], source_lang, target_lang)
 
             translated_blocks.append({
                 "original_text":block["text"],
@@ -68,3 +76,6 @@ def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str = "en", target
         
     return translated_content
 
+
+
+translate_file_content_pdf("hi")
