@@ -26,8 +26,7 @@ def translate_text(prev_text:str, text: str, source_lang: str = "en", target_lan
     translated = response["current_translation"]
     if not translated:
         print(text)
-    
-    #    raise Exception("Translation failed or no text returned from API")
+       raise Exception("Translation failed or no text returned from API")
 
     return translated
 
