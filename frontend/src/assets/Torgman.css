@@ -61,7 +61,6 @@
 
 .main-grid {
   display: grid;
-  
   gap: 2.5rem;
   animation: slideUp 0.8s ease-out 0.2s both;
 }
@@ -100,7 +99,6 @@
   position: relative;
   padding-bottom: 0.75rem;
   text-align: center;
-
 }
 
 .section-title::after {
@@ -113,6 +111,70 @@
   background: var(--gold);
 }
 
+/* Language Selector Styles */
+.language-selector {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid rgba(107, 125, 92, 0.15);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.lang-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lang-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--olive);
+  text-align: right;
+}
+
+.lang-select {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  border: 2px solid rgba(107, 125, 92, 0.2);
+  border-radius: 4px;
+  background: white;
+  color: var(--charcoal);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  direction: rtl;
+}
+
+.lang-select:hover {
+  border-color: var(--terracotta);
+  box-shadow: 0 2px 8px rgba(193, 80, 46, 0.1);
+}
+
+.lang-select:focus {
+  border-color: var(--terracotta);
+  box-shadow: 0 0 0 3px rgba(193, 80, 46, 0.1);
+}
+
+.arrow-icon {
+  font-size: 2rem;
+  color: var(--terracotta);
+  margin-bottom: 0.5rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+/* Upload Area */
 .upload-area {
   border: 2px dashed rgba(107, 125, 92, 0.3);
   border-radius: 2px;
@@ -149,7 +211,7 @@
   font-weight: 400;
 }
 
-/* --- NEW: CLEAN FILE LIST STYLING (Replaced .file-item/info) --- */
+/* File List Styling */
 .file-list-container {
   margin: 1.5rem 0;
 }
@@ -205,9 +267,11 @@
   transition: color 0.2s;
 }
 
-.remove-file:hover { color: var(--terracotta); }
+.remove-file:hover { 
+  color: var(--terracotta); 
+}
 
-/* --- NEW: UNIFIED BUTTONS AND PLACEMENT --- */
+/* Action Area and Buttons */
 .action-area {
   margin-top: 2rem;
   text-align: center;
@@ -229,7 +293,7 @@
 }
 
 .edit-btn {
-  background: var(--charcoal) !important; /* Overriding gradient for distinction */
+  background: var(--charcoal) !important;
   flex: 1;
   max-width: 200px;
 }
@@ -244,7 +308,6 @@
   color: var(--olive);
   font-weight: 500;
 }
-
 
 .translate-btn {
   background: linear-gradient(135deg, var(--terracotta) 0%, var(--deep-terracotta) 100%);
@@ -271,4 +334,27 @@
 .translate-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .language-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .arrow-icon {
+    text-align: center;
+    transform: rotate(90deg);
+    margin: 0.5rem 0;
+  }
+  
+  .results-actions {
+    flex-direction: column;
+  }
+  
+  .download-btn,
+  .edit-btn {
+    max-width: 100%;
+  }
 }

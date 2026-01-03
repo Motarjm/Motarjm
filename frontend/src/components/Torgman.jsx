@@ -3,7 +3,6 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 
-// Added navigateTo prop to handle page switching
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -11,10 +10,22 @@ const Torgman = () => {
   const [downloadUrl, setDownloadUrl] = useState(''); 
   const [translatedContents, setTranslatedContents] = useState(null);
   const [pdfBase64, setPdfBase64] = useState(null);
-  const [isTranslating, setIsTranslating] = useState(false); // Track loading state
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [sourceLang, setSourceLang] = useState('English');
+  const [targetLang, setTargetLang] = useState('Arabic');
   const fileInputRef = useRef();
   const navigate = useNavigate();
-  
+
+  const Sourcelanguages = [
+    { code: 'en', name: 'English', englishName: 'English' },
+  ];
+
+  const Targetlanguages = [
+    { code: 'ar', name: 'العربية', englishName: 'Arabic' },
+    { code: 'ar_eg', name: 'العربية المصرية', englishName: 'Egyptian Arabic' },
+    { code: 'ar_sa', name: 'العربية السعودية', englishName: 'Saudi Arabic' },
+  ];
+
 
 
   const handleFileChange = (e) => {
@@ -22,66 +33,58 @@ const Torgman = () => {
     if (file) {
       setSelectedFile(file);
       setFileName(file.name);
-      setDownloadUrl(''); // Reset if new file uploaded
+      setDownloadUrl('');
       setTranslatedContents(null);
       setPdfBase64(null);
       setStatus('');
     }
   };
 
-  // OLD: const handleTranslateFile = async () => { ... }
-  // NEW: Refined with loading states and button logic
   const handleTranslateFile = async () => {
     if (!selectedFile) {
       alert('الرجاء اختيار ملف أولاً');
       return;
     }
     setIsTranslating(true);
-    setStatus('جارٍ المعالجة...');
+    setStatus('جاري المعالجة...');
     
     try {
-      // 1. Prepare form data for the backend
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('source_lang', 'en'); // Example static values
-      formData.append('target_lang', 'ar');
+      console.log(sourceLang)
+      console.log(targetLang)
 
-      // 2. Fetch the PDF from your FastAPI endpoint
-      const response = await fetch('http://localhost:8000/translate/pdf_file?source_lang=en&target_lang=ar', {
-        method: 'POST',
-        body: formData,
-      });
+      const response = await fetch(
+        `http://localhost:8000/translate/pdf_file?source_lang=${sourceLang}&target_lang=${targetLang}`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
 
       if (!response.ok) {
         throw new Error('فشلت عملية الترجمة على الخادم');
       }
 
-      // 3. Receive the response as a binary BLOB
-      // const blob = await response.blob();
-      
-      // // 4. Create a temporary URL for the browser
-      // const url = window.URL.createObjectURL(blob);
-
       const data = await response.json();
-
-      const blob = new Blob([Uint8Array.from(atob(data.pdf), c => c.charCodeAt(0))], 
-                        { type: 'application/pdf' });
+      const blob = new Blob(
+        [Uint8Array.from(atob(data.pdf), c => c.charCodeAt(0))], 
+        { type: 'application/pdf' }
+      );
       const url = URL.createObjectURL(blob);
 
       setTranslatedContents(data.translated_contents);
 
       const base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            // Split and get only the base64 part (after the comma)
-            const base64String = reader.result.split(',')[1];
-            resolve(base64String);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(selectedFile);
-    });
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64String = reader.result.split(',')[1];
+          resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
 
-      // save orignal pdf file
       setPdfBase64(base64);
       setDownloadUrl(url);
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
@@ -104,9 +107,44 @@ const Torgman = () => {
       </section>
 
       <div className="main-grid">
-        <div className="upload-section card">
+        <div className="card">
           <h2 className="section-title">رفع المستندات</h2>
           
+          {/* Language Selection */}
+          <div className="language-selector">
+            <div className="lang-group">
+              <label className="lang-label">اللغة المصدر</label>
+              <select 
+                value={sourceLang} 
+                onChange={(e) => setSourceLang(e.target.value)}
+                className="lang-select"
+              >
+                {Sourcelanguages.map(lang => (
+                  <option key={lang.code} value={lang.englishName}>
+                    {lang.name} ({lang.englishName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="arrow-icon">→</div>
+
+            <div className="lang-group">
+              <label className="lang-label">اللغة المستهدفة</label>
+              <select 
+                value={targetLang} 
+                onChange={(e) => setTargetLang(e.target.value)}
+                className="lang-select"
+              >
+                {Targetlanguages.map(lang => (
+                  <option key={lang.code} value={lang.englishName}>
+                    {lang.name} ({lang.englishName})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Upload Area */}
           <div
             className="upload-area"
@@ -116,9 +154,14 @@ const Torgman = () => {
             <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
             <div className="upload-hint">PDF, DOCX, TXT (الحد الأقصى 10MB)</div>
           </div>
-          <input type="file" ref={fileInputRef} className="file-input" style={{ display: 'none' }} onChange={handleFileChange} />
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            style={{ display: 'none' }} 
+            onChange={handleFileChange} 
+          />
 
-          {/* NEW: Clean File Item Display */}
+          {/* File Display */}
           {fileName && (
             <div className="file-list-container">
               <div className="file-card">
@@ -129,16 +172,21 @@ const Torgman = () => {
                     {(selectedFile?.size / 1024).toFixed(1)} KB • جاهز للترجمة
                   </div>
                 </div>
-                <button className="remove-file" onClick={() => {setFileName(''); setSelectedFile(null);}}>✕</button>
+                <button 
+                  className="remove-file" 
+                  onClick={() => {setFileName(''); setSelectedFile(null);}}
+                >
+                  ✕
+                </button>
               </div>
             </div>
           )}
 
-          {/* NEW: Button Logic with identical styling */}
+          {/* Action Buttons */}
           <div className="action-area">
             {!downloadUrl ? (
               <button 
-                className="translate-btn" 
+                className="translate-btn"
                 onClick={handleTranslateFile}
                 disabled={!selectedFile || isTranslating}
               >
@@ -146,13 +194,22 @@ const Torgman = () => {
               </button>
             ) : (
               <div className="results-actions">
-                <a href={downloadUrl} download="translated_file.pdf" className="translate-btn download-btn">
+                <a 
+                  href={downloadUrl} 
+                  download="translated_file.pdf" 
+                  className="translate-btn download-btn"
+                >
                   تحميل الملف
                 </a>
-                <button className="translate-btn edit-btn" onClick={() => navigate('/compare', { 
-                              state: { translatedContents: translatedContents,
-                                        originalPdf: pdfBase64 }
-                            })}>  
+                <button 
+                  className="translate-btn edit-btn" 
+                  onClick={() => navigate('/compare', { 
+                    state: { 
+                      translatedContents: translatedContents,
+                      originalPdf: pdfBase64 
+                    }
+                  })}
+                >  
                   انتقل للتعديل
                 </button>
               </div>
