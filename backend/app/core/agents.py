@@ -2,6 +2,8 @@ import json
 import re
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
+# the below line is for testing purposes
+from app.config.config import *
 from app.core.llms import *
 from app.core.graph_models import *
 
@@ -21,9 +23,13 @@ def provider_invoke(role, prompt):
   response = None
   last_error = None
   # try each provider, if there is error skip it and go to the next one
-  for i in range(len(providers)):
+  for i in range(len(providers[role])):
     try:
-      response = providers[i][role].invoke(prompt)
+      response = providers[role][i].invoke(prompt)
+      if response.content == "":
+        print(response)
+      
+      print(response.response_metadata["model_name"])
       break
     
     # Too many requests
@@ -174,8 +180,6 @@ def advisor_agent(state: State):
 
 def increment_iteration(state: State):
   """
-  runs before evaluator agent
-
   Increment number of iterations and check if reached max iterations
   if true return exit flag to exit loop
   else continue to evaluator agent
@@ -187,7 +191,8 @@ def increment_iteration(state: State):
 
   # exit if reached max iterations
   if iteration >= max_iterations:
-    return {"messages": [AIMessage(content = f"Skipping evaluator. Max Number of iterations met \nIter: {iteration}")],
+    return {"messages": [AIMessage(content = f"Exiting Loop. Max Number of iterations met \nIter: {iteration}",
+                                   agent="increment_iteration")],
             "exit": True}
 
   else:
@@ -207,7 +212,8 @@ def check_score(state: State):
 
   # exit if score is greater than or equal threshold
   if score >= score_threshold:
-    return {"messages": [AIMessage(content = f"Exiting Loop. Score of translation is greater than threshold\n score:{score} | threshold: {score_threshold}")],
+    return {"messages": [AIMessage(content = f"Exiting Loop. Score of translation is greater than threshold\n score:{score} | threshold: {score_threshold}",
+                         agent="check_score")],
             "exit": True}
 
   else:
