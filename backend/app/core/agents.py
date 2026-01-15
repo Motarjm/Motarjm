@@ -6,8 +6,11 @@ from app.core.prompts import *
 from app.config.config import *
 from app.core.llms import *
 from app.core.graph_models import *
+from langsmith import traceable
 
 
+
+@traceable(run_type="chain")
 def provider_invoke(role, prompt):
   """
   Returns model response based on available providers
@@ -26,14 +29,16 @@ def provider_invoke(role, prompt):
   for i in range(len(providers[role])):
     try:
       response = providers[role][i].invoke(prompt)
-      if response.content == "":
-        print(response)
       
       print(response.response_metadata["model_name"])
       break
     
     # Too many requests
     except Exception as e:
+      # Only Raise error if related to resource exhaustion
+      if not ("429" in str(e) or "402" in str(e)):
+        raise e
+      
       last_error = e
   
   if response is None:
@@ -51,6 +56,7 @@ def translator_agent(state: State) -> dict:
   prev_context = state.prev_context
   advice = state.current_advice
   translation = state.current_translation
+  evaluation = state.current_eval
 
   # empty string, no advice
   if not advice:
@@ -77,7 +83,8 @@ def translator_agent(state: State) -> dict:
                                                 advice = advice,
                                                 target_lang = target_lang,
                                                 source_lang = source_lang,
-                                                prev_context = prev_context
+                                                prev_context = prev_context,
+                                                evaluation = evaluation
                                                 ),
         agent="TRANSLATOR")
 
@@ -132,6 +139,7 @@ def evaluator_agent(state: State):
     score = 0
 
   return {"messages": prompt + [AIMessage(content= response, agent="EVALUATOR")],
+          "current_eval": response,
           "current_score": score}
 
 
@@ -174,7 +182,7 @@ def advisor_agent(state: State):
   # advice = advisor.invoke(prompt).content
   advice = provider_invoke("advisor", prompt).content
 
-  return {"messages": prompt + [AIMessage(content= advice, agent="ADVISOR")],
+  return {"messages": [sys_prompt, user_prompt] + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
 
 
