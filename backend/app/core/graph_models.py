@@ -13,6 +13,7 @@ class State(BaseModel):
   messages: Annotated[List[AnyMessage], operator.add] = []
   current_translation: str = ""
   current_advice: str = ""
+  current_eval: str = ""
   current_score: int = 0
   iteration: int = 0
   max_iterations: int = 2
