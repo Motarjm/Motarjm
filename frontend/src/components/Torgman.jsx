@@ -15,6 +15,10 @@ const Torgman = () => {
   const [targetLang, setTargetLang] = useState('Arabic');
   const fileInputRef = useRef();
   const navigate = useNavigate();
+  // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
+  const API_URL = 'http://localhost:8000';
+
+
 
   const Sourcelanguages = [
     { code: 'en', name: 'English', englishName: 'English' },
@@ -55,7 +59,7 @@ const Torgman = () => {
       console.log(targetLang)
 
       const response = await fetch(
-        `http://localhost:8000/translate/pdf_file?source_lang=${sourceLang}&target_lang=${targetLang}`,
+        `${API_URL}/translate/pdf_file?source_lang=${sourceLang}&target_lang=${targetLang}`,
         {
           method: 'POST',
           body: formData,

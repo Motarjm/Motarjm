@@ -39,6 +39,11 @@
   letter-spacing: 2px;
 }
 
+.button-group {
+  display: flex;
+  gap: 1rem;
+}
+
 .comparison-content-wrapper {
   display: flex;
   flex-direction: row-reverse;
@@ -118,9 +123,9 @@
 .document-container {
   /* OLD: max-width: 1400px; padding: 3rem 4rem; */
   /* NEW: Constrained width and larger horizontal padding to center the focus */
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0 5rem 5rem 5rem;
+  padding: 0 3rem 5rem 3rem;
 }
 
 /* OLD: grid-template-columns: 1fr 1fr; gap: 4rem; */
@@ -129,9 +134,13 @@
   display: grid;
   /* NEW: Increased gap from 2rem to 5rem for a more "open" feel */
   grid-template-columns: 60px 1fr 1fr;
-  gap: 5rem;
+  gap: 2.5rem;
   margin-bottom: 2rem;
   padding: 0 1rem;
+}
+
+.comparison-table-header:has(.column-header:nth-child(4)) {
+  grid-template-columns: 60px 1fr 1fr 1fr;
 }
 
 .header-spacer { width: 50px; }
@@ -141,10 +150,14 @@
   display: grid;
   /* NEW: Matching the header gap (5rem) */
   grid-template-columns: 60px 1fr 1fr;
-  gap: 5rem;
+  gap: 2.5rem;
   /* NEW: Increased row margin for vertical breathing room */
   margin-bottom: 2.5rem;
   align-items: stretch;
+}
+
+.segment-row.with-backtranslation {
+  grid-template-columns: 60px 1fr 1fr 1fr;
 }
 
 /* NEW: Style for the numeric ID on the left */
@@ -169,7 +182,7 @@
   background: var(--cream);
   border-radius: 12px; /* Smoother corners */
   /* NEW: Increased internal padding for the text boxes */
-  padding: 2rem;
+  padding: 1.5rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(107, 125, 92, 0.1);
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
