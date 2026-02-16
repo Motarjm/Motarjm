@@ -1,7 +1,7 @@
 import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse, Response
-from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt, translate_list_of_texts
+from app.services.translation_service import *
 from app.services.build_pdf import ArabicPDFBuilder
 from app.models.models import TranslationRequest
 from io import BytesIO
@@ -45,46 +45,52 @@ async def translate_txt_file(
     return {"translated_text": translated_text}
 
 @router.post("/pdf_file")
-async def translate_pdf_file(
+async def translate_pdf_file_stream(
     file: UploadFile = File(...),
     source_lang: str = "en",
     target_lang: str = "ar"
 ):
     print("filename:", file.filename)
     print("content_type:", file.content_type)
+    
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
-    
     try:
         pdf_bytes = await file.read()
-
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid PDF file")
-
-    # send stream of pdf bytes as it is
-    translated_contents = translate_file_content_pdf(pdf_bytes, source_lang, target_lang)
     
-    # build pdf from the translated contents
-    builder = ArabicPDFBuilder()
-    buffer = BytesIO()
-
-    builder.build(translated_contents,
-                      original_pdf_bytes=pdf_bytes,
-                      output=buffer)
-
-    # 5. Reset buffer position to the start
-    buffer.seek(0)
-    
-    pdf_base64 = base64.b64encode(buffer.read()).decode('utf-8')
-    
-    # 6. Return JSON response with base64 PDF
-    return JSONResponse({
-        "translated_contents": translated_contents,
-        "pdf": pdf_base64,
-        "filename": "translated.pdf"
-    })
+    def event_stream():
+        # send stream of pdf bytes as it is
+        for event in translate_file_content_pdf_streaming(pdf_bytes, source_lang, target_lang):
+            if event["type"] == "progress":
+                yield f"data: {json.dumps(event)}\n\n"
+            elif event["type"] == "done":
+                translated_contents = event["translated_contents"]
+                
+                # build pdf from the translated contents
+                builder = ArabicPDFBuilder()
+                buffer = BytesIO()
+                
+                builder.build(translated_contents, original_pdf_bytes=pdf_bytes, output=buffer)
+                
+                # 5. Reset buffer position to the start
+                buffer.seek(0)
+                
+                pdf_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+                
+                final_data = {
+                    "type": "done",
+                    "translated_contents": translated_contents,
+                    "pdf": pdf_base64,
+                    "filename": "translated.pdf"
+                }
+                
+                yield f"data: {json.dumps(final_data)}\n\n"
+                
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 @router.post("/generate-edited-pdf")
 async def generate_edited_pdf(request: dict):
@@ -116,5 +122,4 @@ async def generate_edited_pdf(request: dict):
             "Content-Disposition": "attachment; filename=edited_translation.pdf"
         }
     )
-        
-    
+

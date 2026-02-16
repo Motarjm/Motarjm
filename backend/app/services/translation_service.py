@@ -6,7 +6,7 @@ from app.core.prompts import *
 from app.core.graph_models import *
 from app.core.workflow import graph
 from app.services.build_pdf import *
-
+import json
 
 def translate_list_of_texts(texts: list[str], source_lang: str, target_lang: str) -> list[str]:
     translated_texts = []
@@ -59,7 +59,7 @@ def translate_text(text: str, prev_text: str, source_lang: str, target_lang: str
 def translate_file_content_txt(file_content: str, source_lang: str, target_lang: str) -> str:
     return translate_text(file_content, source_lang, target_lang)
 
-def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str, target_lang:str) -> list[list[dict]]:
+def translate_file_content_pdf_streaming(pdf_bytes: bytes, source_lang: str, target_lang: str):
     """
     translates file content
 
@@ -127,9 +127,6 @@ def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str, target_lang:s
    196.09584045410156,
    695.9491577148438]}
  ]]
-    # return content
-    
-    # content = extract_text_from_pdf(pdf_bytes)
     
     # the following two lines are only here to return reading order of the pdf
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
@@ -144,33 +141,43 @@ def translate_file_content_pdf(pdf_bytes: bytes, source_lang: str, target_lang:s
         page_height = page.rect.height
         
         ordered_blocks = builder.return_reading_order(page_blocks, page_width, page_height)
-
         ordered_content.append(ordered_blocks)
-
+        
+    total_blocks = sum(len(page) for page in ordered_content)
+    completed_blocks = 0
     translated_content = []
     for page in ordered_content:
         translated_blocks = []
         prev_text = ""
         for i in range(len(page)):
             block = page[i]
-                
+            
+            translated_text = translate_text(block["text"], prev_text, source_lang, target_lang)
+            
             print("\n\n---------------------------------\n\n")
             print(f"Translation: {i}")
-            translated_text = translate_text(block["text"],
-                                             prev_text,
-                                             source_lang,
-                                             target_lang)
             print(translated_text)
+            
             translated_blocks.append({
-                "original_text":block["text"],
-                "translated_text":translated_text,
-                "bbox":block["bbox"]
+                "original_text": block["text"],
+                "translated_text": translated_text,
+                "bbox": block["bbox"]
             })
-            prev_text = page[i-1]["text"]  # update prev_text for the next iteration
-
+            
+            prev_text = page[i - 1]["text"] if i > 0 else ""
+            completed_blocks += 1
+            
+            yield {
+                "type": "progress",
+                "completed": completed_blocks,
+                "total": total_blocks
+            }
+            
         translated_content.append(translated_blocks)
         
-    return translated_content
-
-
+    yield {
+        "type": "done",
+        "translated_contents": translated_content
+        }
+    
 # translate_file_content_pdf("story.pdf", "English", "Egyptian Arabic")

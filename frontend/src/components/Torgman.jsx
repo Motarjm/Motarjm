@@ -13,6 +13,8 @@ const Torgman = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
+  const [progress, setProgress] = useState(0); // NEW
+  const [totalBlocks, setTotalBlocks] = useState(0); // NEW
   const fileInputRef = useRef();
   const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
@@ -51,34 +53,61 @@ const Torgman = () => {
     }
     setIsTranslating(true);
     setStatus('جاري المعالجة...');
-    
+    setProgress(0);
+    setTotalBlocks(0);
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      console.log(sourceLang)
-      console.log(targetLang)
-
+      // Use the streaming endpoint
       const response = await fetch(
-        `${API_URL}/translate/pdf_file?source_lang=${sourceLang}&target_lang=${targetLang}`,
+        `${API_URL}/translate/pdf_file_stream?source_lang=${sourceLang}&target_lang=${targetLang}`,
         {
           method: 'POST',
           body: formData,
         }
       );
-
       if (!response.ok) {
         throw new Error('فشلت عملية الترجمة على الخادم');
       }
-
-      const data = await response.json();
+      // Read the SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalData = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            const jsonStr = trimmed.slice(6);
+            try {
+              const event = JSON.parse(jsonStr);
+              if (event.type === 'progress') {
+                setProgress(event.completed);
+                setTotalBlocks(event.total);
+                setStatus(`جاري الترجمة... ${event.completed}/${event.total}`);
+              } else if (event.type === 'done') {
+                finalData = event;
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE event:', e);
+            }
+          }
+        }
+      }
+      if (!finalData) {
+        throw new Error('لم يتم استلام نتيجة الترجمة');
+      }
       const blob = new Blob(
-        [Uint8Array.from(atob(data.pdf), c => c.charCodeAt(0))], 
+        [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
         { type: 'application/pdf' }
       );
       const url = URL.createObjectURL(blob);
-
-      setTranslatedContents(data.translated_contents);
-
+      setTranslatedContents(finalData.translated_contents);
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => {
@@ -88,7 +117,6 @@ const Torgman = () => {
         reader.onerror = reject;
         reader.readAsDataURL(selectedFile);
       });
-
       setPdfBase64(base64);
       setDownloadUrl(url);
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
@@ -188,6 +216,20 @@ const Torgman = () => {
 
           {/* Action Buttons */}
           <div className="action-area">
+            {/* Progress Bar - NEW */}
+            {isTranslating && totalBlocks > 0 && (
+              <div className="progress-container">
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill" 
+                    style={{ width: `${(progress / totalBlocks) * 100}%` }}
+                  />
+                </div>
+                <span className="progress-text">
+                  {progress}/{totalBlocks} فقرة ({Math.round((progress / totalBlocks) * 100)}%)
+                </span>
+              </div>
+            )}
             {!downloadUrl ? (
               <button 
                 className="translate-btn"
