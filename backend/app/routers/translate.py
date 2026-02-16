@@ -1,23 +1,29 @@
 import tempfile
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse, JSONResponse
-from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt
+from fastapi.responses import StreamingResponse, JSONResponse, Response
+from app.services.translation_service import translate_text, translate_file_content_pdf, translate_file_content_txt, translate_list_of_texts
 from app.services.build_pdf import ArabicPDFBuilder
 from app.models.models import TranslationRequest
 from io import BytesIO
 import base64
+from typing import List
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
 
-@router.get("/text")
-def translate(request: TranslationRequest):
-    
-    translated_text = translate_text(
-        text=request.text,
-        source_lang=request.source_lang,
-        target_lang=request.target_lang
+@router.post("/text")
+async def translate(request: List[str]):
+    print(request)
+    if not request:
+        raise HTTPException(status_code=400, detail="Request body is required")
+
+    translated_texts = translate_list_of_texts(
+        texts=request,
+        # hardcoded for now
+        source_lang="Arabic",
+        target_lang="English"
     )
-    return {"translated_text": translated_text}
+
+    return translated_texts
 
 @router.post("/text_file")
 async def translate_txt_file(
