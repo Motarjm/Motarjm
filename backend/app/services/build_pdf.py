@@ -298,11 +298,13 @@ class ArabicPDFBuilder:
             translated_pages: List of pages, each containing list of text blocks
                              Each block has 'text' and 'bbox' keys
             original_pdf_bytes: BytesIO stream of the original PDF (for dimensions)
-            output: Path / bytes stream for output PDF file
+            output: Path or bytes stream for output PDF file
             
         Returns:
             None (writes PDF to output)
         """
+        translated_pages = copy.deepcopy(translated_pages)
+
         # Open original PDF to get page dimensions
         original_doc = pymupdf.open(stream=original_pdf_bytes, filetype="pdf")
         
