@@ -10,6 +10,11 @@ const CompareInterface = () => {
   const [backTranslations, setBackTranslations] = useState(null);
   const [showBackTranslation, setShowBackTranslation] = useState(false);
   const [backTranslationLoading, setBackTranslationLoading] = useState(false);
+  const [checkedBlocks, setCheckedBlocks] = useState(() => {
+    // Load from localStorage on mount
+    const saved = localStorage.getItem('compare_checked_blocks');
+    return saved ? JSON.parse(saved) : {};
+  });
   const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   const API_URL = 'http://localhost:8000';
@@ -147,6 +152,15 @@ const CompareInterface = () => {
     }
   };
 
+  const handleCheckboxChange = (pageIndex, blockIndex) => {
+    setCheckedBlocks(prev => {
+      const key = `${pageIndex}-${blockIndex}`;
+      const updated = { ...prev, [key]: !prev[key] };
+      localStorage.setItem('compare_checked_blocks', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   // Calculate segment ID for display
   let segmentCounter = 0;
 
@@ -181,53 +195,68 @@ const CompareInterface = () => {
             </div>
 
             {translatedContents && translatedContents.map((page, pageIndex) => (
-              page.map((block, blockIndex) => {
-                segmentCounter++;
-                const segmentId = `${pageIndex}-${blockIndex}`;
-                
-                return (
-                  <div 
-                    key={segmentId}
-                    id={`row-${segmentId}`}
-                    className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${showBackTranslation ? 'with-backtranslation' : ''}`}
-                    onClick={() => handleSegmentClick(pageIndex, blockIndex)}
-                  >
-                    <div className="segment-id-column">{segmentCounter}</div>
+              <div className="page-group" key={`page-${pageIndex}`}>
+                <div className="page-divider">
+                  <span className="page-divider-line"></span>
+                  <span className="page-divider-label">صفحة {pageIndex + 1}</span>
+                  <span className="page-divider-line"></span>
+                </div>
 
-
-                    <div className="segment english-side">
-                      <div className="segment-text" contentEditable={false}>
-                        {block.original_text || ''}
+                {page.map((block, blockIndex) => {
+                  segmentCounter++;
+                  const segmentId = `${pageIndex}-${blockIndex}`;
+                  
+                  return (
+                    <div 
+                      key={segmentId}
+                      id={`row-${segmentId}`}
+                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${showBackTranslation ? 'with-backtranslation' : ''}`}
+                      onClick={() => handleSegmentClick(pageIndex, blockIndex)}
+                    >
+                      <div className="segment-id-column">
+                        {segmentCounter}
+                        <input
+                          type="checkbox"
+                          checked={!!checkedBlocks[segmentId]}
+                          onChange={e => {
+                            e.stopPropagation();
+                            handleCheckboxChange(pageIndex, blockIndex);
+                          }}
+                          style={{ marginRight: 8, marginLeft: 8 }}
+                        />
                       </div>
-                    </div>
 
-                    {showBackTranslation && (
                       <div className="segment english-side">
                         <div className="segment-text" contentEditable={false}>
-                          {backTranslations && backTranslations[pageIndex] && backTranslations[pageIndex][blockIndex] 
-                            ? backTranslations[pageIndex][blockIndex] 
-                            : ''}
+                          {block.original_text || ''}
                         </div>
                       </div>
-                    )}
 
+                      {showBackTranslation && (
+                        <div className="segment english-side">
+                          <div className="segment-text" contentEditable={false}>
+                            {backTranslations && backTranslations[pageIndex] && backTranslations[pageIndex][blockIndex] 
+                              ? backTranslations[pageIndex][blockIndex] 
+                              : ''}
+                          </div>
+                        </div>
+                      )}
 
-                    <div className="segment arabic-side">
-                      <div
-                        className="segment-text"
-                        contentEditable={true}
-                        suppressContentEditableWarning
-                        onBlur={(e) => handleArabicEdit(pageIndex, blockIndex, e.currentTarget.textContent)}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {block.translated_text || ''}
+                      <div className="segment arabic-side">
+                        <div
+                          className="segment-text"
+                          contentEditable={true}
+                          suppressContentEditableWarning
+                          onBlur={(e) => handleArabicEdit(pageIndex, blockIndex, e.currentTarget.textContent)}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {block.translated_text || ''}
+                        </div>
                       </div>
                     </div>
-
-
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             ))}
           </div>
         </div>
