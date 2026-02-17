@@ -57,7 +57,8 @@ def translator_agent(state: State) -> dict:
   advice = state.current_advice
   translation = state.current_translation
   evaluation = state.current_eval
-
+  terminology = state.terminology
+  
   # empty string, no advice
   if not advice:
     sys_prompt = SystemMessage(
@@ -68,7 +69,9 @@ def translator_agent(state: State) -> dict:
         content=TRANSLATOR_PROMPT.format(source_text = source_text,
                                          target_lang = target_lang,
                                         source_lang = source_lang,
-                                        prev_context = prev_context),
+                                        prev_context = prev_context,
+                                        terminology = terminology
+                                        ),
         agent="TRANSLATOR")
 
   # use advice and current translation
@@ -84,7 +87,9 @@ def translator_agent(state: State) -> dict:
                                                 target_lang = target_lang,
                                                 source_lang = source_lang,
                                                 prev_context = prev_context,
-                                                evaluation = evaluation
+                                                evaluation = evaluation,
+                                                terminology = terminology
+
                                                 ),
         agent="TRANSLATOR")
 
@@ -108,7 +113,8 @@ def evaluator_agent(state: State):
   translation = state.current_translation
   source_lang = state.source_lang
   target_lang = state.target_lang
-
+  terminology = state.terminology
+  
   sys_prompt = SystemMessage(
       content= EVALUATOR_SYS_PROMPT,
       agent="EVALUATOR")
@@ -120,7 +126,8 @@ def evaluator_agent(state: State):
           translation= translation,
           target_lang = target_lang,
           source_lang = source_lang,
-          prev_context = prev_context
+          prev_context = prev_context,
+          terminology = terminology
         ),
        agent="EVALUATOR")
 
@@ -153,7 +160,8 @@ def advisor_agent(state: State):
   translation = state.current_translation
   source_lang = state.source_lang
   target_lang = state.target_lang
-
+  terminology = state.terminology
+  
   sys_prompt = SystemMessage(
       content= ADVISOR_SYS_PROMPT,
       agent="ADVISOR")
@@ -166,7 +174,8 @@ def advisor_agent(state: State):
           translation= translation,
           target_lang = target_lang,
           source_lang = source_lang,
-          prev_context = prev_context
+          prev_context = prev_context,
+          terminology = terminology
         ),
        agent="ADVISOR")
   
@@ -181,10 +190,43 @@ def advisor_agent(state: State):
 
   # advice = advisor.invoke(prompt).content
   advice = provider_invoke("advisor", prompt).content
+  
+  # grok output is in a list of dicts format, we need to extract the text from it
+  if not isinstance(advice, str):
+    advice = advice[0]["text"]
 
   return {"messages": [sys_prompt, user_prompt] + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
 
+def terminology_agent(state: State):
+  """
+  Extract key terminology and difficult words from the text
+  """
+  source_text = state.source_text
+  source_lang = state.source_lang
+  target_lang = state.target_lang
+
+  sys_prompt = SystemMessage(
+      content=TRANSLATOR_SYS_PROMPT,
+      agent="TERMINOLOGY"
+  )
+
+  user_prompt = HumanMessage(
+      content=TERMINOLOGY_PROMPT.format(
+          source_text=source_text,
+          target_lang=target_lang,
+          source_lang=source_lang
+      ),
+      agent="TERMINOLOGY"
+  )
+
+  prompt = [sys_prompt, user_prompt]
+
+  # response = terminology.invoke(prompt).content
+  response = provider_invoke("terminology", prompt).content
+
+  return {"messages": prompt + [AIMessage(content=response, agent="TERMINOLOGY")],
+          "terminology": response}
 
 def increment_iteration(state: State):
   """

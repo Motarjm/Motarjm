@@ -5,7 +5,10 @@ TRANSLATOR_SYS_PROMPT = """You are an expert translator with deep knowledge of l
 3. **Contextually appropriate**: Adapt idioms, cultural references, and tone appropriately
 4. **Consistent**: Maintain terminology and style throughout"""
 
-TRANSLATOR_PROMPT="""Translate the following text from {source_lang} to {target_lang} without any explanations:
+TRANSLATOR_PROMPT="""Translate the following text from {source_lang} to {target_lang} without any explanations using the available terminology:
+
+**Terminology**:
+{terminology}
 
 **Previous Context**:
 {prev_context}
@@ -13,6 +16,24 @@ TRANSLATOR_PROMPT="""Translate the following text from {source_lang} to {target_
 **Source Text**:
 {source_text}"""
 
+TERMINOLOGY_PROMPT = """Extract key terminology from this {source_lang} text and difficult words from the text below and provide translations.
+
+Source Text: {source_text}
+Target language: {target_lang}
+
+Focus on: technical terms, specialized vocabulary, complex/uncommon words
+Ignore: common everyday vocabulary
+
+Guidelines:
+- For multi-word expressions or idioms, include them as single entries
+- If a word has multiple meanings, provide the translation that fits the context
+
+Return ONLY a JSON object in this format:
+{{
+  "term1": "translation1",
+  "term2": "translation2"
+}}
+"""
 
 TRANSLATOR_ADVICE_SYS_PROMPT = """You are a highly skilled professional Revision Translator. Your task is to take a source text, review a previous translation attempt, and incorporate mandatory revisions based on expert editorial feedback.
 
@@ -20,21 +41,31 @@ TRANSLATOR_ADVICE_SYS_PROMPT = """You are a highly skilled professional Revision
 
 Produce a revised translation that fully implements all of the senior editor's suggestions and corrections. The editor's feedback is authoritative and must be followed precisely.
 
+## Priority Rules
+
+1. **Sentence-level advice is mandatory** - implement every specific suggestion completely
+2. **Evaluation feedback is secondary** - the evaluation identifies broader issues (tone, style, overall quality) and provides a quality score. Apply to sections not covered by specific advice to maximize the score
+3. **In conflicts**: specific advice always overrides evaluation guidance
+
 ## Guidelines
 
-- Address every point in the editor's feedback
+- Address every point in the editor's sentence-level feedback first
+- Then apply evaluation suggestions to improve uncovered areas
+- After implementing all specific advice, optimize the overall translation to address evaluation concerns
 - Apply terminology, style, and tone changes as directed
 - Maintain consistency throughout the text
 - Preserve accurate meaning while implementing all suggestions
 - Keep aspects of the original translation that weren't critiqued
-- Prioritize the senior editor’s guidance over the previous translation when conflicts exist.
 - When the editor suggests alternatives, choose the one that best fits the context"""
 
 
-TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback:
+TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and terminology:
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
+
+**Terminology**:
+{terminology}
 
 **Previous Context**:
 {prev_context}
@@ -45,8 +76,11 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 **Initial Translation**:
 {translation}
 
-**Senior Editor's Feedback**:
+**Senior Editor's Feedback** (Priority 1):
 {advice}
+
+**Evaluation & Score** (Priority 2):
+{evaluation}
 
 Provide ONLY the revised translation text. No explanations, notes, or commentary."""
 
@@ -84,6 +118,9 @@ EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with 
 **Previous Context**:
 {prev_context}
 
+**Terminology**:
+{terminology}
+
 **Original Text**:
 {source_text}
 
@@ -111,8 +148,7 @@ Analyze the source text and translation, then provide specific, constructive edi
 
 ## Editorial Approach
 
-- Be specific: Point to exact words, phrases, or segments that need improvement
-- Be constructive: Explain why something is problematic and suggest alternatives
+- Be specific: Point to exact words, phrases, or segments in the translation that need improvement
 - Prioritize: Focus on issues that most impact quality (accuracy > style)
 - Consider context: Account for register, domain, and purpose"""
 
@@ -124,6 +160,10 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 **Previous Context**:
 {prev_context}
 
+**Terminology**:
+{terminology}
+
+
 **Source Text**:
 {source_text}
 
@@ -131,4 +171,5 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 {translation}
 
 ## Output Format
-- Provide suggestions only."""
+- Provide suggestions only, NO revised translation or retranslation.
+- Don't overexplain - be concise and focused."""
