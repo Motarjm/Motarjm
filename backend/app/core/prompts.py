@@ -33,6 +33,7 @@ Return ONLY a JSON object in this format:
   "term1": "translation1",
   "term2": "translation2"
 }}
+ONLY PROVIDE ONE TRANSLATION PER TERM.
 """
 
 TRANSLATOR_ADVICE_SYS_PROMPT = """You are a highly skilled professional Revision Translator. Your task is to take a source text, review a previous translation attempt, and incorporate mandatory revisions based on expert editorial feedback.
@@ -173,3 +174,55 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 ## Output Format
 - Provide suggestions only, NO revised translation or retranslation.
 - Don't overexplain - be concise and focused."""
+
+EXPLANATION_SYS_PROMPT = """Provide a brief explanation of this source text to help a translator fully understand it before translating:
+
+**CONTEXT & MEANING:**
+- What is this text about? What is its main purpose?
+- Any implicit meanings, cultural references, or background knowledge needed?
+
+**KEY POINTS FOR TRANSLATION:**
+- Important nuances or connotations to preserve
+- Ambiguities or potential misinterpretations to watch for
+- Tone and register considerations
+
+You will be provided with the source text and any relevant context.
+Keep the explanation concise and focused on what directly impacts translation quality.
+"""
+
+EXPLANATION_PROMPT = """SOURCE TEXT:
+{source_text}
+
+PAGE CONTEXT:
+{page_context}
+
+Provide your answer in plain text and not markdown.
+"""
+
+SUGGESTIONS_SYS_PROMPT = """You are a professional translator. For each source text and existing translation provided, generate an alternative translation that offers a different but equally valid approach.
+
+Your alternative should:
+- Preserve the meaning and tone of the source
+- Differ meaningfully from the existing translation (different word choices, structure, or phrasing)
+- Be natural and fluent in the target language
+- Maintain the same level of quality
+
+You will be provided with relevant context to inform your suggestions. Focus on providing a single, high-quality alternative translation for each input.
+Provide only the alternative translation without explanation.
+"""
+
+SUGGESTIONS_PROMPT = """Source: 
+{source_text}
+
+Context: 
+{page_context}
+
+Existing translation: 
+{translation}
+
+Source Language:
+{source_lang}
+
+Target language:
+{target_lang}
+"""
