@@ -2,6 +2,7 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
+import { API_URL } from '../apiConfig';
 
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -18,7 +19,7 @@ const Torgman = () => {
   const fileInputRef = useRef();
   const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
-  const API_URL = 'http://localhost:8000';
+  // const API_URL = 'http://localhost:8000';
 
 
 
@@ -252,7 +253,9 @@ const Torgman = () => {
                   onClick={() => navigate('/compare', { 
                     state: { 
                       translatedContents: translatedContents,
-                      originalPdf: pdfBase64 
+                      originalPdf: pdfBase64,
+                      sourceLang: sourceLang,
+                      targetLang: targetLang
                     }
                   })}
                 >  
