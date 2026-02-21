@@ -98,6 +98,8 @@ def translator_agent(state: State) -> dict:
 
 #  translation = translator.invoke(prompt).content
   translation = provider_invoke("translator", prompt).content
+  if not isinstance(translation, str):
+    translation = translation[0]["text"]
 
   return {"messages": prompt + [AIMessage(content=translation, agent="TRANSLATOR")],
           "current_translation": translation}
@@ -136,7 +138,10 @@ def evaluator_agent(state: State):
 
   # response = evaluator.invoke(prompt).content
   response = provider_invoke("evaluator", prompt).content
-
+  
+  if not isinstance(response, str):
+    response = response[0]["text"]
+    
   # transform response string into json, we should later use 'with_structued_output'
   if matched := re.search(r'\{.*\}', response, re.DOTALL):
     matched = matched.group(0)
@@ -224,9 +229,12 @@ def terminology_agent(state: State):
 
   # response = terminology.invoke(prompt).content
   response = provider_invoke("terminology", prompt).content
+  if not isinstance(response, str):
+    response = response[0]["text"]
 
   return {"messages": prompt + [AIMessage(content=response, agent="TERMINOLOGY")],
           "terminology": response}
+
 
 def increment_iteration(state: State):
   """
