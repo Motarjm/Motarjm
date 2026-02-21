@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {useLocation, useNavigate } from 'react-router-dom';
 import '../assets/compare_interface.css';
+import { API_URL } from '../apiConfig';
 
 const CompareInterface = () => {
   const location = useLocation();
   const [activeSegment, setActiveSegment] = useState(null);
   const [translatedContents, setTranslatedContents] = useState(null);
   const [originalPdf, setOriginalPdf] = useState(null);
+  const [sourceLang, setSourceLang] = useState('English');
+  const [targetLang, setTargetLang] = useState('Arabic');
   const [backTranslations, setBackTranslations] = useState(null);
   const [showBackTranslation, setShowBackTranslation] = useState(false);
   const [backTranslationLoading, setBackTranslationLoading] = useState(false);
@@ -15,25 +18,47 @@ const CompareInterface = () => {
     const saved = localStorage.getItem('compare_checked_blocks');
     return saved ? JSON.parse(saved) : {};
   });
+  const [openSuggestions, setOpenSuggestions] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
+  const [suggestions, setSuggestions] = useState({}); // keyed by "pageIndex-blockIndex"
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const suggestionsRef = useRef(null);
+  const [openExplanations, setOpenExplanations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
+  const [explanations, setExplanations] = useState(() => {
+    const saved = localStorage.getItem('compare_explanations');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
-  const API_URL = 'http://localhost:8000';
+  // const API_URL = 'http://localhost:8000';
 
+
+  useEffect(() => {   
+    const { translatedContents, originalPdf, sourceLang, targetLang } = location.state || {};
+    if (translatedContents) setTranslatedContents(translatedContents);
+    if (originalPdf) setOriginalPdf(originalPdf);
+    if (sourceLang) setSourceLang(sourceLang);
+    if (targetLang) setTargetLang(targetLang);
+  }, [location.state]);
+
+  // Persist explanations to localStorage on change; clear on navigation away (but not refresh)
+  useEffect(() => {
+    if (Object.keys(explanations).length > 0) {
+      localStorage.setItem('compare_explanations', JSON.stringify(explanations));
+    }
+  }, [explanations]);
 
   useEffect(() => {
-    // Get translatedContents from navigation state
-    const contents = location.state?.translatedContents;
-    const base64 = location.state?.originalPdf;
-    
-    if (contents) {
-      setTranslatedContents(contents);
-    }
-
-    if (base64) {
-      setOriginalPdf(base64);
-    }
-
-  }, [location.state]);
+    let isRefresh = false;
+    const handleBeforeUnload = () => { isRefresh = true; };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (!isRefresh) {
+        localStorage.removeItem('compare_explanations');
+      }
+    };
+  }, []);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -153,13 +178,128 @@ const CompareInterface = () => {
   };
 
   const handleCheckboxChange = (pageIndex, blockIndex) => {
+    const key = `${pageIndex}-${blockIndex}`;
     setCheckedBlocks(prev => {
-      const key = `${pageIndex}-${blockIndex}`;
       const updated = { ...prev, [key]: !prev[key] };
       localStorage.setItem('compare_checked_blocks', JSON.stringify(updated));
       return updated;
     });
+    setOpenSuggestions(prev => ({ ...prev, [key]: false }));
+    setOpenExplanations(prev => ({ ...prev, [key]: false }));
   };
+
+  const handleFetchExplanation = async (pageIndex, blockIndex) => {
+    const key = `${pageIndex}-${blockIndex}`;
+    // Toggle off if already open
+    if (openExplanations[key]) {
+      setOpenExplanations(prev => ({ ...prev, [key]: false }));
+      return;
+    }
+    // If already fetched and NOT an error, just show
+    if (explanations[key] && explanations[key] !== '__ERROR__') {
+      setOpenExplanations(prev => ({ ...prev, [key]: true }));
+      return;
+    }
+    // Clear previous error if any, so we re-fetch
+    if (explanations[key] === '__ERROR__') {
+      setExplanations(prev => {
+        const updated = { ...prev };
+        delete updated[key];
+        return updated;
+      });
+    }
+    setOpenExplanations(prev => ({ ...prev, [key]: true }));
+    setExplanationLoading(prev => ({ ...prev, [key]: true }));
+    try {
+
+      const block = translatedContents[pageIndex][blockIndex];
+      const response = await fetch(`${API_URL}/translate/explanation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ block: block.original_text,
+                                page_blocks: translatedContents[pageIndex].map(b => b.original_text)                
+         }),
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch explanation');
+      const data = await response.json();
+      setExplanations(prev => ({ ...prev, [key]: data.explanation }));
+    } catch (error) {
+      console.error('Error fetching explanation:', error);
+      setExplanations(prev => ({
+        ...prev,
+        [key]: '__ERROR__',
+      }));
+    } finally {
+      setExplanationLoading(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleFetchSuggestions = async (pageIndex, blockIndex) => {
+    const key = `${pageIndex}-${blockIndex}`;
+    // Toggle off if already open
+    if (openSuggestions[key]) {
+      setOpenSuggestions(prev => ({ ...prev, [key]: false }));
+      return;
+    }
+    // If already fetched, just show
+    // if (suggestions[key]) {
+    //   setOpenSuggestions(prev => ({ ...prev, [key]: true }));
+    //   return;
+    // }
+    setOpenSuggestions(prev => ({ ...prev, [key]: true }));
+    setSuggestionsLoading(true);
+    try {
+      const pageBlocks = translatedContents[pageIndex];
+      const response = await fetch(`${API_URL}/translate/suggestions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          page_blocks: pageBlocks.map(b => b.original_text),
+          source_text: pageBlocks[blockIndex].original_text,
+          translation: pageBlocks[blockIndex].translated_text,
+          source_lang: sourceLang,
+          target_lang: targetLang
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to fetch suggestions');
+      const data = await response.json();
+      // Expect data to be an array of { text, model } objects
+      setSuggestions(prev => ({ ...prev, [key]: data }));
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+      // Fallback mock suggestions
+      setSuggestions(prev => ({
+        ...prev,
+        [key]: [
+          { text: 'في قرية هادئة متوارية بين جبلين بلون الفضة المزرق، عاش صانع الساعات العجوز ياريك. كان محله صغيرًا — لا يزيد عن غرفة ذات نوافذ مغبرة ورفوف خشبية — لكن الزمن نفسه بدا وكأنه يستريح داخله. كانت الساعات من كل نوع تَتِق وتَدُق: ساعات الجيب النحاسية، وساعات البندول الطويلة، وساعات الوقواق الصغيرة المتوازنة في بيوتها المنحوتة. ومع ذلك، كان مشروع ياريك الأغلى إلى قلبه ساعة غير مكتملة مفتوحة على منضدة عمله، تلمع تروسها كشمس صغيرة.', model: 'GPT-4' },
+          { text: 'في قرية هادئة متوارية بين جبلين بلون الفضة المزرق، عاش صانع الساعات العجوز ياريك. كان محله صغيرًا — لا يزيد عن غرفة ذات نوافذ مغبرة ورفوف خشبية — لكن الزمن نفسه بدا وكأنه يستريح داخله. كانت الساعات من كل نوع تَتِق وتَدُق: ساعات الجيب النحاسية، وساعات البندول الطويلة، وساعات الوقواق الصغيرة المتوازنة في بيوتها المنحوتة. ومع ذلك، كان مشروع ياريك الأغلى إلى قلبه ساعة غير مكتملة مفتوحة على منضدة عمله، تلمع تروسها كشمس صغيرة.', model: 'Claude' },
+          { text: '', model: 'Gemini' },
+        ],
+      }));
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  };
+
+  const handleApplySuggestion = (pageIndex, blockIndex, text) => {
+    handleArabicEdit(pageIndex, blockIndex, text);
+    const key = `${pageIndex}-${blockIndex}`;
+    setOpenSuggestions(prev => ({ ...prev, [key]: false }));
+    // Update the contentEditable div directly
+    const row = document.getElementById(`row-${key}`);
+    if (row) {
+      const editableDiv = row.querySelector('.arabic-side .segment-text');
+      if (editableDiv) editableDiv.textContent = text;
+    }
+  };
+
+  // Calculate total segments and checked count
+  const totalSegments = translatedContents
+    ? translatedContents.reduce((sum, page) => sum + page.length, 0)
+    : 0;
+  const checkedCount = Object.values(checkedBlocks).filter(Boolean).length;
 
   // Calculate segment ID for display
   let segmentCounter = 0;
@@ -170,6 +310,9 @@ const CompareInterface = () => {
         <div className="top-bar-content">
           <span className="logo">ترجمان</span>
           <div className="button-group">
+            <span className="progress-badge">
+              ✓ {checkedCount} / {totalSegments}
+            </span>
             <button className="sidebar-btn" onClick={handleGeneratePDF}>
               Generate PDF
             </button>
@@ -227,9 +370,35 @@ const CompareInterface = () => {
                       </div>
 
                       <div className="segment english-side">
-                        <div className="segment-text" contentEditable={false}>
-                          {block.original_text || ''}
+                        <div className="english-side-inner">
+                          <div className="segment-text" contentEditable={false}>
+                            {block.original_text || ''}
+                          </div>
                         </div>
+                        {openExplanations[segmentId] && (
+                          <div className="explanation-box" onClick={(e) => e.stopPropagation()}>
+                            {explanationLoading[segmentId] ? (
+                              <div className="explanation-loading">Loading explanation...</div>
+                            ) : explanations[segmentId] === '__ERROR__' ? (
+                              <div className="explanation-error">
+                                ⚠️ Error occurred, please try again.
+                              </div>
+                            ) : (
+                              <div 
+                                className="explanation-text"
+                                dangerouslySetInnerHTML={{
+                                  __html: explanations[segmentId]?.replace(/\n/g, '<br />'),
+                                }}
+                              ></div>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          className={`segment-action-btn explanation-btn ${openExplanations[segmentId] ? 'active' : ''}`}
+                          onClick={(e) => { e.stopPropagation(); handleFetchExplanation(pageIndex, blockIndex); }}
+                        >
+                          📖 Explain
+                        </button>
                       </div>
 
                       {showBackTranslation && (
@@ -243,15 +412,45 @@ const CompareInterface = () => {
                       )}
 
                       <div className="segment arabic-side">
-                        <div
-                          className="segment-text"
-                          contentEditable={true}
-                          suppressContentEditableWarning
-                          onBlur={(e) => handleArabicEdit(pageIndex, blockIndex, e.currentTarget.textContent)}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {block.translated_text || ''}
+                        <div className="arabic-side-inner">
+                          <div
+                            className="segment-text"
+                            contentEditable={true}
+                            suppressContentEditableWarning
+                            onBlur={(e) => handleArabicEdit(pageIndex, blockIndex, e.currentTarget.textContent)}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {block.translated_text || ''}
+                          </div>
                         </div>
+                        {openSuggestions[segmentId] && (
+                          <div className="suggestions-panel" ref={suggestionsRef} onClick={(e) => e.stopPropagation()}>
+                            {suggestionsLoading ? (
+                              <div className="suggestions-loading">جاري التحميل...</div>
+                            ) : (
+                              suggestions[segmentId]?.map((s, i) => (
+                                <div className="suggestion-card" key={i}>
+                                  <div className="suggestion-card-meta">
+                                    <span className="suggestion-model-label">{s.model}</span>
+                                  </div>
+                                  <div className="suggestion-card-text">{s.text}</div>
+                                  <button
+                                    className="suggestion-apply-btn"
+                                    onClick={(e) => { e.stopPropagation(); handleApplySuggestion(pageIndex, blockIndex, s.text); }}
+                                  >
+                                    ✓
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                        <button
+                          className={`segment-action-btn suggestions-btn ${openSuggestions[segmentId] ? 'active' : ''}`}
+                          onClick={(e) => { e.stopPropagation(); handleFetchSuggestions(pageIndex, blockIndex); }}
+                        >
+                          💡 اقتراحات
+                        </button>
                       </div>
                     </div>
                   );

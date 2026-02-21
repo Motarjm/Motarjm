@@ -41,7 +41,20 @@
 
 .button-group {
   display: flex;
+  align-items: center;
   gap: 1rem;
+}
+
+.progress-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--olive);
+  background: rgba(107, 125, 92, 0.1);
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
 }
 
 .comparison-content-wrapper {
@@ -148,12 +161,12 @@
 /* NEW: Row container to force alignment */
 .segment-row {
   display: grid;
-  /* NEW: Matching the header gap (5rem) */
   grid-template-columns: 60px 1fr 1fr;
   gap: 2.5rem;
-  /* NEW: Increased row margin for vertical breathing room */
   margin-bottom: 2.5rem;
-  align-items: stretch;
+  align-items: start;
+  padding-bottom: 2.5rem;
+  border-bottom: 1px solid rgba(107, 125, 92, 0.08);
 }
 
 .segment-row.with-backtranslation {
@@ -216,6 +229,7 @@
   align-items: center;
   gap: 1.2rem;
   margin-bottom: 2rem;
+  margin-left: 6rem;
 }
 
 .page-divider-line {
@@ -239,12 +253,22 @@
 
 .segment {
   background: var(--cream);
-  border-radius: 12px; /* Smoother corners */
-  /* NEW: Increased internal padding for the text boxes */
+  border-radius: 12px;
   padding: 1.5rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(107, 125, 92, 0.1);
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.arabic-side.segment {
+  align-items: flex-start;
+}
+
+.arabic-side .segment-action-btn {
+  align-self: flex-end;
 }
 
 /* NEW: Highlight the whole row when active */
@@ -291,4 +315,199 @@
 .segment-text[contenteditable="true"]:focus {
   background: #fffdf7;
   border: 1px dashed var(--terracotta);
+}
+
+/* --- Suggestions UI --- */
+
+.arabic-side-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.arabic-side-inner .segment-text {
+  flex: 1;
+}
+
+/* Shared segment action button style */
+.segment-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  margin-top: 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  background: var(--cream);
+  color: var(--olive);
+  font-size: 0.72rem;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  transition: opacity 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+
+.segment:hover .segment-action-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.segment-action-btn:hover {
+  background: #fff;
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  box-shadow: 0 2px 8px rgba(193, 80, 46, 0.12);
+}
+
+.segment-action-btn.active {
+  opacity: 1;
+  pointer-events: auto;
+  background: #fff5f2;
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+
+/* --- Suggestions Panel (inline below arabic text) --- */
+
+.suggestions-panel {
+  margin-top: 10px;
+  padding: 4px 0;
+  background: #fdf8f6;
+  border-right: 3px solid var(--terracotta);
+  border-radius: 0 8px 8px 0;
+  overflow: hidden;
+  animation: explanationFadeIn 0.2s ease;
+}
+
+.suggestions-loading {
+  padding: 20px 16px;
+  text-align: center;
+  color: #999;
+  font-size: 0.85rem;
+}
+
+/* --- Suggestion Cards --- */
+
+.suggestion-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(107, 125, 92, 0.08);
+  transition: background 0.15s;
+  direction: rtl;
+}
+
+.suggestion-card:last-child {
+  border-bottom: none;
+}
+
+.suggestion-card:hover {
+  background: rgba(193, 80, 46, 0.03);
+}
+
+.suggestion-card-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.suggestion-model-label {
+  font-size: 0.6rem;
+  color: #aaa;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  writing-mode: horizontal-tb;
+}
+
+.suggestion-card-text {
+  flex: 1;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.88rem;
+  color: #555;
+  line-height: 1.75;
+  text-align: right;
+}
+
+.suggestion-apply-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+  background: transparent;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  border-radius: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--olive);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.suggestion-apply-btn:hover {
+  background: #fff5f2;
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+
+/* --- English Side Inner (text + explanation button) --- */
+
+.english-side-inner {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.english-side-inner .segment-text {
+  flex: 1;
+}
+
+/* --- Explanation Box (inline below english text) --- */
+
+.explanation-box {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #f6f8fc;
+  border-left: 3px solid #4a90d9;
+  border-radius: 0 8px 8px 0;
+  animation: explanationFadeIn 0.2s ease;
+}
+
+@keyframes explanationFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.explanation-loading {
+  color: #999;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+.explanation-text {
+  font-size: 0.9rem;
+  color: #444;
+  line-height: 1.7;
+}
+
+.explanation-error {
+  color: var(--terracotta);
+  font-size: 0.9rem;
+  padding: 4px 0;
+  font-style: italic;
 }
