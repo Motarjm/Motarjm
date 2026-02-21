@@ -368,6 +368,15 @@
   letter-spacing: 0.5px;
 }
 
+.progress-eta {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--terracotta);
+  font-weight: 500;
+  font-style: italic;
+  margin-top: 4px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .language-selector {

@@ -16,6 +16,7 @@ const Torgman = () => {
   const [targetLang, setTargetLang] = useState('Arabic');
   const [progress, setProgress] = useState(0); // NEW
   const [totalBlocks, setTotalBlocks] = useState(0); // NEW
+  const [translationStartTime, setTranslationStartTime] = useState(null);
   const fileInputRef = useRef();
   const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
@@ -56,6 +57,7 @@ const Torgman = () => {
     setStatus('جاري المعالجة...');
     setProgress(0);
     setTotalBlocks(0);
+    setTranslationStartTime(Date.now());
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
@@ -127,6 +129,16 @@ const Torgman = () => {
     } finally {
       setIsTranslating(false);
     }
+  };
+
+  const getEstimatedTime = () => {
+    if (!translationStartTime || progress < 1) return 'جاري التقدير...';
+    const elapsed = (Date.now() - translationStartTime) / 1000; // seconds
+    const avgPerBlock = elapsed / progress;
+    const remaining = avgPerBlock * (totalBlocks - progress);
+    if (remaining < 60) return `~${Math.ceil(remaining)} ثانية متبقية`;
+    const mins = Math.floor(remaining / 60);
+    return `~${mins} minutes remaining`;
   };
 
   return (
@@ -228,6 +240,9 @@ const Torgman = () => {
                 </div>
                 <span className="progress-text">
                   {progress}/{totalBlocks} فقرة ({Math.round((progress / totalBlocks) * 100)}%)
+                </span>
+                <span className="progress-eta">
+                  {getEstimatedTime()}
                 </span>
               </div>
             )}
