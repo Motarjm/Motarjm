@@ -255,7 +255,7 @@ class ArabicPDFBuilder:
         
         for b in translated_blocks:
             # Skip blocks that are too high on the page (headings) or too wide
-            if b["bbox"][3] < page_height * 0.22 and abs(b["bbox"][0] - b["bbox"][2]) > page_width * 0.4:
+            if b["bbox"][3] < page_height * 0.17 and abs(b["bbox"][0] - b["bbox"][2]) > page_width * 0.4:
                 headings.append(b)
                 continue
 
