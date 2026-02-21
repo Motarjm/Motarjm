@@ -73,7 +73,6 @@ async def translate_pdf_file_stream(
                 # build pdf from the translated contents
                 builder = ArabicPDFBuilder()
                 buffer = BytesIO()
-                
                 builder.build(translated_contents, original_pdf_bytes=pdf_bytes, output=buffer)
                 
                 # 5. Reset buffer position to the start
@@ -122,4 +121,46 @@ async def generate_edited_pdf(request: dict):
             "Content-Disposition": "attachment; filename=edited_translation.pdf"
         }
     )
+
+@router.post("/explanation")
+async def generate_explanation(request: dict):
+    # Extract original_text from the dict
+    original_text = request.get("block")
+    page_context = request.get("page_blocks")
+
+    if not original_text:
+        raise HTTPException(status_code=400, detail="original_text is required")
+    
+    if not page_context:
+        raise HTTPException(status_code=400, detail="original_text is required")
+
+    # Call the explanation generation function
+    explanation = get_explanation(original_text, page_context)
+
+    return {"explanation": explanation}
+
+@router.post("/suggestions")
+async def generate_suggestions(request: dict):
+    # Extract original_text from the dict
+    original_text = request.get("source_text")
+    translation = request.get("translation")
+    page_context = request.get("page_blocks")
+    source_lang = request.get("sourceLang")
+    target_lang = request.get("targetLang")
+
+    if not original_text:
+        raise HTTPException(status_code=400, detail="original_text is required")
+    
+    if not page_context:
+        raise HTTPException(status_code=400, detail="original_text is required")
+    
+    if not translation:
+        raise HTTPException(status_code=400, detail="translation is required")
+
+    # Call the suggestion generation function
+    suggestions = get_suggestions(original_text, source_lang, translation, target_lang, page_context)
+
+    # Transform {model: text} dict to [{text, model}] list for frontend
+    return [{"text": text, "model": model} for model, text in suggestions.items()]
+
 
