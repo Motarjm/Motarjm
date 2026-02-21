@@ -254,6 +254,7 @@ class ArabicPDFBuilder:
         headings = []
         
         for b in translated_blocks:
+            # ToDo: USE a VLM, the current approach wont generalize
             # Skip blocks that are too high on the page (headings) or too wide
             if b["bbox"][3] < page_height * 0.17 and abs(b["bbox"][0] - b["bbox"][2]) > page_width * 0.4:
                 headings.append(b)
@@ -270,7 +271,7 @@ class ArabicPDFBuilder:
 
         # sort columns by x
         ordered_columns = sorted(columns, key=lambda col: min([b["bbox"][0] for b in col]), reverse=True)
-                
+
         # sort blocks in each column by y
         for i, col in enumerate(ordered_columns):
             ordered_columns_by_y = sorted(col, key=lambda b: b["bbox"][3])
