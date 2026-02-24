@@ -22,8 +22,6 @@ const Torgman = () => {
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
-
-
   const Sourcelanguages = [
     { code: 'en', name: 'English', englishName: 'English' },
   ];
