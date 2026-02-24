@@ -10,16 +10,16 @@ from app.services.build_pdf import *
 import json
 from typing import List
 
-def translate_list_of_texts(texts: list[str], source_lang: str, target_lang: str) -> list[str]:
-    # only used for backtranslation
-    translated_texts = []
-    prev_text = ""
-    for i, text in enumerate(texts):    
-        translated_text = translate_text(text, prev_text, source_lang, target_lang, max_iterations=1)
-        translated_texts.append(translated_text)
-        prev_text = text  # update prev_text for the next iteration
+# def translate_list_of_texts(texts: list[str], source_lang: str, target_lang: str) -> list[str]:
+#     # only used for backtranslation
+#     translated_texts = []
+#     prev_text = ""
+#     for i, text in enumerate(texts):    
+#         translated_text = translate_text(text, prev_text, source_lang, target_lang, max_iterations=1)
+#         translated_texts.append(translated_text)
+#         prev_text = text  # update prev_text for the next iteration
         
-    return translated_texts
+#     return translated_texts
 
 def translate_text(text: str, prev_text: str, source_lang: str, target_lang: str, max_iterations: int = 3) -> str:
 

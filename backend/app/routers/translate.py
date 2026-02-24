@@ -10,21 +10,21 @@ from typing import List
 
 router = APIRouter(prefix="/translate", tags=["Translation"])
 
-@router.post("/text")
-async def translate(request: List[str]):
-    # only used for back translation
-    print(request)
-    if not request:
-        raise HTTPException(status_code=400, detail="Request body is required")
+# @router.post("/text")
+# async def translate(request: List[str]):
+#     # only used for back translation
+#     print(request)
+#     if not request:
+#         raise HTTPException(status_code=400, detail="Request body is required")
 
-    translated_texts = translate_list_of_texts(
-        texts=request,
-        # hardcoded for now
-        source_lang="Arabic",
-        target_lang="English"
-    )
+#     translated_texts = translate_list_of_texts(
+#         texts=request,
+#         # hardcoded for now
+#         source_lang="Arabic",
+#         target_lang="English"
+#     )
 
-    return translated_texts
+#     return translated_texts
 
 @router.post("/text_file")
 async def translate_txt_file(
