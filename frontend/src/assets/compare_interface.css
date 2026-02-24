@@ -134,43 +134,44 @@
 
 
 .document-container {
-  /* OLD: max-width: 1400px; padding: 3rem 4rem; */
-  /* NEW: Constrained width and larger horizontal padding to center the focus */
   max-width: 1600px;
   margin: 0 auto;
   padding: 0 3rem 5rem 3rem;
+}
+
+/* Widen the container when any back-translation is open */
+.document-container.bt-expanded {
+  max-width: 1900px;
 }
 
 /* OLD: grid-template-columns: 1fr 1fr; gap: 4rem; */
 /* NEW: Added a dedicated column for the ID and aligned headers */
 .comparison-table-header {
   display: grid;
-  /* NEW: Increased gap from 2rem to 5rem for a more "open" feel */
   grid-template-columns: 60px 1fr 1fr;
-  gap: 2.5rem;
+  gap: 1.5rem;
   margin-bottom: 2rem;
   padding: 0 1rem;
-}
-
-.comparison-table-header:has(.column-header:nth-child(4)) {
-  grid-template-columns: 60px 1fr 1fr 1fr;
 }
 
 .header-spacer { width: 50px; }
 
 /* NEW: Row container to force alignment */
+/* Default: 2 main columns + collapsed middle (just the button) */
 .segment-row {
   display: grid;
-  grid-template-columns: 60px 1fr 1fr;
-  gap: 2.5rem;
+  grid-template-columns: 60px 1fr auto 1fr;
+  gap: 1.5rem;
   margin-bottom: 2.5rem;
   align-items: start;
   padding-bottom: 2.5rem;
   border-bottom: 1px solid rgba(107, 125, 92, 0.08);
 }
 
-.segment-row.with-backtranslation {
+/* When back-translation is open: 3 equal readable columns */
+.segment-row.bt-open {
   grid-template-columns: 60px 1fr 1fr 1fr;
+  margin-top: 3.5rem;
 }
 
 /* NEW: Style for the numeric ID on the left */
@@ -229,7 +230,6 @@
   align-items: center;
   gap: 1.2rem;
   margin-bottom: 2rem;
-  margin-left: 6rem;
 }
 
 .page-divider-line {
@@ -249,6 +249,7 @@
   white-space: nowrap;
   letter-spacing: 1px;
   box-shadow: 0 2px 8px rgba(193, 80, 46, 0.18);
+  margin-left: 5rem;
 }
 
 .segment {
@@ -510,4 +511,57 @@
   font-size: 0.9rem;
   padding: 4px 0;
   font-style: italic;
+}
+
+/* --- Back-Translation Middle Column --- */
+
+.segment-middle-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  position: relative;
+}
+
+/* When closed: just the button, centered in the column */
+.backtranslation-btn {
+  padding: 4px 10px;
+  font-size: 0.68rem;
+  letter-spacing: 0.3px;
+  border-radius: 6px;
+  white-space: nowrap;
+  margin-top: 0;
+}
+
+/* When open: button floats above, box starts at top aligned with segments */
+.segment-row.bt-open .segment-middle-actions {
+  padding-top: 0;
+}
+
+.segment-row.bt-open .backtranslation-btn {
+  position: absolute;
+  top: -2rem;
+  z-index: 1;
+}
+
+.backtranslation-box {
+  background: var(--cream);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid rgba(107, 125, 92, 0.1);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  width: 100%;
+  animation: explanationFadeIn 0.2s ease;
+}
+
+.backtranslation-box .explanation-text {
+  font-family: 'Merriweather', serif;
+  font-size: 0.95rem;
+  color: #555;
+  line-height: 1.8;
+}
+
+.backtranslation-box .explanation-loading,
+.backtranslation-box .explanation-error {
+  font-size: 0.85rem;
 }

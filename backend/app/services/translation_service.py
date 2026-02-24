@@ -11,6 +11,7 @@ import json
 from typing import List
 
 def translate_list_of_texts(texts: list[str], source_lang: str, target_lang: str) -> list[str]:
+    # only used for backtranslation
     translated_texts = []
     prev_text = ""
     for i, text in enumerate(texts):    
@@ -294,3 +295,7 @@ def get_explanation(source_text: str, page_context: List):
 
 def get_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List):
     return generate_suggestions(source_text, source_lang, translation, target_lang, page_context)
+
+
+def get_backtranslation(target_text, source_lang, target_lang, page_context):
+    return generate_backtranslation(target_text, source_lang, target_lang, page_context)

@@ -3,9 +3,11 @@ TRANSLATOR_SYS_PROMPT = """You are an expert translator with deep knowledge of l
 1. **Accurate**: Preserve the exact meaning of the source text
 2. **Natural**: Sound fluent and native in the target language
 3. **Contextually appropriate**: Adapt idioms, cultural references, and tone appropriately
-4. **Consistent**: Maintain terminology and style throughout"""
+4. **Consistent**: Maintain terminology and style throughout
 
-TRANSLATOR_PROMPT="""Translate the following text from {source_lang} to {target_lang} without any explanations using the available terminology:
+You will be provided with relevant context to help in translation. Don't translate the context, only the source text."""
+
+TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
 
 **Terminology**:
 {terminology}
@@ -14,7 +16,23 @@ TRANSLATOR_PROMPT="""Translate the following text from {source_lang} to {target_
 {prev_context}
 
 **Source Text**:
-{source_text}"""
+{source_text}
+
+ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context or terminology. Provide only the translated text without any explanations or notes."""
+
+# for now, backtranslation uses page context
+BACKTRANSLATION_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
+
+**Terminology**:
+{terminology}
+
+**Context**:
+{prev_context}
+
+**Source Text**:
+{source_text}
+
+ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context or terminology. Provide only the translated text without any explanations or notes."""
 
 TERMINOLOGY_PROMPT = """Extract key terminology from this {source_lang} text and difficult words from the text below and provide translations.
 
@@ -59,7 +77,7 @@ Produce a revised translation that fully implements all of the senior editor's s
 - Keep aspects of the original translation that weren't critiqued
 - When the editor suggests alternatives, choose the one that best fits the context"""
 
-
+# sometimes, it also translated prev context
 TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and terminology:
 
 **Source Language**: {source_lang}
@@ -226,3 +244,5 @@ Source Language:
 Target language:
 {target_lang}
 """
+
+

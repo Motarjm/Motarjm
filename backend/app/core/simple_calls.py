@@ -82,3 +82,35 @@ def generate_suggestions(source_text: str, source_lang: str, translation: str, t
         "Grok": response2,
         "DeepSeek": response3
     }
+
+
+def generate_backtranslation(target_text: str, source_lang: str, target_lang: str, page_context: List) -> str:
+    """
+    Generates a back-translation of the given target text.
+    Translates from target_lang back to source_lang.
+    """
+    sys_prompt = SystemMessage(
+        content=TRANSLATOR_SYS_PROMPT,
+        agent="backtranslation"
+    )
+    
+    page_context = "\n\n".join(page_context)    
+
+    user_prompt = HumanMessage(
+        content=TRANSLATOR_PROMPT.format(
+            source_text=target_text,
+            source_lang=target_lang,
+            target_lang=source_lang,
+            prev_context=page_context,
+            terminology = ""
+        ),
+        agent="backtranslation"
+    )
+
+    prompt = [sys_prompt, user_prompt]
+
+    response = provider_invoke("backtranslation", prompt).content
+    if not isinstance(response, str):
+        response = response[0]["text"]
+
+    return response

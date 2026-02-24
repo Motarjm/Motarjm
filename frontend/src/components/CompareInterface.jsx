@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {useLocation, useNavigate } from 'react-router-dom';
 import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
@@ -10,9 +10,6 @@ const CompareInterface = () => {
   const [originalPdf, setOriginalPdf] = useState(null);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
-  const [backTranslations, setBackTranslations] = useState(null);
-  const [showBackTranslation, setShowBackTranslation] = useState(false);
-  const [backTranslationLoading, setBackTranslationLoading] = useState(false);
   const [checkedBlocks, setCheckedBlocks] = useState(() => {
     // Load from localStorage on mount
     const saved = localStorage.getItem('compare_checked_blocks');
@@ -21,7 +18,9 @@ const CompareInterface = () => {
   const [openSuggestions, setOpenSuggestions] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
   const [suggestions, setSuggestions] = useState({}); // keyed by "pageIndex-blockIndex"
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const suggestionsRef = useRef(null);
+  const [openBackTranslations, setOpenBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
+  const [backTranslations, setBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> string
+  const [backTranslationLoading, setBackTranslationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openExplanations, setOpenExplanations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
   const [explanations, setExplanations] = useState(() => {
     const saved = localStorage.getItem('compare_explanations');
@@ -120,60 +119,41 @@ const CompareInterface = () => {
     }
   };
 
-  // Generate back-translation
-  const handleGenerateBackTranslation = async () => {
-    // If already showing, just hide it
-    if (showBackTranslation) {
-      setShowBackTranslation(false);
+  // Generate per-segment back-translation
+  const handleFetchBackTranslation = async (pageIndex, blockIndex) => {
+    const key = `${pageIndex}-${blockIndex}`;
+    // Toggle off if already open
+    if (openBackTranslations[key]) {
+      setOpenBackTranslations(prev => ({ ...prev, [key]: false }));
       return;
     }
-
-    setBackTranslationLoading(true);
+    // If already fetched, just show
+    // if (backTranslations[key]) {
+    //   setOpenBackTranslations(prev => ({ ...prev, [key]: true }));
+    //   return;
+    // }
+    setOpenBackTranslations(prev => ({ ...prev, [key]: true }));
+    setBackTranslationLoading(prev => ({ ...prev, [key]: true }));
     try {
-  
-      // Extract only translated_text from translatedContents
-      const translatedTextList = [];
-      translatedContents.forEach(page => {
-        page.forEach(block => {
-          translatedTextList.push(block.translated_text);
-        });
-      });
-      console.log(translatedTextList);
-      const response = await fetch(`${API_URL}/translate/text`, {
+      const pageBlocks = translatedContents[pageIndex];
+      const response = await fetch(`${API_URL}/translate/backtranslation`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(translatedTextList),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page_blocks: pageBlocks.map(b => b.translated_text),
+          target_text: pageBlocks[blockIndex].translated_text,
+          source_lang: sourceLang,
+          target_lang: targetLang
+        }),
       });
-
-      if (!response.ok) {
-        throw new Error('فشل إنشاء الترجمة العكسية');
-      }
-
-      const backTranslationList = await response.json();
-      
-      // Convert flat list back to the same structure as translatedContents
-      const backTranslationStructured = [];
-      let index = 0;
-      
-      translatedContents.forEach(page => {
-        const pageBacks = [];
-        page.forEach(() => {
-          pageBacks.push(backTranslationList[index]);
-          index++;
-        });
-        backTranslationStructured.push(pageBacks);
-      });
-      
-      setBackTranslations(backTranslationStructured);
-      setShowBackTranslation(true);
-
+      if (!response.ok) throw new Error('Failed to fetch back-translation');
+      const data = await response.json();
+      setBackTranslations(prev => ({ ...prev, [key]: data.backtranslation }));
     } catch (error) {
-      console.error('Error generating back-translation:', error);
-      alert('حدث خطأ أثناء إنشاء الترجمة العكسية');
+      console.error('Error fetching back-translation:', error);
+      setBackTranslations(prev => ({ ...prev, [key]: '__ERROR__' }));
     } finally {
-      setBackTranslationLoading(false);
+      setBackTranslationLoading(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -186,6 +166,7 @@ const CompareInterface = () => {
     });
     setOpenSuggestions(prev => ({ ...prev, [key]: false }));
     setOpenExplanations(prev => ({ ...prev, [key]: false }));
+    setOpenBackTranslations(prev => ({ ...prev, [key]: false }));
   };
 
   const handleFetchExplanation = async (pageIndex, blockIndex) => {
@@ -300,6 +281,7 @@ const CompareInterface = () => {
     ? translatedContents.reduce((sum, page) => sum + page.length, 0)
     : 0;
   const checkedCount = Object.values(checkedBlocks).filter(Boolean).length;
+  const anyBtOpen = Object.values(openBackTranslations).some(Boolean);
 
   // Calculate segment ID for display
   let segmentCounter = 0;
@@ -316,24 +298,16 @@ const CompareInterface = () => {
             <button className="sidebar-btn" onClick={handleGeneratePDF}>
               Generate PDF
             </button>
-            <button className="sidebar-btn" onClick={handleGenerateBackTranslation} disabled={backTranslationLoading}>
-              {backTranslationLoading
-                ? 'Loading'
-                : showBackTranslation
-                  ? 'Remove Back-translation'
-                  : 'Generate Back-translation'}
-            </button>
           </div>
         </div>
       </div>
       
       <div className="comparison-content-wrapper">
         <div className="document-area">
-          <div className="document-container">
+          <div className={`document-container ${anyBtOpen ? 'bt-expanded' : ''}`}>
             <div className="comparison-table-header">
               <div className="header-spacer"></div>              
               <h2 className="column-header">الترجمة الإنجليزية</h2>
-              {showBackTranslation && <h2 className="column-header">الترجمة العكسية</h2>}
               <h2 className="column-header">النص العربي</h2>
             </div>
 
@@ -353,7 +327,7 @@ const CompareInterface = () => {
                     <div 
                       key={segmentId}
                       id={`row-${segmentId}`}
-                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${showBackTranslation ? 'with-backtranslation' : ''}`}
+                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${openBackTranslations[segmentId] ? 'bt-open' : ''}`}
                       onClick={() => handleSegmentClick(pageIndex, blockIndex)}
                     >
                       <div className="segment-id-column">
@@ -401,15 +375,26 @@ const CompareInterface = () => {
                         </button>
                       </div>
 
-                      {showBackTranslation && (
-                        <div className="segment english-side">
-                          <div className="segment-text" contentEditable={false}>
-                            {backTranslations && backTranslations[pageIndex] && backTranslations[pageIndex][blockIndex] 
-                              ? backTranslations[pageIndex][blockIndex] 
-                              : ''}
+                      {/* Back-translation button between English and Arabic */}
+                      <div className="segment-middle-actions">
+                        <button
+                          className={`segment-action-btn backtranslation-btn ${openBackTranslations[segmentId] ? 'active' : ''}`}
+                          onClick={(e) => { e.stopPropagation(); handleFetchBackTranslation(pageIndex, blockIndex); }}
+                        >
+                          🔄 ترجمة عكسية
+                        </button>
+                        {openBackTranslations[segmentId] && (
+                          <div className="backtranslation-box" onClick={(e) => e.stopPropagation()}>
+                            {backTranslationLoading[segmentId] ? (
+                              <div className="explanation-loading">Loading back-translation...</div>
+                            ) : backTranslations[segmentId] === '__ERROR__' ? (
+                              <div className="explanation-error">⚠️ Error occurred, please try again.</div>
+                            ) : (
+                              <div className="explanation-text">{backTranslations[segmentId]}</div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       <div className="segment arabic-side">
                         <div className="arabic-side-inner">
@@ -424,7 +409,7 @@ const CompareInterface = () => {
                           </div>
                         </div>
                         {openSuggestions[segmentId] && (
-                          <div className="suggestions-panel" ref={suggestionsRef} onClick={(e) => e.stopPropagation()}>
+                          <div className="suggestions-panel" onClick={(e) => e.stopPropagation()}>
                             {suggestionsLoading ? (
                               <div className="suggestions-loading">جاري التحميل...</div>
                             ) : (

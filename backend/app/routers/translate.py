@@ -12,6 +12,7 @@ router = APIRouter(prefix="/translate", tags=["Translation"])
 
 @router.post("/text")
 async def translate(request: List[str]):
+    # only used for back translation
     print(request)
     if not request:
         raise HTTPException(status_code=400, detail="Request body is required")
@@ -162,5 +163,22 @@ async def generate_suggestions(request: dict):
 
     # Transform {model: text} dict to [{text, model}] list for frontend
     return [{"text": text, "model": model} for model, text in suggestions.items()]
+
+@router.post("/backtranslation")
+async def generate_backtranslation_endpoint(request: dict):
+    target_text = request.get("target_text")
+    source_lang = request.get("source_lang")
+    target_lang = request.get("target_lang")
+    page_context = request.get("page_blocks")
+
+    if not target_text:
+        raise HTTPException(status_code=400, detail="target_text is required")
+
+    if not source_lang or not target_lang:
+        raise HTTPException(status_code=400, detail="source_lang and target_lang are required")
+
+    backtranslation = generate_backtranslation(target_text, source_lang, target_lang, page_context)
+
+    return {"backtranslation": backtranslation}
 
 
