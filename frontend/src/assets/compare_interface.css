@@ -371,6 +371,15 @@
   color: var(--terracotta);
 }
 
+/* --- Segment action button row (suggestions + chat) --- */
+.segment-action-row {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  width: 100%;
+  direction: ltr;
+}
+
 /* --- Suggestions Panel (inline below arabic text) --- */
 
 .suggestions-panel {

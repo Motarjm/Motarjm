@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {useLocation, useNavigate } from 'react-router-dom';
 import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
+import FocusChatPanel from './FocusChatPanel';
 
 const CompareInterface = () => {
   const location = useLocation();
@@ -27,6 +28,7 @@ const CompareInterface = () => {
     return saved ? JSON.parse(saved) : {};
   });
   const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
+  const [focusChatSegment, setFocusChatSegment] = useState(null); // "pageIndex-blockIndex" or null
   const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -430,12 +432,20 @@ const CompareInterface = () => {
                             )}
                           </div>
                         )}
-                        <button
-                          className={`segment-action-btn suggestions-btn ${openSuggestions[segmentId] ? 'active' : ''}`}
-                          onClick={(e) => { e.stopPropagation(); handleFetchSuggestions(pageIndex, blockIndex); }}
-                        >
-                          💡 اقتراحات
-                        </button>
+                        <div className="segment-action-row">
+                          <button
+                            className={`segment-action-btn suggestions-btn ${openSuggestions[segmentId] ? 'active' : ''}`}
+                            onClick={(e) => { e.stopPropagation(); handleFetchSuggestions(pageIndex, blockIndex); }}
+                          >
+                            💡 اقتراحات
+                          </button>
+                          <button
+                            className="segment-action-btn focus-btn"
+                            onClick={(e) => { e.stopPropagation(); setFocusChatSegment({ pageIndex, blockIndex, id: segmentId }); }}
+                          >
+                            💬 Chat
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -445,6 +455,17 @@ const CompareInterface = () => {
           </div>
         </div>
       </div>
+
+      {focusChatSegment && translatedContents && (
+        <FocusChatPanel
+          segment={translatedContents[focusChatSegment.pageIndex][focusChatSegment.blockIndex]}
+          segmentId={focusChatSegment.id}
+          onClose={() => setFocusChatSegment(null)}
+          onEditTranslation={(newText) => {
+            handleArabicEdit(focusChatSegment.pageIndex, focusChatSegment.blockIndex, newText);
+          }}
+        />
+      )}
     </div>
   );
 };
