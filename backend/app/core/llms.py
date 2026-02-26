@@ -2,6 +2,9 @@ from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
 
+# Deepseek doesnt always apply instructions  as intended.
+# Even when given explicit instructrions to not translate context, sometimes it translates it.
+
 # Translators
 
 # google
@@ -146,7 +149,8 @@ providers = {"translator": [translator_1,
              
              "suggestions1": [gemini_2_5_flash_lite],
              "suggestions2": [advisor_1], # grok
-             "suggestions3": [evaluator_1], # deepseek
+             "suggestions3": [evaluator_1], # deepseek,
+             "backtranslation":[gemini_2_5_flash_lite]
 
              }
 
