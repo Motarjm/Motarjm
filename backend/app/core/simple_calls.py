@@ -2,7 +2,7 @@ import json
 import re
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
-from app.core.agents import provider_invoke
+from app.core.agents import provider_invoke, provider_stream
 from typing import List
 
 def generate_explanation(source_text: str, page_context: List):
@@ -120,3 +120,64 @@ def generate_backtranslation(target_text: str, source_lang: str, target_lang: st
         response = response[0]["text"]
 
     return response
+
+
+def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
+                   page_context: List, chat_history: List[dict], model: str):
+    """
+    Streams chatbot response tokens for a segment chat.
+    
+    Arguments:
+        - source_text: the source segment text
+        - translation: current translation of the segment
+        - source_lang / target_lang: language pair
+        - page_context: list of page block texts for context
+        - chat_history: list of {role: "user"|"bot", text: str}
+        - model: "deepseek" | "gemini" | "grok"
+    
+    Yields:
+        - str: text chunks
+    """
+    provider_key = f"chatbot_{model}"
+    
+    page_context_str = "\n\n".join(page_context)
+    
+    sys_prompt = SystemMessage(
+        content=CHATBOT_SYS_PROMPT,
+        agent="chatbot"
+    )
+    
+    context_msg = HumanMessage(
+        content=CHATBOT_PAGE_CONTEXT_PROMPT.format(
+            page_text=page_context_str,
+            
+        ),
+        agent="chatbot"
+    )
+    
+    user_message = HumanMessage(
+        content=CHATBOT_PROMPT.format(
+            source_text=source_text,
+            translation=translation
+        ),
+        agent="chatbot"
+    )
+    
+    # Build message list: system + context + history
+    messages = [sys_prompt, context_msg, user_message]
+    
+    # Add a placeholder assistant ack so history alternates correctly
+    messages.append(AIMessage(content="Understood. I'm ready to help with this segment. What would you like to know?"))
+    
+    for msg in chat_history:
+        if msg["role"] == "user":
+            messages.append(HumanMessage(content=msg["text"]))
+        else:
+            messages.append(AIMessage(content=msg["text"]))
+    
+    for chunk in provider_stream(provider_key, messages):
+        content = chunk.content
+        if isinstance(content, str):
+            yield content
+        elif isinstance(content, list) and content:
+            yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])

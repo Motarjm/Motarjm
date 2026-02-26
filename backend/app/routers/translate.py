@@ -182,3 +182,41 @@ async def generate_backtranslation_endpoint(request: dict):
     return {"backtranslation": backtranslation}
 
 
+@router.post("/chat")
+async def chat_stream(request: dict):
+    source_text = request.get("source_text")
+    translation = request.get("translation")
+    source_lang = request.get("source_lang")
+    target_lang = request.get("target_lang")
+    page_context = request.get("page_context", [])
+    chat_history = request.get("chat_history", [])
+    model = request.get("model", "gemini")
+
+    if not source_text or not translation:
+        raise HTTPException(status_code=400, detail="source_text and translation are required")
+    if not source_lang or not target_lang:
+        raise HTTPException(status_code=400, detail="source_lang and target_lang are required")
+    if model not in ("deepseek", "gemini", "grok"):
+        raise HTTPException(status_code=400, detail="model must be one of: deepseek, gemini, grok")
+
+    def event_stream():
+        try:
+            for chunk in stream_chatbot(
+                source_text=source_text,
+                translation=translation,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                page_context=page_context,
+                chat_history=chat_history,
+                model=model,
+            ):
+                # print(chunk)
+                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception as e:
+            raise e
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+

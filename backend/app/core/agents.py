@@ -46,6 +46,33 @@ def provider_invoke(role, prompt):
     
   return response
 
+
+def provider_stream(role, prompt):
+  """
+  Streams model response tokens based on available providers.
+  Yields chunks of text content.
+  
+  Arguments:
+    - role, str: the provider key (e.g. 'chatbot_deepseek')
+    - prompt, list: list of langchain messages
+    
+  Yields:
+    - str: text chunks as they arrive
+  """
+  last_error = None
+  for i in range(len(providers[role])):
+    try:
+      for chunk in providers[role][i].stream(prompt):
+          yield chunk
+      return  # success, stop trying providers
+    except Exception as e:
+      if not ("429" in str(e) or "402" in str(e)):
+        raise e
+      last_error = e
+
+  raise RuntimeError("All Model providers failed") from last_error
+
+
 def translator_agent(state: State) -> dict:
   """
   Translates the given text and returns output translation
