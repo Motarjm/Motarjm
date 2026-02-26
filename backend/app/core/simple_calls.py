@@ -73,8 +73,14 @@ def generate_suggestions(source_text: str, source_lang: str, translation: str, t
         response2 = response2[0]["text"]
 
     response3 = provider_invoke("suggestions3", prompt).content
+    
+    # deepseek and the other models
+    # if not isinstance(response3, str):
+    #     response3 = response3[0]["text"]
+        
+    # GPT5 nano
     if not isinstance(response3, str):
-        response3 = response3[0]["text"]
+        response3 = response3[1]["text"]
 
     # hardcoded for now, should be more sophisticated
     return {

@@ -129,11 +129,7 @@ const CompareInterface = () => {
       setOpenBackTranslations(prev => ({ ...prev, [key]: false }));
       return;
     }
-    // If already fetched, just show
-    // if (backTranslations[key]) {
-    //   setOpenBackTranslations(prev => ({ ...prev, [key]: true }));
-    //   return;
-    // }
+    // Always re-fetch
     setOpenBackTranslations(prev => ({ ...prev, [key]: true }));
     setBackTranslationLoading(prev => ({ ...prev, [key]: true }));
     try {
@@ -225,11 +221,7 @@ const CompareInterface = () => {
       setOpenSuggestions(prev => ({ ...prev, [key]: false }));
       return;
     }
-    // If already fetched, just show
-    // if (suggestions[key]) {
-    //   setOpenSuggestions(prev => ({ ...prev, [key]: true }));
-    //   return;
-    // }
+    // Always re-fetch
     setOpenSuggestions(prev => ({ ...prev, [key]: true }));
     setSuggestionsLoading(true);
     try {
@@ -252,14 +244,9 @@ const CompareInterface = () => {
       setSuggestions(prev => ({ ...prev, [key]: data }));
     } catch (error) {
       console.error('Error fetching suggestions:', error);
-      // Fallback mock suggestions
       setSuggestions(prev => ({
         ...prev,
-        [key]: [
-          { text: 'في قرية هادئة متوارية بين جبلين بلون الفضة المزرق، عاش صانع الساعات العجوز ياريك. كان محله صغيرًا — لا يزيد عن غرفة ذات نوافذ مغبرة ورفوف خشبية — لكن الزمن نفسه بدا وكأنه يستريح داخله. كانت الساعات من كل نوع تَتِق وتَدُق: ساعات الجيب النحاسية، وساعات البندول الطويلة، وساعات الوقواق الصغيرة المتوازنة في بيوتها المنحوتة. ومع ذلك، كان مشروع ياريك الأغلى إلى قلبه ساعة غير مكتملة مفتوحة على منضدة عمله، تلمع تروسها كشمس صغيرة.', model: 'GPT-4' },
-          { text: 'في قرية هادئة متوارية بين جبلين بلون الفضة المزرق، عاش صانع الساعات العجوز ياريك. كان محله صغيرًا — لا يزيد عن غرفة ذات نوافذ مغبرة ورفوف خشبية — لكن الزمن نفسه بدا وكأنه يستريح داخله. كانت الساعات من كل نوع تَتِق وتَدُق: ساعات الجيب النحاسية، وساعات البندول الطويلة، وساعات الوقواق الصغيرة المتوازنة في بيوتها المنحوتة. ومع ذلك، كان مشروع ياريك الأغلى إلى قلبه ساعة غير مكتملة مفتوحة على منضدة عمله، تلمع تروسها كشمس صغيرة.', model: 'Claude' },
-          { text: '', model: 'Gemini' },
-        ],
+        [key]: '__ERROR__',
       }));
     } finally {
       setSuggestionsLoading(false);
@@ -336,6 +323,7 @@ const CompareInterface = () => {
                         {segmentCounter}
                         <input
                           type="checkbox"
+                          title="Clear"
                           checked={!!checkedBlocks[segmentId]}
                           onChange={e => {
                             e.stopPropagation();
@@ -412,8 +400,12 @@ const CompareInterface = () => {
                         </div>
                         {openSuggestions[segmentId] && (
                           <div className="suggestions-panel" onClick={(e) => e.stopPropagation()}>
-                            {suggestionsLoading ? (
+                            {suggestionsLoading && !suggestions[segmentId] ? (
                               <div className="suggestions-loading">جاري التحميل...</div>
+                            ) : suggestions[segmentId] === '__ERROR__' ? (
+                              <div className="explanation-error">
+                                ⚠️ Error occurred, please try again.
+                              </div>
                             ) : (
                               suggestions[segmentId]?.map((s, i) => (
                                 <div className="suggestion-card" key={i}>

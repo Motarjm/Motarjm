@@ -75,12 +75,7 @@ const Torgman = () => {
       const decoder = new TextDecoder();
       let buffer = '';
       let finalData = null;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop();
+      const processLines = (lines) => {
         for (const line of lines) {
           const trimmed = line.trim();
           if (trimmed.startsWith('data: ')) {
@@ -99,6 +94,19 @@ const Torgman = () => {
             }
           }
         }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop();
+        processLines(lines);
+      }
+      // Process any remaining data left in the buffer after stream ends
+      if (buffer.trim()) {
+        processLines(buffer.split('\n\n'));
       }
       if (!finalData) {
         throw new Error('لم يتم استلام نتيجة الترجمة');

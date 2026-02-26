@@ -225,11 +225,11 @@ Your alternative should:
 - Be natural and fluent in the target language
 - Maintain the same level of quality
 
-You will be provided with relevant context to inform your suggestions. Focus on providing a single, high-quality alternative translation for each input.
+You will be provided with relevant context to inform your suggestions. Focus on providing a single, high-quality alternative translation.
 Provide only the alternative translation without explanation.
 """
 
-SUGGESTIONS_PROMPT = """Source: 
+SUGGESTIONS_PROMPT = """Source Text:  
 {source_text}
 
 Context: 
@@ -243,6 +243,8 @@ Source Language:
 
 Target language:
 {target_lang}
+
+ONLY TRANSLATE THE SOURCE TEXT. Do not translate the Context. Provide only the translated text without any explanations or notes.
 """
 
 

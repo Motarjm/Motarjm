@@ -138,7 +138,7 @@ gpt_5_nano  = ChatOpenAI(
     # max_retries=0,
     temperature=0.01,  # Gemini 3.0+ defaults to 1.0,
     reasoning = {
-        "effort": "none",
+        "effort": "low",
     }
 )
 
