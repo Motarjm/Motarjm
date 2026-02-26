@@ -452,6 +452,9 @@ const CompareInterface = () => {
         <FocusChatPanel
           segment={translatedContents[focusChatSegment.pageIndex][focusChatSegment.blockIndex]}
           segmentId={focusChatSegment.id}
+          pageContext={translatedContents[focusChatSegment.pageIndex].map(b => b.original_text)}
+          sourceLang={sourceLang}
+          targetLang={targetLang}
           onClose={() => setFocusChatSegment(null)}
           onEditTranslation={(newText) => {
             handleArabicEdit(focusChatSegment.pageIndex, focusChatSegment.blockIndex, newText);
