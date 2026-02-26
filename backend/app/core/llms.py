@@ -131,6 +131,16 @@ advisor_3 = ChatGoogleGenerativeAI(
     # other params...
 )
 
+gpt_5_nano  = ChatOpenAI(
+    model="openai/gpt-5-nano",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 1024,
+    # max_retries=0,
+    temperature=0.01,  # Gemini 3.0+ defaults to 1.0,
+    reasoning = {
+        "effort": "none",
+    }
+)
 
 providers = {"translator": [translator_1,
                              translator_2,
@@ -149,7 +159,7 @@ providers = {"translator": [translator_1,
              
              "suggestions1": [gemini_2_5_flash_lite],
              "suggestions2": [advisor_1], # grok
-             "suggestions3": [evaluator_1], # deepseek,
+             "suggestions3": [gpt_5_nano], # gpt5 nano,
              "backtranslation":[gemini_2_5_flash_lite]
 
              }

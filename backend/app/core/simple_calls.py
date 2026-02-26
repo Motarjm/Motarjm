@@ -80,7 +80,7 @@ def generate_suggestions(source_text: str, source_lang: str, translation: str, t
     return {
         "Gemini": response1,
         "Grok": response2,
-        "DeepSeek": response3
+        "ChatGPT": response3
     }
 
 
