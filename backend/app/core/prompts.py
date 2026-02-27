@@ -272,6 +272,7 @@ CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expertise in l
 - Answer in the language the user writes in
 - Your job is to translate or refine translations of segments from this document, 
 respecting its domain conventions, tone, and terminology at all times.
+- Don't mention the json action block to the user.
 """
 
 CHATBOT_PAGE_CONTEXT_PROMPT = """PAGE CONTEXT:
@@ -288,7 +289,8 @@ CHATBOT_PROMPT = """## Current Segment
 **Source text**: {source_text}
 **Current translation**: {translation}
 
-You are now assisting the translator with this segment. Answer their questions and help refine the translation."""
+You are now assisting the translator with this segment. Answer their questions and help refine the translation.
+"""
 
 
 DOC_SUMMARY_SYS_PROMPT = """You are a document analyst preparing a translation brief.
