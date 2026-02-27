@@ -82,7 +82,7 @@ const CompareInterface = () => {
   // Send updated content to backend
   const handleGeneratePDF = async () => {
     try {
-      const response = await fetch(`${API_URL}/translate/generate-edited-pdf`, {
+      const response = await fetch(`${API_URL}/pdf/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ const CompareInterface = () => {
     setBackTranslationLoading(prev => ({ ...prev, [key]: true }));
     try {
       const pageBlocks = translatedContents[pageIndex];
-      const response = await fetch(`${API_URL}/translate/backtranslation`, {
+      const response = await fetch(`${API_URL}/segment/backtranslation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -192,7 +192,7 @@ const CompareInterface = () => {
     try {
 
       const block = translatedContents[pageIndex][blockIndex];
-      const response = await fetch(`${API_URL}/translate/explanation`, {
+      const response = await fetch(`${API_URL}/segment/explanation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ block: block.original_text,
@@ -226,15 +226,15 @@ const CompareInterface = () => {
     setSuggestionsLoading(true);
     try {
       const pageBlocks = translatedContents[pageIndex];
-      const response = await fetch(`${API_URL}/translate/suggestions`, {
+      const response = await fetch(`${API_URL}/segment/suggestions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           page_blocks: pageBlocks.map(b => b.original_text),
           source_text: pageBlocks[blockIndex].original_text,
           translation: pageBlocks[blockIndex].translated_text,
-          source_lang: sourceLang,
-          target_lang: targetLang
+          sourceLang: sourceLang,
+          targetLang: targetLang
         }),
       });
 
@@ -452,6 +452,10 @@ const CompareInterface = () => {
         <FocusChatPanel
           segment={translatedContents[focusChatSegment.pageIndex][focusChatSegment.blockIndex]}
           segmentId={focusChatSegment.id}
+          pageContext={translatedContents[focusChatSegment.pageIndex].map(b => b.original_text)}
+          docContext={translatedContents.map(page => page.map(block => block.original_text))}
+          sourceLang={sourceLang}
+          targetLang={targetLang}
           onClose={() => setFocusChatSegment(null)}
           onEditTranslation={(newText) => {
             handleArabicEdit(focusChatSegment.pageIndex, focusChatSegment.blockIndex, newText);

@@ -22,29 +22,30 @@ def provider_invoke(role, prompt):
   Returns:
     - response: output of '.invoke()'
   """
-  # if all providers fail, raise error
-  response = None
-  last_error = None
-  # try each provider, if there is error skip it and go to the next one
-  for i in range(len(providers[role])):
-    try:
-      response = providers[role][i].invoke(prompt)
-      
-      print(response.response_metadata["model_name"])
-      break
-    
-    # Too many requests
-    except Exception as e:
-      # Only Raise error if related to resource exhaustion
-      if not ("429" in str(e) or "402" in str(e)):
-        raise e
-      
-      last_error = e
+  response = providers[role].invoke(prompt)  
   
-  if response is None:
-    raise RuntimeError("ALl Model providers failed") from last_error
-    
+  print(response.response_metadata["model_name"])
+  
   return response
+
+
+def provider_stream(role, prompt):
+  """
+  Streams model response tokens based on available providers.
+  Yields chunks of text content.
+  
+  Arguments:
+    - role, str: the provider key (e.g. 'chatbot_deepseek')
+    - prompt, list: list of langchain messages
+    
+  Yields:
+    - str: text chunks as they arrive
+  """
+  for chunk in providers[role].stream(prompt):
+      yield chunk
+      
+  return
+
 
 def translator_agent(state: State) -> dict:
   """

@@ -61,7 +61,7 @@ const Torgman = () => {
       formData.append('file', selectedFile);
       // Use the streaming endpoint
       const response = await fetch(
-        `${API_URL}/translate/pdf_file?source_lang=${sourceLang}&target_lang=${targetLang}`,
+        `${API_URL}/translation/pdf?source_lang=${sourceLang}&target_lang=${targetLang}`,
         {
           method: 'POST',
           body: formData,

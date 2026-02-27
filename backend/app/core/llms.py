@@ -5,20 +5,8 @@ from langchain_openai import ChatOpenAI
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
 
-# Translators
 
-# google
-translator_2 = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.01,  # Gemini 3.0+ defaults to 1.0
-    max_tokens=1024,
-    timeout=None,
-    max_retries=0,
-    # other params...
-) 
-
-# openrouter
-translator_1 = ChatOpenAI(
+deepseek = ChatOpenAI(
     model="deepseek/deepseek-v3.2",
     # model="qwen/qwen-2.5-72b-instruct",
     base_url="https://openrouter.ai/api/v1",
@@ -27,57 +15,7 @@ translator_1 = ChatOpenAI(
     reasoning = {
         "effort": "none",
     }
-    # max_retries=0
-)
 
-# hugging
-translator_3 = ChatHuggingFace( llm=HuggingFaceEndpoint(
-    repo_id="deepseek-ai/DeepSeek-V3.2",
-    max_new_tokens=1024,
-    do_sample=True,
-    temperature=0.01,  # Gemini 3.0+ defaults to 1.0
-    provider="auto",
-),
-                                    max_retries = 0
-
-)
-
-
-
-# Evaluators
-
-# hugging
-evaluator_2 = ChatHuggingFace( llm=HuggingFaceEndpoint(
-    repo_id="Qwen/Qwen2.5-7B-Instruct",
-    max_new_tokens=1024,
-    do_sample=True,
-    temperature=0.01,
-    provider="auto",
-),
-                                    max_retries = 0
-)
-
-
-
-# evaluator_2 = ChatOpenAI(
-#     model="meta-llama/llama-3.3-70b-instruct:free",
-#     base_url="https://openrouter.ai/api/v1",
-#     max_tokens = 1024,
-#     temperature=0.01,
-#     max_retries=0
-# )
-
-# openrouter
-evaluator_1 = ChatOpenAI(
-    # model="google/gemini-2.5-flash-lite",
-    model="deepseek/deepseek-v3.2",
-    base_url="https://openrouter.ai/api/v1",
-    max_tokens = 2048,
-    temperature=0.01,
-    reasoning = {
-        "effort": "none",
-    }
-    # max_retries=0
 )
 
 gemini_2_5_flash_lite = ChatOpenAI(
@@ -88,25 +26,10 @@ gemini_2_5_flash_lite = ChatOpenAI(
     reasoning = {
         "effort": "none",
     }
-    # max_retries=0
+    
 )
 
-# google
-evaluator_3 = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.01,  # Gemini 3.0+ defaults to 1.0
-    max_tokens=1024,
-    timeout=None,
-    max_retries=0,
-    # other params...
-) 
-
-
-
-# Advisors
-
-# openrouter
-advisor_1 = ChatOpenAI(
+grok = ChatOpenAI(
     model="x-ai/grok-4.1-fast",
     base_url="https://openrouter.ai/api/v1",
     max_tokens = 1024,
@@ -117,19 +40,6 @@ advisor_1 = ChatOpenAI(
     }
 )
 
-
-# just for now
-advisor_2 = advisor_1
-
-# google
-advisor_3 = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash-lite",
-    temperature=0.6,  # Gemini 3.0+ defaults to 1.0
-    max_tokens=1024,
-    timeout=None,
-    max_retries=0,
-    # other params...
-)
 
 gpt_5_nano  = ChatOpenAI(
     model="openai/gpt-5-nano",
@@ -142,25 +52,35 @@ gpt_5_nano  = ChatOpenAI(
     }
 )
 
-providers = {"translator": [translator_1,
-                             translator_2,
-                             translator_3], 
+
+providers = {"translator": gemini_2_5_flash_lite,
+                                # deepseek,
              
-             "evaluator": [evaluator_1,
-                            evaluator_2,
-                            evaluator_3],
+             "evaluator": gemini_2_5_flash_lite,
+                        #    deepseek
+                 
              
-             "advisor": [advisor_1,
-                          advisor_2,
-                          advisor_3],
+             "advisor": grok,
+                          
              
-             "terminology": [translator_1],
-             "explanator": [gemini_2_5_flash_lite],
+             "terminology": gemini_2_5_flash_lite,
+                #  deepseek],
              
-             "suggestions1": [gemini_2_5_flash_lite],
-             "suggestions2": [advisor_1], # grok
-             "suggestions3": [gpt_5_nano], # gpt5 nano,
-             "backtranslation":[gemini_2_5_flash_lite]
+             "explanator": gemini_2_5_flash_lite,
+
+             "suggestions1": gemini_2_5_flash_lite,
+             "suggestions2": grok, # grok
+             
+             "suggestions3": gpt_5_nano, # gpt5 nano,
+             
+             "backtranslation": gemini_2_5_flash_lite,
+
+             # chatbot — keyed by frontend model name
+             "chatbot_deepseek": deepseek,    # deepseek
+             "chatbot_gemini": gemini_2_5_flash_lite,  # gemini
+             "chatbot_grok": grok,            # grok
+             
+             "doc_summary": gemini_2_5_flash_lite
 
              }
 
@@ -168,4 +88,6 @@ providers = {"translator": [translator_1,
 
 
 __all__ = ["providers"]
+
+
 
