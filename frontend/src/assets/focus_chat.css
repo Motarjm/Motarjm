@@ -116,7 +116,7 @@
 
 /* Right panel: chat */
 .focus-chat {
-  width: 537px;
+  width: 737px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;

@@ -45,7 +45,7 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
   );
 };
 
-const FocusChatPanel = ({ segment, segmentId, pageContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
+const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState('deepseek');
@@ -100,6 +100,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, sourceLang, targetLan
           page_context: pageContext,
           chat_history: chatHistoryRef.current, // full raw history
           model: selectedModel,
+          doc_context: docContext,
         }),
       });
 
