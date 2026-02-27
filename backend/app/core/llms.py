@@ -77,6 +77,8 @@ providers = {"translator": gpt_5_nano,
              "chatbot_deepseek": deepseek,    # deepseek
              "chatbot_gemini": gemini_2_5_flash_lite,  # gemini
              "chatbot_grok": grok,            # grok
+             
+             "doc_summary": gemini_2_5_flash_lite
 
              }
 

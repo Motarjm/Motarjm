@@ -121,9 +121,42 @@ def generate_backtranslation(target_text: str, source_lang: str, target_lang: st
 
     return response
 
+def generate_doc_summary(pages_context: List[List[str]]) -> str:
+    """
+    Generates a summary for the given document text.
+    
+    The pages_context is a list of pages, where each page is a list of text blocks (strings).
+    """
+    sys_prompt = SystemMessage(
+        content=DOC_SUMMARY_SYS_PROMPT,
+        agent="doc_summary"
+    )
+    
+    # Flatten pages_context into a single string with page and block separators
+    doc_text = ""
+    for i, page in enumerate(pages_context):
+        doc_text += f"--- Page {i+1} ---\n"
+        for block in page:
+            doc_text += block + "\n\n"
+    
+    user_prompt = HumanMessage(
+        content=DOC_SUMMARY_PROMPT.format(document_text=doc_text),
+        agent="doc_summary"
+    )
+    
+    print(doc_text)
+
+    prompt = [sys_prompt, user_prompt]
+
+    response = provider_invoke("doc_summary", prompt).content
+    if not isinstance(response, str):
+        response = response[0]["text"]
+
+    return response
+
 
 def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
-                   page_context: List, chat_history: List[dict], model: str):
+                   page_context: List, chat_history: List[dict], model: str, doc_context: List[List[str]]):
     """
     Streams chatbot response tokens for a segment chat.
     
@@ -141,9 +174,11 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
     provider_key = f"chatbot_{model}"
     
     page_context_str = "\n\n".join(page_context)
-    
+
+    doc_summary = generate_doc_summary(doc_context)
+
     sys_prompt = SystemMessage(
-        content=CHATBOT_SYS_PROMPT,
+        content=CHATBOT_SYS_PROMPT.format(doc_summary=doc_summary),
         agent="chatbot"
     )
     

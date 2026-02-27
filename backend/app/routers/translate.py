@@ -191,6 +191,7 @@ async def chat_stream(request: dict):
     page_context = request.get("page_context", [])
     chat_history = request.get("chat_history", [])
     model = request.get("model", "gemini")
+    doc_context = request.get("doc_context")
 
     if not source_text or not translation:
         raise HTTPException(status_code=400, detail="source_text and translation are required")
@@ -209,6 +210,7 @@ async def chat_stream(request: dict):
                 page_context=page_context,
                 chat_history=chat_history,
                 model=model,
+                doc_context=doc_context
             ):
                 # print(chunk)
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
