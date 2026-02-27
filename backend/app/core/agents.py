@@ -22,28 +22,10 @@ def provider_invoke(role, prompt):
   Returns:
     - response: output of '.invoke()'
   """
-  # if all providers fail, raise error
-  response = None
-  last_error = None
-  # try each provider, if there is error skip it and go to the next one
-  for i in range(len(providers[role])):
-    try:
-      response = providers[role][i].invoke(prompt)
-      
-      print(response.response_metadata["model_name"])
-      break
-    
-    # Too many requests
-    except Exception as e:
-      # Only Raise error if related to resource exhaustion
-      if not ("429" in str(e) or "402" in str(e)):
-        raise e
-      
-      last_error = e
+  response = providers[role].invoke(prompt)  
   
-  if response is None:
-    raise RuntimeError("ALl Model providers failed") from last_error
-    
+  print(response.response_metadata["model_name"])
+  
   return response
 
 
@@ -59,18 +41,10 @@ def provider_stream(role, prompt):
   Yields:
     - str: text chunks as they arrive
   """
-  last_error = None
-  for i in range(len(providers[role])):
-    try:
-      for chunk in providers[role][i].stream(prompt):
-          yield chunk
-      return  # success, stop trying providers
-    except Exception as e:
-      if not ("429" in str(e) or "402" in str(e)):
-        raise e
-      last_error = e
-
-  raise RuntimeError("All Model providers failed") from last_error
+  for chunk in providers[role].stream(prompt):
+      yield chunk
+      
+  return
 
 
 def translator_agent(state: State) -> dict:
