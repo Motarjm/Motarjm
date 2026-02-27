@@ -53,7 +53,7 @@ gpt_5_nano  = ChatOpenAI(
 )
 
 
-providers = {"translator": gpt_5_nano,
+providers = {"translator": gemini_2_5_flash_lite,
                                 # deepseek,
              
              "evaluator": gemini_2_5_flash_lite,
@@ -70,7 +70,9 @@ providers = {"translator": gpt_5_nano,
 
              "suggestions1": gemini_2_5_flash_lite,
              "suggestions2": grok, # grok
+             
              "suggestions3": gpt_5_nano, # gpt5 nano,
+             
              "backtranslation": gemini_2_5_flash_lite,
 
              # chatbot — keyed by frontend model name
