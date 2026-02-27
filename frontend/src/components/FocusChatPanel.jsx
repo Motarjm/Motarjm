@@ -88,7 +88,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
 
     try {
       abortRef.current = new AbortController();
-      const response = await fetch(`${API_URL}/translate/chat`, {
+      const response = await fetch(`${API_URL}/segment/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortRef.current.signal,
