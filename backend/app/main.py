@@ -5,22 +5,21 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
 import os
-from app.routers import translate
+from app.routers import translation, pdf, segment
 
 app = FastAPI()
 
-
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Your React App URL
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Keep your router
-app.include_router(translate.router)
+app.include_router(translation.router)
+app.include_router(pdf.router)
+app.include_router(segment.router)
 
 # get absolute path to backend/app folder
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
