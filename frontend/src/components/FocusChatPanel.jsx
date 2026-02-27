@@ -48,7 +48,7 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
 const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [selectedModel, setSelectedModel] = useState('deepseek');
+  const [selectedModel, setSelectedModel] = useState('gemini');
   const [isStreaming, setIsStreaming] = useState(false);
   const [ephemeralError, setEphemeralError] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null); // { oldText, newText }
@@ -227,7 +227,13 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
             {messages.map((msg, i) => (
               <div key={i} className={`focus-chat-msg focus-chat-msg-${msg.role}`}>
                 {msg.role === 'bot' ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                  msg.text === '' ? (
+                    <span className="focus-chat-typing">
+                      <span /><span /><span />
+                    </span>
+                  ) : (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                  )
                 ) : (
                   msg.text
                 )}
@@ -259,9 +265,9 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
             >
-              <option value="deepseek">DeepSeek</option>
               <option value="gemini">Gemini</option>
               <option value="grok">Grok</option>
+              <option value="deepseek">DeepSeek</option>
             </select>
             <textarea
               className="focus-chat-input"
