@@ -35,11 +35,34 @@ const CompareInterface = () => {
 
 
   useEffect(() => {   
-    const { translatedContents, originalPdf, sourceLang, targetLang } = location.state || {};
-    if (translatedContents) setTranslatedContents(translatedContents);
-    if (originalPdf) setOriginalPdf(originalPdf);
-    if (sourceLang) setSourceLang(sourceLang);
-    if (targetLang) setTargetLang(targetLang);
+    // Try to get data from location.state first (navigation from Torgman.jsx)
+    const { translatedContents: stateContents, originalPdf: statePdf, sourceLang: stateLang, targetLang: stateTarget } = location.state || {};
+    
+    // If location.state is empty (page refresh), try sessionStorage
+    let finalContents = stateContents;
+    let finalPdf = statePdf;
+    let finalSourceLang = stateLang;
+    let finalTargetLang = stateTarget;
+    
+    if (!stateContents) {
+      try {
+        const savedData = sessionStorage.getItem('translationData');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          finalContents = parsed.translatedContents;
+          finalPdf = parsed.originalPdf;
+          finalSourceLang = parsed.sourceLang;
+          finalTargetLang = parsed.targetLang;
+        }
+      } catch (e) {
+        console.error('Failed to parse sessionStorage data:', e);
+      }
+    }
+    
+    if (finalContents) setTranslatedContents(finalContents);
+    if (finalPdf) setOriginalPdf(finalPdf);
+    if (finalSourceLang) setSourceLang(finalSourceLang);
+    if (finalTargetLang) setTargetLang(finalTargetLang);
   }, [location.state]);
 
   // Persist explanations to localStorage on change; clear on navigation away (but not refresh)

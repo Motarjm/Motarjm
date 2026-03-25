@@ -1,5 +1,5 @@
 // Torgman.jsx
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
@@ -19,6 +19,24 @@ const Torgman = () => {
   const [translationStartTime, setTranslationStartTime] = useState(null);
   const fileInputRef = useRef();
   const navigate = useNavigate();
+
+  // Load translation data from sessionStorage on component mount
+  useEffect(() => {
+    try {
+      const savedData = sessionStorage.getItem('translationData');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        setTranslatedContents(parsed.translatedContents);
+        setPdfBase64(parsed.originalPdf);
+        setSourceLang(parsed.sourceLang);
+        setTargetLang(parsed.targetLang);
+        setDownloadUrl('blob'); // Set a non-empty value to show the button
+        setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+      }
+    } catch (e) {
+      console.error('Failed to load translation data from sessionStorage:', e);
+    }
+  }, []);
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -128,6 +146,13 @@ const Torgman = () => {
       });
       setPdfBase64(base64);
       setDownloadUrl(url);
+      // Save to sessionStorage to persist across page refreshes
+      sessionStorage.setItem('translationData', JSON.stringify({
+        translatedContents: finalData.translated_contents,
+        originalPdf: base64,
+        sourceLang: sourceLang,
+        targetLang: targetLang
+      }));
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
     } catch (error) {
       console.error("Translation Error:", error);
@@ -203,7 +228,7 @@ const Torgman = () => {
           >
             <div className="upload-icon">📤</div>
             <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
-            <div className="upload-hint">PDF, DOCX, TXT (الحد الأقصى 10MB)</div>
+            <div className="upload-hint">PDF, DOCX, TXT ‫(الحد الأقصى ‫10MB)</div>
           </div>
           <input 
             type="file" 
