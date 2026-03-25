@@ -42,7 +42,7 @@ const CompareInterface = () => {
   });
   const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [focusChatSegment, setFocusChatSegment] = useState(null); // "pageIndex-blockIndex" or null
-  // const navigate = useNavigate();
+  const [copiedSegment, setCopiedSegment] = useState(null); // Track which segment was copied
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -362,6 +362,17 @@ const CompareInterface = () => {
     }
   };
 
+  // Handle copy to clipboard
+  const handleCopyToClipboard = (text, segmentId) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedSegment(segmentId);
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setCopiedSegment(null), 2000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
+  };
+
   // Calculate total segments and checked count
   const totalSegments = translatedContents
     ? translatedContents.reduce((sum, page) => sum + page.length, 0)
@@ -497,6 +508,16 @@ const CompareInterface = () => {
                           >
                             {block.translated_text || ''}
                           </div>
+                          <button
+                            className={`copy-btn ${copiedSegment === segmentId ? 'copied' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyToClipboard(block.translated_text, segmentId);
+                            }}
+                            title="Copy translation"
+                          >
+                            {copiedSegment === segmentId ? '✓' : '📋'}
+                          </button>
                         </div>
                         {openSuggestions[segmentId] && (
                           <div className="suggestions-panel" onClick={(e) => e.stopPropagation()}>
