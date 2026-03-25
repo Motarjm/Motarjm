@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
 import os
-from app.routers import translation, pdf, segment
+from app.routers import translation, generation, segment
 
 app = FastAPI()
 
@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 app.include_router(translation.router)
-app.include_router(pdf.router)
+app.include_router(generation.router)
 app.include_router(segment.router)
 
 # get absolute path to backend/app folder

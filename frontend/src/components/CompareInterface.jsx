@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import {useLocation, useNavigate } from 'react-router-dom';
+import {useLocation } from 'react-router-dom';
 import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
@@ -29,7 +29,7 @@ const CompareInterface = () => {
   });
   const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [focusChatSegment, setFocusChatSegment] = useState(null); // "pageIndex-blockIndex" or null
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -80,44 +80,79 @@ const CompareInterface = () => {
   };
 
   // Send updated content to backend
-  const handleGeneratePDF = async () => {
+  // const handleGeneratePDF = async () => {
+  //   try {
+  //     const response = await fetch(`${API_URL}/generation/pdf`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         translated_contents: translatedContents,
+  //         original_pdf: originalPdf
+  //       }),
+  //     });
+
+  //     if (!response.ok) {
+  //       throw new Error('فشل إنشاء PDF');
+  //     }
+
+  //     const blob = await response.blob();
+
+  //       // Convert blob to base64 for passing to next page
+  //     const new_pdf_base64 = await new Promise((resolve, reject) => {
+  //       const reader = new FileReader();
+  //       reader.onloadend = () => resolve(reader.result.split(',')[1]);
+  //       reader.onerror = reject;
+  //       reader.readAsDataURL(blob);
+  //     });
+      
+  //     // Navigate to the new page with the PDF
+  //     navigate('/editing', {
+  //       state: {
+  //         newPdf: new_pdf_base64,
+  //         originalPdf: originalPdf
+  //       }
+  //     });
+
+  //   } catch (error) {
+  //     console.error('Error generating PDF:', error);
+  //     alert('حدث خطأ أثناء إنشاء PDF');
+  //   }
+  // };
+
+  // Generate XLIFF file
+  const handleGenerateXLIFF = async () => {
     try {
-      const response = await fetch(`${API_URL}/pdf/generate`, {
+      const response = await fetch(`${API_URL}/generation/xliff`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           translated_contents: translatedContents,
-          original_pdf: originalPdf
+          source_lang: sourceLang,
+          target_lang: targetLang
         }),
       });
 
       if (!response.ok) {
-        throw new Error('فشل إنشاء PDF');
+        throw new Error('فشل إنشاء ملف XLIFF');
       }
 
       const blob = await response.blob();
-
-        // Convert blob to base64 for passing to next page
-      const new_pdf_base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      
-      // Navigate to the new page with the PDF
-      navigate('/editing', {
-        state: {
-          newPdf: new_pdf_base64,
-          originalPdf: originalPdf
-        }
-      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'translation.xliff';
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('حدث خطأ أثناء إنشاء PDF');
+      console.error('Error generating XLIFF:', error);
+      alert('حدث خطأ أثناء إنشاء ملف XLIFF');
     }
   };
 
@@ -284,8 +319,11 @@ const CompareInterface = () => {
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
             </span>
-            <button className="sidebar-btn" onClick={handleGeneratePDF}>
+            {/* <button className="sidebar-btn" onClick={handleGeneratePDF}>
               Generate PDF
+            </button> */}
+            <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
+              Generate XLIFF
             </button>
           </div>
         </div>

@@ -11,3 +11,8 @@ class TranslationBlock(BaseModel):
 class GenerateEditedPDFRequest(BaseModel):
     translated_contents: List[List[TranslationBlock]]
     original_pdf: str  # base64-encoded
+    
+class GenerateXliffRequest(BaseModel):
+    translated_contents: List[List[TranslationBlock]]
+    source_lang: str
+    target_lang: str    
