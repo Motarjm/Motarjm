@@ -7,24 +7,37 @@ import FocusChatPanel from './FocusChatPanel';
 const CompareInterface = () => {
   const location = useLocation();
   const [activeSegment, setActiveSegment] = useState(null);
-  const [translatedContents, setTranslatedContents] = useState(null);
+  const [translatedContents, setTranslatedContents] = useState(() => {
+    // Load from sessionStorage on mount (for page refresh)
+    const saved = sessionStorage.getItem('compare_translatedContents');
+    return saved ? JSON.parse(saved) : null;
+  });
+  // eslint-disable-next-line no-unused-vars
   const [originalPdf, setOriginalPdf] = useState(null);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
   const [checkedBlocks, setCheckedBlocks] = useState(() => {
-    // Load from localStorage on mount
-    const saved = localStorage.getItem('compare_checked_blocks');
+    // Load from sessionStorage on mount
+    const saved = sessionStorage.getItem('compare_checked_blocks');
     return saved ? JSON.parse(saved) : {};
   });
   const [openSuggestions, setOpenSuggestions] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [suggestions, setSuggestions] = useState({}); // keyed by "pageIndex-blockIndex"
+  const [suggestions, setSuggestions] = useState(() => {
+    // Load from sessionStorage on mount
+    const saved = sessionStorage.getItem('compare_suggestions');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [openBackTranslations, setOpenBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [backTranslations, setBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> string
+  const [backTranslations, setBackTranslations] = useState(() => {
+    // Load from sessionStorage on mount
+    const saved = sessionStorage.getItem('compare_backTranslations');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [backTranslationLoading, setBackTranslationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openExplanations, setOpenExplanations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
   const [explanations, setExplanations] = useState(() => {
-    const saved = localStorage.getItem('compare_explanations');
+    const saved = sessionStorage.getItem('compare_explanations');
     return saved ? JSON.parse(saved) : {};
   });
   const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
@@ -35,54 +48,80 @@ const CompareInterface = () => {
 
 
   useEffect(() => {   
-    // Try to get data from location.state first (navigation from Torgman.jsx)
-    const { translatedContents: stateContents, originalPdf: statePdf, sourceLang: stateLang, targetLang: stateTarget } = location.state || {};
+    // Use location.key to distinguish between:
+    // 1. Fresh navigation from Torgman.jsx (location.key changes)
+    // 2. Page refresh (location.key stays the same)
     
-    // If location.state is empty (page refresh), try sessionStorage
-    let finalContents = stateContents;
-    let finalPdf = statePdf;
-    let finalSourceLang = stateLang;
-    let finalTargetLang = stateTarget;
+    const currentKey = location.key;
+    const lastNavKey = sessionStorage.getItem('last_nav_key');
     
-    if (!stateContents) {
+    const isNewNavigation = currentKey !== lastNavKey;
+    
+    if (isNewNavigation) {
+      // Fresh navigation from Torgman.jsx: use location.state data
+      const { translatedContents: stateContents, originalPdf: statePdf, sourceLang: stateLang, targetLang: stateTarget } = location.state || {};
+      
+      setTranslatedContents(stateContents || null);
+      setOriginalPdf(statePdf || null);
+      setSourceLang(stateLang || 'English');
+      setTargetLang(stateTarget || 'Arabic');
+      
+      // Update the last navigation key in sessionStorage
+      sessionStorage.setItem('last_nav_key', currentKey);
+    } else {
+      // Page refresh: location.key matches the saved key
+      // The lazy initializers have already loaded the edited content from sessionStorage.
+      // Only restore metadata if needed.
       try {
         const savedData = sessionStorage.getItem('translationData');
         if (savedData) {
           const parsed = JSON.parse(savedData);
-          finalContents = parsed.translatedContents;
-          finalPdf = parsed.originalPdf;
-          finalSourceLang = parsed.sourceLang;
-          finalTargetLang = parsed.targetLang;
+          setOriginalPdf(parsed.originalPdf || null);
+          setSourceLang(parsed.sourceLang || 'English');
+          setTargetLang(parsed.targetLang || 'Arabic');
         }
       } catch (e) {
         console.error('Failed to parse sessionStorage data:', e);
       }
     }
-    
-    if (finalContents) setTranslatedContents(finalContents);
-    if (finalPdf) setOriginalPdf(finalPdf);
-    if (finalSourceLang) setSourceLang(finalSourceLang);
-    if (finalTargetLang) setTargetLang(finalTargetLang);
-  }, [location.state]);
+  }, [location.key, location.state]);
 
-  // Persist explanations to localStorage on change; clear on navigation away (but not refresh)
+  // Save translatedContents to sessionStorage whenever it changes
+  useEffect(() => {
+    if (translatedContents) {
+      try {
+        sessionStorage.setItem('compare_translatedContents', JSON.stringify(translatedContents));
+      } catch (e) {
+        console.error('Failed to save translatedContents to sessionStorage:', e);
+      }
+    }
+  }, [translatedContents]);
+
+  // Persist checkedBlocks to sessionStorage on change
+  useEffect(() => {
+    sessionStorage.setItem('compare_checked_blocks', JSON.stringify(checkedBlocks));
+  }, [checkedBlocks]);
+
+  // Persist explanations to sessionStorage on change
   useEffect(() => {
     if (Object.keys(explanations).length > 0) {
-      localStorage.setItem('compare_explanations', JSON.stringify(explanations));
+      sessionStorage.setItem('compare_explanations', JSON.stringify(explanations));
     }
   }, [explanations]);
 
+  // Persist backTranslations to sessionStorage on change
   useEffect(() => {
-    let isRefresh = false;
-    const handleBeforeUnload = () => { isRefresh = true; };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (!isRefresh) {
-        localStorage.removeItem('compare_explanations');
-      }
-    };
-  }, []);
+    if (Object.keys(backTranslations).length > 0) {
+      sessionStorage.setItem('compare_backTranslations', JSON.stringify(backTranslations));
+    }
+  }, [backTranslations]);
+
+  // Persist suggestions to sessionStorage on change
+  useEffect(() => {
+    if (Object.keys(suggestions).length > 0) {
+      sessionStorage.setItem('compare_suggestions', JSON.stringify(suggestions));
+    }
+  }, [suggestions]);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -217,7 +256,7 @@ const CompareInterface = () => {
     const key = `${pageIndex}-${blockIndex}`;
     setCheckedBlocks(prev => {
       const updated = { ...prev, [key]: !prev[key] };
-      localStorage.setItem('compare_checked_blocks', JSON.stringify(updated));
+      // Note: sessionStorage save is handled by the useEffect hook
       return updated;
     });
     setOpenSuggestions(prev => ({ ...prev, [key]: false }));
