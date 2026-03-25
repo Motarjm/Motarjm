@@ -1,6 +1,49 @@
 import xml.etree.ElementTree as ET
 from xml.dom import minidom
-from typing import List
+from typing import List, Dict
+
+
+def extract_text_from_xliff(xliff_bytes: bytes) -> List[Dict[str, str]]:
+    """
+    Extracts source text from an XLIFF file.
+    
+    Args:
+        xliff_bytes: XLIFF file content as bytes
+    
+    Returns:
+        List of dictionaries, each containing:
+            - "id": str (trans-unit id)
+            - "text": str (source text to translate)
+    """
+    # ToDo: you should keep the metadata and the notes of the original xliff
+    try:
+        # Parse XLIFF XML
+        root = ET.fromstring(xliff_bytes)
+        
+        # Define namespace
+        namespace = {'xliff': 'urn:oasis:names:tc:xliff:document:1.2'}
+        
+        # Extract all trans-unit elements
+        trans_units = root.findall('.//xliff:trans-unit', namespace)
+        
+        segments = []
+        for trans_unit in trans_units:
+            unit_id = trans_unit.get('id', '')
+            
+            # Get source text
+            source_elem = trans_unit.find('xliff:source', namespace)
+            source_text = source_elem.text if source_elem is not None and source_elem.text else ""
+            
+            if source_text.strip():  # Only include non-empty segments
+                segments.append({
+                    "id": unit_id,
+                    "text": source_text
+                })
+        
+        return segments
+    
+    except ET.ParseError as e:
+        raise RuntimeError(f"Failed to parse XLIFF file: {e}")
 
 
 def build_xliff(translated_contents: List[List[dict]], source_lang: str, target_lang: str) -> str:
@@ -11,7 +54,7 @@ def build_xliff(translated_contents: List[List[dict]], source_lang: str, target_
         translated_contents: List of pages, each containing list of blocks with:
             - original_text: str
             - translated_text: str
-            - bbox: list 
+            
         source_lang: Source language code 
         target_lang: Target language code 
     
