@@ -262,13 +262,13 @@ const Torgman = () => {
               </button>
             ) : (
               <div className="results-actions">
-                <a 
+                {/* <a 
                   href={downloadUrl} 
                   download="translated_file.pdf" 
                   className="translate-btn download-btn"
                 >
                   تحميل الملف
-                </a>
+                </a> */}
                 <button 
                   className="translate-btn edit-btn" 
                   onClick={() => navigate('/compare', { 
