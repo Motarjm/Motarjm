@@ -1,12 +1,14 @@
 from io import BytesIO
 import pymupdf
-from doclayout_yolo import YOLOv10
+from ultralytics import YOLO
 from huggingface_hub import hf_hub_download
 # the below line must be imported before paddleocr package to resolve langchain import error
 from app.patches.patch_langchain_imports import *
 from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
+import torchvision
+import torch
 
 def pdf_to_images(pdf_bytes: bytes):
     """Generator that yields PIL Images one page at a time"""
@@ -30,15 +32,17 @@ def yolo_predict(image, device="cpu"):
         and 6 is (x1 y1 x2 y2 conf classification)
 
     """
-    filepath = hf_hub_download(repo_id="juliozhao/DocLayout-YOLO-DocStructBench",
-                               filename="doclayout_yolo_docstructbench_imgsz1024.pt")
-    model = YOLOv10(filepath)
+    filepath = hf_hub_download(
+        repo_id="Armaggheddon/yolo26-document-layout",
+        filename= "yolo26n_doc_layout.pt",
+        repo_type="model",
+        )
+    model = YOLO(filepath)
 
     # Perform prediction
-    result = model.predict(
+    result = model(
         image,
-        imgsz=1024,
-        conf=0.2,
+        conf=0.5,
         device=device
     )
 
@@ -46,7 +50,19 @@ def yolo_predict(image, device="cpu"):
     #annotated_frame = result[0].plot(pil=True, line_width=5, font_size=20)
     #cv2.imwrite("result.jpg", annotated_frame)
     
-    return result[0].names, result[0].boxes.data
+    # before returning the data, remove overlapping boxes
+    boxes = result[0].boxes.data[:, :4]
+    scores = result[0].boxes.conf
+
+    keep = torchvision.ops.nms(boxes, scores, iou_threshold=0.5)
+    
+    filtered_boxes = boxes[keep]
+    filtered_scores = scores[keep]
+    filtered_classes = result[0].boxes.cls[keep]
+
+    filtered = torch.cat((filtered_boxes, filtered_scores.unsqueeze(1), filtered_classes.unsqueeze(1)), dim=1)
+    
+    return result[0].names, filtered
 
 
 def ocr_predict(image, device="cpu"):
@@ -105,7 +121,6 @@ def extract_text_from_image(image):
 
     ocr_result_texts, ocr_result_boxes= ocr_predict(image)
     yolo_result_names, yolo_result_data = yolo_predict(image)
-
     ocr_text = []
 
     for block_num in range(len(yolo_result_data)):
@@ -116,7 +131,7 @@ def extract_text_from_image(image):
         name_idx = yolo_result_data[block_num][-1].item()
 
         # we only need to extract text from a block of plain text or title
-        if yolo_result_names[name_idx] not in ["plain text", "title"]:
+        if yolo_result_names[name_idx] not in ["Section-header", "Text", "Title"]:
             continue
 
         block_bbox = yolo_result_data[block_num][:4].tolist()

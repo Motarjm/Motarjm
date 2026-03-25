@@ -248,7 +248,7 @@ class ArabicPDFBuilder:
             
             
         translated_blocks.sort(key=lambda b: (b["bbox"][0] + b["bbox"][2]) / 2)
-        threshold = (width_sum / len(translated_blocks)) * 0.5
+        threshold = (width_sum / (len(translated_blocks) + 1)) * 0.5
 
         columns = []
         headings = []
