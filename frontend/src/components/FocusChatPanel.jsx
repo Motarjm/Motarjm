@@ -46,7 +46,19 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
 };
 
 const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    // Load chat history from sessionStorage on mount
+    try {
+      const saved = sessionStorage.getItem(`chat_history_${segmentId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.messages || [];
+      }
+    } catch (e) {
+      console.error('Failed to load chat history from sessionStorage:', e);
+    }
+    return [];
+  });
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -56,9 +68,34 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
   const abortRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
 
+  // Load chatHistoryRef from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(`chat_history_${segmentId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        chatHistoryRef.current = parsed.chatHistory || [];
+      }
+    } catch (e) {
+      console.error('Failed to load raw chat history from sessionStorage:', e);
+    }
+  }, [segmentId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Save chat history to sessionStorage whenever messages or chatHistoryRef changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`chat_history_${segmentId}`, JSON.stringify({
+        messages: messages,
+        chatHistory: chatHistoryRef.current
+      }));
+    } catch (e) {
+      console.error('Failed to save chat history to sessionStorage:', e);
+    }
+  }, [messages, segmentId]);
 
   // Parse action block from completed bot message
   const parseAction = (text) => {
