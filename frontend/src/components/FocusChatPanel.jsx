@@ -45,6 +45,7 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
   );
 };
 
+
 const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
   const [messages, setMessages] = useState(() => {
     // Load chat history from sessionStorage on mount
@@ -63,9 +64,10 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [isStreaming, setIsStreaming] = useState(false);
   const [ephemeralError, setEphemeralError] = useState(null);
-  const [pendingEdit, setPendingEdit] = useState(null); // { oldText, newText }
+  const [pendingEdit, setPendingEdit] = useState(null);
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
+  const textareaRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
 
   // Load chatHistoryRef from sessionStorage on mount
@@ -108,6 +110,27 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     return null;
   };
 
+  // Auto-resize textarea when user types (Claude-style)
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // Grow up to a maximum height, then allow scrolling
+      const newHeight = Math.min(scrollHeight, 300); // Max 300px before scrollbar
+      textareaRef.current.style.height = newHeight + 'px';
+      
+      // Add scrollable class only when content exceeds max-height
+      if (scrollHeight > 150) {
+        textareaRef.current.classList.add('scrollable');
+      } else {
+        textareaRef.current.classList.remove('scrollable');
+      }
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return;
 
@@ -117,6 +140,13 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     setMessages(updatedMessages);
     chatHistoryRef.current = [...chatHistoryRef.current, userMsg];
     setInput('');
+    
+    // Reset textarea height to default
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '38px';
+      textareaRef.current.classList.remove('scrollable');
+    }
+    
     setIsStreaming(true);
 
     // Add empty bot message placeholder for streaming
@@ -211,6 +241,14 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     }
   };
 
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -258,8 +296,8 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
           <div className="focus-chat-messages">
             {messages.length === 0 && !ephemeralError && (
               <div className="focus-chat-empty">
-                Ask anything about this segment…     
-                </div>
+                Ask anything about this segment…
+              </div>
             )}
             {messages.map((msg, i) => (
               <div key={i} className={`focus-chat-msg focus-chat-msg-${msg.role}`}>
@@ -307,10 +345,11 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
               <option value="deepseek">DeepSeek</option>
             </select>
             <textarea
+              ref={textareaRef}
               className="focus-chat-input"
               placeholder="Type a message…"
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               rows={1}
             />
