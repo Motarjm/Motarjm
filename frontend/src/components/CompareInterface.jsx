@@ -27,7 +27,7 @@ const CompareInterface = () => {
     const saved = sessionStorage.getItem('compare_suggestions');
     return saved ? JSON.parse(saved) : {};
   });
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openBackTranslations, setOpenBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
   const [backTranslations, setBackTranslations] = useState(() => {
     // Load from sessionStorage on mount
@@ -320,7 +320,7 @@ const CompareInterface = () => {
     }
     // Always re-fetch
     setOpenSuggestions(prev => ({ ...prev, [key]: true }));
-    setSuggestionsLoading(true);
+    setSuggestionsLoading(prev => ({ ...prev, [key]: true }));
     try {
       const pageBlocks = translatedContents[pageIndex];
       const response = await fetch(`${API_URL}/segment/suggestions`, {
@@ -346,7 +346,7 @@ const CompareInterface = () => {
         [key]: '__ERROR__',
       }));
     } finally {
-      setSuggestionsLoading(false);
+      setSuggestionsLoading(prev => ({ ...prev, [key]: false }));
     }
   };
 
@@ -521,7 +521,7 @@ const CompareInterface = () => {
                         </div>
                         {openSuggestions[segmentId] && (
                           <div className="suggestions-panel" onClick={(e) => e.stopPropagation()}>
-                            {suggestionsLoading && !suggestions[segmentId] ? (
+                            {suggestionsLoading[segmentId] ? (
                               <div className="suggestions-loading">جاري التحميل...</div>
                             ) : suggestions[segmentId] === '__ERROR__' ? (
                               <div className="explanation-error">

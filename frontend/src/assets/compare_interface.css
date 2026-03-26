@@ -431,12 +431,15 @@
 
 .suggestions-panel {
   margin-top: 10px;
+  margin-left: auto;
   padding: 4px 0;
   background: #fdf8f6;
   border-right: 3px solid var(--terracotta);
   border-radius: 0 8px 8px 0;
   overflow: hidden;
   animation: explanationFadeIn 0.2s ease;
+  direction: ltr;
+  max-width: 100%;
 }
 
 .suggestions-loading {
