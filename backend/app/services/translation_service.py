@@ -16,7 +16,7 @@ def translate_text(text: str, prev_text: str, source_lang: str, target_lang: str
         source_text=text,
         source_lang=source_lang,
         target_lang=target_lang,
-        max_iterations=1,
+        max_iterations=2,
         prev_context=prev_text,
     )
 
