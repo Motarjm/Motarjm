@@ -152,6 +152,7 @@
   cursor: pointer;
   flex-shrink: 0;
   transition: border-color 0.15s;
+  min-height: 30px;
 }
 
 .focus-chat-model-select:focus {
@@ -480,13 +481,38 @@
   resize: none;
   border: 1px solid rgba(107, 125, 92, 0.2);
   border-radius: 8px;
-  padding: 0.5rem 0.7rem;
+  padding: 0.6rem 0.8rem;
   font-size: 0.88rem;
   font-family: inherit;
   outline: none;
   background: #fff;
-  min-height: 38px;
-  max-height: 100px;
+  min-height: 40px;
+  max-height: 300px;
+  transition: height 0.08s ease-out;
+  overflow: hidden;
+  line-height: 1.5;
+}
+
+/* Show scrollbar only when needed (when scrolling is possible) */
+.focus-chat-input.scrollable {
+  overflow-y: auto;
+}
+
+.focus-chat-input::-webkit-scrollbar {
+  width: 6px;
+}
+
+.focus-chat-input::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.focus-chat-input::-webkit-scrollbar-thumb {
+  background: rgba(107, 125, 92, 0.2);
+  border-radius: 3px;
+}
+
+.focus-chat-input::-webkit-scrollbar-thumb:hover {
+  background: rgba(107, 125, 92, 0.4);
 }
 
 .focus-chat-input:focus {

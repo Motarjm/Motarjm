@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { diffWords } from 'diff';
 import '../assets/focus_chat.css';
 import { API_URL } from '../apiConfig';
+import { trackFocusPanelSession, trackAISuggestionApplied, trackChatInteraction, trackArabicTextCopied } from '../analytics';
 
 // Inline diff preview component
 const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
@@ -45,20 +46,69 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
   );
 };
 
+
 const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    // Load chat history from sessionStorage on mount
+    try {
+      const saved = sessionStorage.getItem(`chat_history_${segmentId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.messages || [];
+      }
+    } catch (e) {
+      console.error('Failed to load chat history from sessionStorage:', e);
+    }
+    return [];
+  });
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [isStreaming, setIsStreaming] = useState(false);
   const [ephemeralError, setEphemeralError] = useState(null);
-  const [pendingEdit, setPendingEdit] = useState(null); // { oldText, newText }
+  const [pendingEdit, setPendingEdit] = useState(null);
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
+  const textareaRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
+  const focusStartTimeRef = useRef(Date.now()); // Track session start time
+
+  // Load chatHistoryRef from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(`chat_history_${segmentId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        chatHistoryRef.current = parsed.chatHistory || [];
+      }
+    } catch (e) {
+      console.error('Failed to load raw chat history from sessionStorage:', e);
+    }
+  }, [segmentId]);
+
+  // Track focus panel session on unmount (panel closes)
+  useEffect(() => {
+    const startTime = focusStartTimeRef.current;
+    return () => {
+      const sessionDuration = Date.now() - startTime;
+      trackFocusPanelSession(sessionDuration, segmentId, messages.length, !!pendingEdit);
+    };
+  }, [segmentId, messages.length, pendingEdit]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Save chat history to sessionStorage whenever messages or chatHistoryRef changes
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(`chat_history_${segmentId}`, JSON.stringify({
+        messages: messages,
+        chatHistory: chatHistoryRef.current
+      }));
+    } catch (e) {
+      console.error('Failed to save chat history to sessionStorage:', e);
+    }
+  }, [messages, segmentId]);
 
   // Parse action block from completed bot message
   const parseAction = (text) => {
@@ -71,6 +121,27 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     return null;
   };
 
+  // Auto-resize textarea when user types (Claude-style)
+  const handleInputChange = (e) => {
+    setInput(e.target.value);
+    
+    // Auto-resize textarea
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // Grow up to a maximum height, then allow scrolling
+      const newHeight = Math.min(scrollHeight, 300); // Max 300px before scrollbar
+      textareaRef.current.style.height = newHeight + 'px';
+      
+      // Add scrollable class only when content exceeds max-height
+      if (scrollHeight > 150) {
+        textareaRef.current.classList.add('scrollable');
+      } else {
+        textareaRef.current.classList.remove('scrollable');
+      }
+    }
+  };
+
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return;
 
@@ -79,7 +150,18 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     chatHistoryRef.current = [...chatHistoryRef.current, userMsg];
+    
+    // Track chat interaction
+    trackChatInteraction('user');
+    
     setInput('');
+    
+    // Reset textarea height to default
+    if (textareaRef.current) {
+      textareaRef.current.style.height = '38px';
+      textareaRef.current.classList.remove('scrollable');
+    }
+    
     setIsStreaming(true);
 
     // Add empty bot message placeholder for streaming
@@ -149,6 +231,9 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
         // Always append full raw text to chatHistoryRef (bot sees the JSON action)
         chatHistoryRef.current = [...chatHistoryRef.current, { role: 'bot', text: fullText }];
 
+        // Track bot response
+        trackChatInteraction('bot', selectedModel);
+
         if (action) {
           // Don't apply immediately — show diff for user confirmation
           setPendingEdit({ oldText: segment?.translated_text, newText: action.new_text, botIndex });
@@ -174,12 +259,41 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     }
   };
 
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
+
+  // Detect Arabic text and track copy events
+  const detectArabicText = (text) => {
+    return /[\u0600-\u06FF]/.test(text);
+  };
+
+  // Track copy events using selection API
+  useEffect(() => {
+    const handleCopy = () => {
+      const selection = window.getSelection().toString();
+      if (selection && detectArabicText(selection)) {
+        // Check if copied text is from AI suggestion
+        const isFromSuggestion = pendingEdit && pendingEdit.newText.includes(selection);
+        trackArabicTextCopied(selection.length, 'focus_chat', isFromSuggestion);
+      }
+    };
+
+    // Listen for copy command
+    document.addEventListener('copy', handleCopy);
+    return () => document.removeEventListener('copy', handleCopy);
+  }, [pendingEdit]);
 
   return (
     <div className="focus-overlay">
@@ -221,8 +335,8 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
           <div className="focus-chat-messages">
             {messages.length === 0 && !ephemeralError && (
               <div className="focus-chat-empty">
-                Ask anything about this segment…     
-                </div>
+                We Prompt Engineer. You Translate.
+              </div>
             )}
             {messages.map((msg, i) => (
               <div key={i} className={`focus-chat-msg focus-chat-msg-${msg.role}`}>
@@ -252,6 +366,8 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
               oldText={pendingEdit.oldText}
               newText={pendingEdit.newText}
               onApply={() => {
+                // Track AI suggestion applied
+                trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
                 onEditTranslation(pendingEdit.newText);
                 setPendingEdit(null);
               }}
@@ -270,10 +386,11 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
               <option value="deepseek">DeepSeek</option>
             </select>
             <textarea
+              ref={textareaRef}
               className="focus-chat-input"
-              placeholder="Type a message…"
+              placeholder="Ask anything about this segment..."
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               rows={1}
             />

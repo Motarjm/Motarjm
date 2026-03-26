@@ -21,18 +21,23 @@ TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {
 ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context or terminology. Provide only the translated text without any explanations or notes."""
 
 # for now, backtranslation uses page context
-BACKTRANSLATION_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
 
-**Terminology**:
+BACKTRANSLATION_PROMPT="""TASK: Translate ONLY the text inside <source_text> tags from {source_lang} to {target_lang}. 
+Do NOT translate anything outside those tags.
+
+<terminology>
 {terminology}
+</terminology>
 
-**Context**:
+<context for_reference_only — DO NOT TRANSLATE>
 {prev_context}
+</context>
 
-**Source Text**:
+<source_text>
 {source_text}
+</source_text>
 
-ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context or terminology. Provide only the translated text without any explanations or notes."""
+Output the {target_lang} translation of the source text only, nothing else:"""
 
 TERMINOLOGY_PROMPT = """Extract key terminology from this {source_lang} text and difficult words from the text below and provide translations.
 
@@ -193,59 +198,50 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 - Provide suggestions only, NO revised translation or retranslation.
 - Don't overexplain - be concise and focused."""
 
-EXPLANATION_SYS_PROMPT = """Provide a brief explanation of this source text to help a translator fully understand it before translating:
+EXPLANATION_SYS_PROMPT = """You are a translation consultant. Your job is to briefly explain a source text so a translator understands it well enough to translate it accurately.
 
-**CONTEXT & MEANING:**
-- What is this text about? What is its main purpose?
-- Any implicit meanings, cultural references, or background knowledge needed?
+Use the provided context only to inform your understanding of the source text — do not explain the context itself.
 
-**KEY POINTS FOR TRANSLATION:**
-- Important nuances or connotations to preserve
-- Ambiguities or potential misinterpretations to watch for
-- Tone and register considerations
+Cover only what directly affects translation:
+- Core meaning and intent
+- Tone and register
+- Any nuance, ambiguity, or cultural reference that could be mistranslated
 
-You will be provided with the source text and any relevant context.
-Keep the explanation concise and focused on what directly impacts translation quality.
-"""
+Be concise. Skip any point that is obvious or irrelevant. Plain text only, no markdown."""
 
-EXPLANATION_PROMPT = """SOURCE TEXT:
-{source_text}
-
-PAGE CONTEXT:
+EXPLANATION_PROMPT = """<context for_reference_only — DO NOT TRANSLATE>
 {page_context}
+</context>
 
-Provide your answer in plain text and not markdown.
-"""
+Source text to explain:
+{source_text}"""
 
-SUGGESTIONS_SYS_PROMPT = """You are a professional translator. For each source text and existing translation provided, generate an alternative translation that offers a different but equally valid approach.
+SUGGESTIONS_SYS_PROMPT = """You are a professional translator specializing in {source_lang} to {target_lang} translation.
 
-Your alternative should:
-- Preserve the meaning and tone of the source
-- Differ meaningfully from the existing translation (different word choices, structure, or phrasing)
-- Be natural and fluent in the target language
-- Maintain the same level of quality
+Given a source text and an existing translation, produce one alternative translation that takes a noticeably different approach — for example: different sentence structure, different register, or different idiomatic choices — while fully preserving the original meaning.
 
-You will be provided with relevant context to inform your suggestions. Focus on providing a single, high-quality alternative translation.
-Provide only the alternative translation without explanation.
-"""
+Do not produce a superficially tweaked version of the existing translation.
+Do not explain your translation.
+Output the alternative translation only."""
 
-SUGGESTIONS_PROMPT = """Source Text:  
-{source_text}
+SUGGESTIONS_PROMPT = """You are a translator from {source_lang} to {target_lang}.
 
-Context: 
+TASK: Improve the existing translation of the text inside <source_text> tags.
+Do NOT translate anything outside those tags.
+
+<context for_reference_only — DO NOT TRANSLATE>
 {page_context}
+</context>
 
-Existing translation: 
+<source_text>
+{source_text}
+</source_text>
+
+<existing_translation>
 {translation}
+</existing_translation>
 
-Source Language:
-{source_lang}
-
-Target language:
-{target_lang}
-
-ONLY TRANSLATE THE SOURCE TEXT. Do not translate the Context. Provide only the translated text without any explanations or notes.
-"""
+Output the improved {target_lang} translation of the source text only, nothing else:"""
 
 # the blueprint of the doc should be added with the below prompt
 CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expertise in linguistics and translation. You help translators refine their work by answering questions about terminology, meaning, style, and context.

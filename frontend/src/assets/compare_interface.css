@@ -331,6 +331,53 @@
   flex: 1;
 }
 
+/* Copy button styling */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(107, 125, 92, 0.3);
+  background: var(--cream);
+  color: var(--olive);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.copy-btn:hover {
+  background: rgba(107, 125, 92, 0.1);
+  border-color: rgba(107, 125, 92, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  transform: scale(1.1);
+}
+
+.copy-btn.copied {
+  background: rgba(76, 175, 80, 0.2);
+  border-color: #4CAF50;
+  color: #4CAF50;
+  border-radius: 50%;
+  animation: checkmark-pulse 0.4s ease-out;
+}
+
+@keyframes checkmark-pulse {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    transform: scale(1.3) rotate(15deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
 /* Shared segment action button style */
 .segment-action-btn {
   display: inline-flex;
@@ -384,12 +431,15 @@
 
 .suggestions-panel {
   margin-top: 10px;
+  margin-left: auto;
   padding: 4px 0;
   background: #fdf8f6;
   border-right: 3px solid var(--terracotta);
   border-radius: 0 8px 8px 0;
   overflow: hidden;
   animation: explanationFadeIn 0.2s ease;
+  direction: ltr;
+  max-width: 100%;
 }
 
 .suggestions-loading {

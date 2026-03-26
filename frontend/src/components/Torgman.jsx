@@ -1,8 +1,14 @@
 // Torgman.jsx
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
+import {
+  trackFileSelected,
+  trackTranslationStarted,
+  trackTranslationCompleted,
+  trackDocumentDownloaded,
+} from '../analytics';
 
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -10,7 +16,7 @@ const Torgman = () => {
   const [status, setStatus] = useState('');
   const [downloadUrl, setDownloadUrl] = useState(''); 
   const [translatedContents, setTranslatedContents] = useState(null);
-  const [pdfBase64, setPdfBase64] = useState(null);
+  const [fileContent, setFileContent] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
@@ -19,6 +25,24 @@ const Torgman = () => {
   const [translationStartTime, setTranslationStartTime] = useState(null);
   const fileInputRef = useRef();
   const navigate = useNavigate();
+
+  // Load translation data from sessionStorage on component mount
+  useEffect(() => {
+    try {
+      const savedData = sessionStorage.getItem('translationData');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        setTranslatedContents(parsed.translatedContents);
+        setFileContent(parsed.originalPdf);
+        setSourceLang(parsed.sourceLang);
+        setTargetLang(parsed.targetLang);
+        setDownloadUrl('blob'); // Set a non-empty value to show the button
+        setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+      }
+    } catch (e) {
+      console.error('Failed to load translation data from sessionStorage:', e);
+    }
+  }, []);
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -34,15 +58,30 @@ const Torgman = () => {
 
 
 
+  const getFileType = (fileName) => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    if (ext === 'pdf') return 'pdf';
+    if (ext === 'xliff' || ext === 'xlf') return 'xliff';
+    return null;
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      const fileType = getFileType(file.name);
+      if (!fileType) {
+        alert('نوع الملف غير مدعوم. يرجى اختيار ملف PDF أو XLIFF');
+        return;
+      }
       setSelectedFile(file);
       setFileName(file.name);
       setDownloadUrl('');
       setTranslatedContents(null);
-      setPdfBase64(null);
+      setFileContent(null);
       setStatus('');
+
+      // Track file selection
+      trackFileSelected(fileType, file.size);
     }
   };
 
@@ -51,30 +90,50 @@ const Torgman = () => {
       alert('الرجاء اختيار ملف أولاً');
       return;
     }
+
+    const fileType = getFileType(selectedFile.name);
+    if (!fileType) {
+      alert('نوع الملف غير مدعوم');
+      return;
+    }
+
     setIsTranslating(true);
     setStatus('جاري المعالجة...');
     setProgress(0);
     setTotalBlocks(0);
     setTranslationStartTime(Date.now());
+
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      // Use the streaming endpoint
+
+      // Determine endpoint and source language code
+      const endpoint = fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff';
+      const sourceLangObj = Sourcelanguages.find(lang => lang.englishName === sourceLang);
+      const targetLangObj = Targetlanguages.find(lang => lang.englishName === targetLang);
+      const sourceLangCode = sourceLangObj?.code || 'en';
+      const targetLangCode = targetLangObj?.code || 'ar';
+
+      // Track translation start
+      trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
       const response = await fetch(
-        `${API_URL}/translation/pdf?source_lang=${sourceLang}&target_lang=${targetLang}`,
+        `${API_URL}${endpoint}?source_lang=${sourceLangCode}&target_lang=${targetLangCode}`,
         {
           method: 'POST',
           body: formData,
         }
       );
+
       if (!response.ok) {
         throw new Error('فشلت عملية الترجمة على الخادم');
       }
+
       // Read the SSE stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
       let finalData = null;
+
       const processLines = (lines) => {
         for (const line of lines) {
           const trimmed = line.trim();
@@ -104,30 +163,58 @@ const Torgman = () => {
         buffer = lines.pop();
         processLines(lines);
       }
+
       // Process any remaining data left in the buffer after stream ends
       if (buffer.trim()) {
         processLines(buffer.split('\n\n'));
       }
+
       if (!finalData) {
         throw new Error('لم يتم استلام نتيجة الترجمة');
       }
-      const blob = new Blob(
-        [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
-        { type: 'application/pdf' }
-      );
-      const url = URL.createObjectURL(blob);
-      setTranslatedContents(finalData.translated_contents);
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64String = reader.result.split(',')[1];
-          resolve(base64String);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(selectedFile);
-      });
-      setPdfBase64(base64);
-      setDownloadUrl(url);
+
+      // Handle file-specific logic
+      if (fileType === 'pdf') {
+        // PDF response includes base64 encoded PDF
+        const blob = new Blob(
+          [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
+          { type: 'application/pdf' }
+        );
+        const url = URL.createObjectURL(blob);
+        setTranslatedContents(finalData.translated_contents);
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64String = reader.result.split(',')[1];
+            resolve(base64String);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(selectedFile);
+        });
+        setFileContent(base64);
+        setDownloadUrl(url);
+      } else if (fileType === 'xliff') {
+        // XLIFF response includes XLIFF XML string
+        const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
+        const url = URL.createObjectURL(blob);
+        setTranslatedContents(finalData.translated_contents);
+        setFileContent(finalData.xliff); // Store XLIFF content
+        setDownloadUrl(url);
+      }
+
+      // Save to sessionStorage to persist across page refreshes
+      sessionStorage.setItem('translationData', JSON.stringify({
+        translatedContents: finalData.translated_contents,
+        originalPdf: fileContent, // Store base64 for PDF or XLIFF content for XLIFF
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+        fileType: fileType
+      }));
+
+      // Track translation completion
+      const translationDuration = Date.now() - translationStartTime;
+      trackTranslationCompleted(fileType, selectedFile.size, translationDuration, true);
+
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
     } catch (error) {
       console.error("Translation Error:", error);
@@ -203,13 +290,16 @@ const Torgman = () => {
           >
             <div className="upload-icon">📤</div>
             <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
-            <div className="upload-hint">PDF, DOCX, TXT (الحد الأقصى 10MB)</div>
+            <div className="upload-hint">PDF, XLIFF ‫(الحد الأقصى ‫10MB)</div>
+
+
           </div>
           <input 
             type="file" 
             ref={fileInputRef} 
             style={{ display: 'none' }} 
-            onChange={handleFileChange} 
+            onChange={handleFileChange}
+            accept=".pdf,.xliff,.xlf"
           />
 
           {/* File Display */}
@@ -262,23 +352,27 @@ const Torgman = () => {
               </button>
             ) : (
               <div className="results-actions">
-                <a 
+                {/* <a 
                   href={downloadUrl} 
                   download="translated_file.pdf" 
                   className="translate-btn download-btn"
                 >
                   تحميل الملف
-                </a>
+                </a> */}
                 <button 
                   className="translate-btn edit-btn" 
-                  onClick={() => navigate('/compare', { 
-                    state: { 
-                      translatedContents: translatedContents,
-                      originalPdf: pdfBase64,
-                      sourceLang: sourceLang,
-                      targetLang: targetLang
-                    }
-                  })}
+                  onClick={() => {
+                    // Track navigation to editing interface
+                    // trackDocumentDownloaded('pdf');
+                    navigate('/compare', { 
+                      state: { 
+                        translatedContents: translatedContents,
+                        originalPdf: fileContent,
+                        sourceLang: sourceLang,
+                        targetLang: targetLang
+                      }
+                    });
+                  }}
                 >  
                   انتقل للتعديل
                 </button>

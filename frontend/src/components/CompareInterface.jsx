@@ -1,65 +1,133 @@
 import React, { useState, useEffect } from 'react';
-import {useLocation, useNavigate } from 'react-router-dom';
+import {useLocation } from 'react-router-dom';
 import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
+import { trackNavigation, trackEvent } from '../analytics';
 
 const CompareInterface = () => {
   const location = useLocation();
   const [activeSegment, setActiveSegment] = useState(null);
-  const [translatedContents, setTranslatedContents] = useState(null);
+  const [translatedContents, setTranslatedContents] = useState(() => {
+    // Load from sessionStorage on mount (for page refresh)
+    const saved = sessionStorage.getItem('compare_translatedContents');
+    return saved ? JSON.parse(saved) : null;
+  });
+  // eslint-disable-next-line no-unused-vars
   const [originalPdf, setOriginalPdf] = useState(null);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
   const [checkedBlocks, setCheckedBlocks] = useState(() => {
-    // Load from localStorage on mount
-    const saved = localStorage.getItem('compare_checked_blocks');
+    // Load from sessionStorage on mount
+    const saved = sessionStorage.getItem('compare_checked_blocks');
     return saved ? JSON.parse(saved) : {};
   });
   const [openSuggestions, setOpenSuggestions] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [suggestions, setSuggestions] = useState({}); // keyed by "pageIndex-blockIndex"
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState(() => {
+    // Load from sessionStorage on mount
+    const saved = sessionStorage.getItem('compare_suggestions');
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [suggestionsLoading, setSuggestionsLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openBackTranslations, setOpenBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [backTranslations, setBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> string
+  const [backTranslations, setBackTranslations] = useState(() => {
+    // Load from sessionStorage on mount
+    const saved = sessionStorage.getItem('compare_backTranslations');
+    return saved ? JSON.parse(saved) : {};
+  });
   const [backTranslationLoading, setBackTranslationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openExplanations, setOpenExplanations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
   const [explanations, setExplanations] = useState(() => {
-    const saved = localStorage.getItem('compare_explanations');
+    const saved = sessionStorage.getItem('compare_explanations');
     return saved ? JSON.parse(saved) : {};
   });
   const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [focusChatSegment, setFocusChatSegment] = useState(null); // "pageIndex-blockIndex" or null
-  const navigate = useNavigate();
+  const [copiedSegment, setCopiedSegment] = useState(null); // Track which segment was copied
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
 
-  useEffect(() => {   
-    const { translatedContents, originalPdf, sourceLang, targetLang } = location.state || {};
-    if (translatedContents) setTranslatedContents(translatedContents);
-    if (originalPdf) setOriginalPdf(originalPdf);
-    if (sourceLang) setSourceLang(sourceLang);
-    if (targetLang) setTargetLang(targetLang);
-  }, [location.state]);
+  useEffect(() => {
+    // Track navigation to compare interface
+    trackNavigation('compare', 'translation_completed');
+  }, []);
 
-  // Persist explanations to localStorage on change; clear on navigation away (but not refresh)
+  useEffect(() => {   
+    // Use location.key to distinguish between:
+    // 1. Fresh navigation from Torgman.jsx (location.key changes)
+    // 2. Page refresh (location.key stays the same)
+    
+    const currentKey = location.key;
+    const lastNavKey = sessionStorage.getItem('last_nav_key');
+    
+    const isNewNavigation = currentKey !== lastNavKey;
+    
+    if (isNewNavigation) {
+      // Fresh navigation from Torgman.jsx: use location.state data
+      const { translatedContents: stateContents, originalPdf: statePdf, sourceLang: stateLang, targetLang: stateTarget } = location.state || {};
+      
+      setTranslatedContents(stateContents || null);
+      setOriginalPdf(statePdf || null);
+      setSourceLang(stateLang || 'English');
+      setTargetLang(stateTarget || 'Arabic');
+      
+      // Update the last navigation key in sessionStorage
+      sessionStorage.setItem('last_nav_key', currentKey);
+    } else {
+      // Page refresh: location.key matches the saved key
+      // The lazy initializers have already loaded the edited content from sessionStorage.
+      // Only restore metadata if needed.
+      try {
+        const savedData = sessionStorage.getItem('translationData');
+        if (savedData) {
+          const parsed = JSON.parse(savedData);
+          setOriginalPdf(parsed.originalPdf || null);
+          setSourceLang(parsed.sourceLang || 'English');
+          setTargetLang(parsed.targetLang || 'Arabic');
+        }
+      } catch (e) {
+        console.error('Failed to parse sessionStorage data:', e);
+      }
+    }
+  }, [location.key, location.state]);
+
+  // Save translatedContents to sessionStorage whenever it changes
+  useEffect(() => {
+    if (translatedContents) {
+      try {
+        sessionStorage.setItem('compare_translatedContents', JSON.stringify(translatedContents));
+      } catch (e) {
+        console.error('Failed to save translatedContents to sessionStorage:', e);
+      }
+    }
+  }, [translatedContents]);
+
+  // Persist checkedBlocks to sessionStorage on change
+  useEffect(() => {
+    sessionStorage.setItem('compare_checked_blocks', JSON.stringify(checkedBlocks));
+  }, [checkedBlocks]);
+
+  // Persist explanations to sessionStorage on change
   useEffect(() => {
     if (Object.keys(explanations).length > 0) {
-      localStorage.setItem('compare_explanations', JSON.stringify(explanations));
+      sessionStorage.setItem('compare_explanations', JSON.stringify(explanations));
     }
   }, [explanations]);
 
+  // Persist backTranslations to sessionStorage on change
   useEffect(() => {
-    let isRefresh = false;
-    const handleBeforeUnload = () => { isRefresh = true; };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (!isRefresh) {
-        localStorage.removeItem('compare_explanations');
-      }
-    };
-  }, []);
+    if (Object.keys(backTranslations).length > 0) {
+      sessionStorage.setItem('compare_backTranslations', JSON.stringify(backTranslations));
+    }
+  }, [backTranslations]);
+
+  // Persist suggestions to sessionStorage on change
+  useEffect(() => {
+    if (Object.keys(suggestions).length > 0) {
+      sessionStorage.setItem('compare_suggestions', JSON.stringify(suggestions));
+    }
+  }, [suggestions]);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -80,44 +148,79 @@ const CompareInterface = () => {
   };
 
   // Send updated content to backend
-  const handleGeneratePDF = async () => {
+  // const handleGeneratePDF = async () => {
+  //   try {
+  //     const response = await fetch(`${API_URL}/generation/pdf`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         translated_contents: translatedContents,
+  //         original_pdf: originalPdf
+  //       }),
+  //     });
+
+  //     if (!response.ok) {
+  //       throw new Error('فشل إنشاء PDF');
+  //     }
+
+  //     const blob = await response.blob();
+
+  //       // Convert blob to base64 for passing to next page
+  //     const new_pdf_base64 = await new Promise((resolve, reject) => {
+  //       const reader = new FileReader();
+  //       reader.onloadend = () => resolve(reader.result.split(',')[1]);
+  //       reader.onerror = reject;
+  //       reader.readAsDataURL(blob);
+  //     });
+      
+  //     // Navigate to the new page with the PDF
+  //     navigate('/editing', {
+  //       state: {
+  //         newPdf: new_pdf_base64,
+  //         originalPdf: originalPdf
+  //       }
+  //     });
+
+  //   } catch (error) {
+  //     console.error('Error generating PDF:', error);
+  //     alert('حدث خطأ أثناء إنشاء PDF');
+  //   }
+  // };
+
+  // Generate XLIFF file
+  const handleGenerateXLIFF = async () => {
     try {
-      const response = await fetch(`${API_URL}/pdf/generate`, {
+      const response = await fetch(`${API_URL}/generation/xliff`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           translated_contents: translatedContents,
-          original_pdf: originalPdf
+          source_lang: sourceLang,
+          target_lang: targetLang
         }),
       });
 
       if (!response.ok) {
-        throw new Error('فشل إنشاء PDF');
+        throw new Error('فشل إنشاء ملف XLIFF');
       }
 
       const blob = await response.blob();
-
-        // Convert blob to base64 for passing to next page
-      const new_pdf_base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      
-      // Navigate to the new page with the PDF
-      navigate('/editing', {
-        state: {
-          newPdf: new_pdf_base64,
-          originalPdf: originalPdf
-        }
-      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'translation.xliff';
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('حدث خطأ أثناء إنشاء PDF');
+      console.error('Error generating XLIFF:', error);
+      alert('حدث خطأ أثناء إنشاء ملف XLIFF');
     }
   };
 
@@ -159,7 +262,7 @@ const CompareInterface = () => {
     const key = `${pageIndex}-${blockIndex}`;
     setCheckedBlocks(prev => {
       const updated = { ...prev, [key]: !prev[key] };
-      localStorage.setItem('compare_checked_blocks', JSON.stringify(updated));
+      // Note: sessionStorage save is handled by the useEffect hook
       return updated;
     });
     setOpenSuggestions(prev => ({ ...prev, [key]: false }));
@@ -223,7 +326,7 @@ const CompareInterface = () => {
     }
     // Always re-fetch
     setOpenSuggestions(prev => ({ ...prev, [key]: true }));
-    setSuggestionsLoading(true);
+    setSuggestionsLoading(prev => ({ ...prev, [key]: true }));
     try {
       const pageBlocks = translatedContents[pageIndex];
       const response = await fetch(`${API_URL}/segment/suggestions`, {
@@ -249,12 +352,21 @@ const CompareInterface = () => {
         [key]: '__ERROR__',
       }));
     } finally {
-      setSuggestionsLoading(false);
+      setSuggestionsLoading(prev => ({ ...prev, [key]: false }));
     }
   };
 
   const handleApplySuggestion = (pageIndex, blockIndex, text) => {
     handleArabicEdit(pageIndex, blockIndex, text);
+    
+    // Track suggestion acceptance
+    trackEvent('suggestion_accepted', {
+      page_index: pageIndex,
+      block_index: blockIndex,
+      text_length: text.length,
+      has_arabic: /[\u0600-\u06FF]/.test(text),
+    });
+    
     const key = `${pageIndex}-${blockIndex}`;
     setOpenSuggestions(prev => ({ ...prev, [key]: false }));
     // Update the contentEditable div directly
@@ -263,6 +375,17 @@ const CompareInterface = () => {
       const editableDiv = row.querySelector('.arabic-side .segment-text');
       if (editableDiv) editableDiv.textContent = text;
     }
+  };
+
+  // Handle copy to clipboard
+  const handleCopyToClipboard = (text, segmentId) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedSegment(segmentId);
+      // Reset the copied state after 2 seconds
+      setTimeout(() => setCopiedSegment(null), 2000);
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+    });
   };
 
   // Calculate total segments and checked count
@@ -284,8 +407,11 @@ const CompareInterface = () => {
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
             </span>
-            <button className="sidebar-btn" onClick={handleGeneratePDF}>
+            {/* <button className="sidebar-btn" onClick={handleGeneratePDF}>
               Generate PDF
+            </button> */}
+            <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
+              Generate XLIFF
             </button>
           </div>
         </div>
@@ -397,10 +523,20 @@ const CompareInterface = () => {
                           >
                             {block.translated_text || ''}
                           </div>
+                          <button
+                            className={`copy-btn ${copiedSegment === segmentId ? 'copied' : ''}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyToClipboard(block.translated_text, segmentId);
+                            }}
+                            title="Copy translation"
+                          >
+                            {copiedSegment === segmentId ? '✓' : '📋'}
+                          </button>
                         </div>
                         {openSuggestions[segmentId] && (
                           <div className="suggestions-panel" onClick={(e) => e.stopPropagation()}>
-                            {suggestionsLoading && !suggestions[segmentId] ? (
+                            {suggestionsLoading[segmentId] ? (
                               <div className="suggestions-loading">جاري التحميل...</div>
                             ) : suggestions[segmentId] === '__ERROR__' ? (
                               <div className="explanation-error">
@@ -433,7 +569,16 @@ const CompareInterface = () => {
                           </button>
                           <button
                             className="segment-action-btn focus-btn"
-                            onClick={(e) => { e.stopPropagation(); setFocusChatSegment({ pageIndex, blockIndex, id: segmentId }); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              // Track opening focus chat
+                              trackEvent('focus_chat_opened', {
+                                segment_id: segmentId,
+                                page_index: pageIndex,
+                                block_index: blockIndex,
+                              });
+                              setFocusChatSegment({ pageIndex, blockIndex, id: segmentId }); 
+                            }}
                           >
                             💬 Chat
                           </button>

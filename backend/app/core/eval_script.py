@@ -10,7 +10,7 @@ from langsmith import Client, trace
 
 client = Client()
 
-NUM_OF_SAMPLES = 3
+# NUM_OF_SAMPLES = 3
 PROJECT_NAME = "Turjman"
 
 translated_content = [[{'text': 'Section 101. — Definitions. As used in this Ordinance, unless the context dearly\nindicates a different meaning, the following words and phrases shall have the meaning\nset forth below:\n',

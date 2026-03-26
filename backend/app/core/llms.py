@@ -5,7 +5,7 @@ from langchain_openai import ChatOpenAI
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
 
-
+#ToDo: migrate from google_genai and open_ai langchain packages to langchain openrouter package
 deepseek = ChatOpenAI(
     model="deepseek/deepseek-v3.2",
     # model="qwen/qwen-2.5-72b-instruct",
