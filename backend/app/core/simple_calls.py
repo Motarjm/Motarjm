@@ -80,7 +80,11 @@ def generate_suggestions(source_text: str, source_lang: str, translation: str, t
         
     # GPT5 nano
     if not isinstance(response3, str):
-        response3 = response3[1]["text"]
+        if len(response3) > 1:
+            response3 = response3[1]["text"]
+        else:
+            response3 = response3[0]["text"]
+        # response3 = response3[1]["text"]
 
     # hardcoded for now, should be more sophisticated
     return {
@@ -103,7 +107,7 @@ def generate_backtranslation(target_text: str, source_lang: str, target_lang: st
     page_context = "\n\n".join(page_context)    
 
     user_prompt = HumanMessage(
-        content=TRANSLATOR_PROMPT.format(
+        content=BACKTRANSLATION_PROMPT.format(
             source_text=target_text,
             source_lang=target_lang,
             target_lang=source_lang,
