@@ -296,7 +296,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
           <div className="focus-chat-messages">
             {messages.length === 0 && !ephemeralError && (
               <div className="focus-chat-empty">
-                Ask anything about this segment…
+                We Prompt Engineer. You Translate.
               </div>
             )}
             {messages.map((msg, i) => (
@@ -347,7 +347,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
             <textarea
               ref={textareaRef}
               className="focus-chat-input"
-              placeholder="Type a message…"
+              placeholder="Ask anything about this segment..."
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
