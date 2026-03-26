@@ -218,9 +218,25 @@ const CompareInterface = () => {
       URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
+      // Track XLIFF generation
+      trackEvent('xliff_generated', {
+        total_segments: totalSegments,
+        checked_segments: checkedCount,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      });
+
     } catch (error) {
       console.error('Error generating XLIFF:', error);
       alert('حدث خطأ أثناء إنشاء ملف XLIFF');
+      
+      // Track XLIFF generation error
+      trackEvent('xliff_generation_failed', {
+        error_message: error.message,
+        total_segments: totalSegments,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      });
     }
   };
 
