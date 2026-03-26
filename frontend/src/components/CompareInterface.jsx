@@ -3,6 +3,7 @@ import {useLocation } from 'react-router-dom';
 import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
+import { trackNavigation, trackEvent } from '../analytics';
 
 const CompareInterface = () => {
   const location = useLocation();
@@ -46,6 +47,11 @@ const CompareInterface = () => {
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
+
+  useEffect(() => {
+    // Track navigation to compare interface
+    trackNavigation('compare', 'translation_completed');
+  }, []);
 
   useEffect(() => {   
     // Use location.key to distinguish between:
@@ -352,6 +358,15 @@ const CompareInterface = () => {
 
   const handleApplySuggestion = (pageIndex, blockIndex, text) => {
     handleArabicEdit(pageIndex, blockIndex, text);
+    
+    // Track suggestion acceptance
+    trackEvent('suggestion_accepted', {
+      page_index: pageIndex,
+      block_index: blockIndex,
+      text_length: text.length,
+      has_arabic: /[\u0600-\u06FF]/.test(text),
+    });
+    
     const key = `${pageIndex}-${blockIndex}`;
     setOpenSuggestions(prev => ({ ...prev, [key]: false }));
     // Update the contentEditable div directly
@@ -554,7 +569,16 @@ const CompareInterface = () => {
                           </button>
                           <button
                             className="segment-action-btn focus-btn"
-                            onClick={(e) => { e.stopPropagation(); setFocusChatSegment({ pageIndex, blockIndex, id: segmentId }); }}
+                            onClick={(e) => { 
+                              e.stopPropagation(); 
+                              // Track opening focus chat
+                              trackEvent('focus_chat_opened', {
+                                segment_id: segmentId,
+                                page_index: pageIndex,
+                                block_index: blockIndex,
+                              });
+                              setFocusChatSegment({ pageIndex, blockIndex, id: segmentId }); 
+                            }}
                           >
                             💬 Chat
                           </button>

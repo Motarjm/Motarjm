@@ -3,6 +3,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
+import {
+  trackFileSelected,
+  trackTranslationStarted,
+  trackTranslationCompleted,
+  trackDocumentDownloaded,
+} from '../analytics';
 
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -73,6 +79,9 @@ const Torgman = () => {
       setTranslatedContents(null);
       setFileContent(null);
       setStatus('');
+
+      // Track file selection
+      trackFileSelected(fileType, file.size);
     }
   };
 
@@ -104,8 +113,9 @@ const Torgman = () => {
       const targetLangObj = Targetlanguages.find(lang => lang.englishName === targetLang);
       const sourceLangCode = sourceLangObj?.code || 'en';
       const targetLangCode = targetLangObj?.code || 'ar';
-      
-      // Use the streaming endpoint
+
+      // Track translation start
+      trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
       const response = await fetch(
         `${API_URL}${endpoint}?source_lang=${sourceLangCode}&target_lang=${targetLangCode}`,
         {
@@ -200,6 +210,10 @@ const Torgman = () => {
         targetLang: targetLang,
         fileType: fileType
       }));
+
+      // Track translation completion
+      const translationDuration = Date.now() - translationStartTime;
+      trackTranslationCompleted(fileType, selectedFile.size, translationDuration, true);
 
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
     } catch (error) {
@@ -347,14 +361,18 @@ const Torgman = () => {
                 </a> */}
                 <button 
                   className="translate-btn edit-btn" 
-                  onClick={() => navigate('/compare', { 
-                    state: { 
-                      translatedContents: translatedContents,
-                      originalPdf: fileContent,
-                      sourceLang: sourceLang,
-                      targetLang: targetLang
-                    }
-                  })}
+                  onClick={() => {
+                    // Track navigation to editing interface
+                    // trackDocumentDownloaded('pdf');
+                    navigate('/compare', { 
+                      state: { 
+                        translatedContents: translatedContents,
+                        originalPdf: fileContent,
+                        sourceLang: sourceLang,
+                        targetLang: targetLang
+                      }
+                    });
+                  }}
                 >  
                   انتقل للتعديل
                 </button>

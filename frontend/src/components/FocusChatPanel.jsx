@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import { diffWords } from 'diff';
 import '../assets/focus_chat.css';
 import { API_URL } from '../apiConfig';
+import { trackFocusPanelSession, trackAISuggestionApplied, trackChatInteraction, trackArabicTextCopied } from '../analytics';
 
 // Inline diff preview component
 const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
@@ -69,6 +70,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
   const abortRef = useRef(null);
   const textareaRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
+  const focusStartTimeRef = useRef(Date.now()); // Track session start time
 
   // Load chatHistoryRef from sessionStorage on mount
   useEffect(() => {
@@ -82,6 +84,15 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
       console.error('Failed to load raw chat history from sessionStorage:', e);
     }
   }, [segmentId]);
+
+  // Track focus panel session on unmount (panel closes)
+  useEffect(() => {
+    const startTime = focusStartTimeRef.current;
+    return () => {
+      const sessionDuration = Date.now() - startTime;
+      trackFocusPanelSession(sessionDuration, segmentId, messages.length, !!pendingEdit);
+    };
+  }, [segmentId, messages.length, pendingEdit]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,6 +150,10 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     chatHistoryRef.current = [...chatHistoryRef.current, userMsg];
+    
+    // Track chat interaction
+    trackChatInteraction('user');
+    
     setInput('');
     
     // Reset textarea height to default
@@ -216,6 +231,9 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
         // Always append full raw text to chatHistoryRef (bot sees the JSON action)
         chatHistoryRef.current = [...chatHistoryRef.current, { role: 'bot', text: fullText }];
 
+        // Track bot response
+        trackChatInteraction('bot', selectedModel);
+
         if (action) {
           // Don't apply immediately — show diff for user confirmation
           setPendingEdit({ oldText: segment?.translated_text, newText: action.new_text, botIndex });
@@ -255,6 +273,27 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
       handleSend();
     }
   };
+
+  // Detect Arabic text and track copy events
+  const detectArabicText = (text) => {
+    return /[\u0600-\u06FF]/.test(text);
+  };
+
+  // Track copy events using selection API
+  useEffect(() => {
+    const handleCopy = () => {
+      const selection = window.getSelection().toString();
+      if (selection && detectArabicText(selection)) {
+        // Check if copied text is from AI suggestion
+        const isFromSuggestion = pendingEdit && pendingEdit.newText.includes(selection);
+        trackArabicTextCopied(selection.length, 'focus_chat', isFromSuggestion);
+      }
+    };
+
+    // Listen for copy command
+    document.addEventListener('copy', handleCopy);
+    return () => document.removeEventListener('copy', handleCopy);
+  }, [pendingEdit]);
 
   return (
     <div className="focus-overlay">
@@ -327,6 +366,8 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
               oldText={pendingEdit.oldText}
               newText={pendingEdit.newText}
               onApply={() => {
+                // Track AI suggestion applied
+                trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
                 onEditTranslation(pendingEdit.newText);
                 setPendingEdit(null);
               }}
