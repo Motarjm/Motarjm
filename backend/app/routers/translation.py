@@ -8,6 +8,7 @@ from app.services.translation_service import translate_file_content_pdf_streamin
 from app.services.pdf_service import build_translated_pdf_base64
 from app.services.xliff_service import build_xliff_bytes, build_xliff
 from app.schemas.translation import GenerateEditedPDFRequest
+from app.core.simple_calls import clear_doc_summary_cache
 
 router = APIRouter(prefix="/translation", tags=["Translation"])
 
@@ -27,6 +28,9 @@ async def translate_pdf_file(
         pdf_bytes = await file.read()
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to read PDF file")
+
+    # Clear cached document summary for new document
+    clear_doc_summary_cache()
 
     def event_stream():
         for event in translate_file_content_pdf_streaming(pdf_bytes, source_lang, target_lang):
@@ -54,6 +58,9 @@ async def translate_xliff_file(
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to read XLIFF file")
 
+    # Clear cached document summary for new document
+    clear_doc_summary_cache()
+
     def event_stream():
         for event in translate_file_content_xliff_streaming(xliff_bytes, source_lang, target_lang):
             if event["type"] == "progress":
@@ -67,7 +74,7 @@ async def translate_xliff_file(
                     source_lang,
                     target_lang
                 )
-                print(translated_contents)
+                # print(translated_contents)
                 yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'xliff': xliff_output_str, 'filename': 'translated.xliff'})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
