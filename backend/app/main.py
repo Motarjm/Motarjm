@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,10 +27,30 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Path to React build (dist) directory
 REACT_BUILD_DIR = os.path.join(BASE_DIR, '..', '..', 'frontend', 'dist')
 
-# Mount the React build directory to serve static files
-app.mount("/", StaticFiles(directory=REACT_BUILD_DIR, html=True), name="react-app")
+# Path to the assets subfolder inside the React build
+REACT_ASSETS_DIR = os.path.join(REACT_BUILD_DIR, 'assets')
 
-# Keep your original root endpoint
+
 @app.get("/api", tags=["Root"])
 def root():
     return {"Welcome to the AI Translation"}
+
+
+# Mount only the assets folder at /assets, not the entire dist at /
+# app.mount("/assets", StaticFiles(directory=REACT_ASSETS_DIR), name="react-assets")
+app.mount("/dist", StaticFiles(directory=REACT_BUILD_DIR), name="react-static")
+
+
+# Catch-all route: serves real static files if they exist, otherwise returns index.html
+# This prevents JS/CSS files outside /assets from being served with text/html MIME type
+@app.get("/{full_path:path}", response_class=HTMLResponse)
+async def serve_react_app(full_path: str):
+    # Check if the requested path maps to a real file in the dist folder
+    requested_file = os.path.join(REACT_BUILD_DIR, full_path)
+    if os.path.isfile(requested_file):
+        return FileResponse(requested_file)
+
+    # Otherwise serve index.html and let React Router handle it
+    index_path = os.path.join(REACT_BUILD_DIR, "index.html")
+    with open(index_path, "r") as f:
+        return HTMLResponse(content=f.read())
