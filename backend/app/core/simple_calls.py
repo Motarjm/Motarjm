@@ -1,9 +1,10 @@
 import json
 import re
+from functools import lru_cache
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 from app.core.agents import provider_invoke, provider_stream
-from typing import List
+from typing import List, Tuple
 
 def generate_explanation(source_text: str, page_context: List):
     """
@@ -125,11 +126,18 @@ def generate_backtranslation(target_text: str, source_lang: str, target_lang: st
 
     return response
 
-def generate_doc_summary(pages_context: List[List[str]]) -> str:
+def _convert_to_hashable(pages_context: List[List[str]]) -> Tuple:
     """
-    Generates a summary for the given document text.
-    
-    The pages_context is a list of pages, where each page is a list of text blocks (strings).
+    Converts list-based doc_context to a hashable tuple format for caching.
+    """
+    return tuple(tuple(page) for page in pages_context)
+
+
+@lru_cache(maxsize=1)
+def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
+    """
+    Internal cached function that generates a summary for the given document text.
+    Uses tuple format for hashability.
     """
     sys_prompt = SystemMessage(
         content=DOC_SUMMARY_SYS_PROMPT,
@@ -138,7 +146,7 @@ def generate_doc_summary(pages_context: List[List[str]]) -> str:
     
     # Flatten pages_context into a single string with page and block separators
     doc_text = ""
-    for i, page in enumerate(pages_context):
+    for i, page in enumerate(pages_context_tuple):
         doc_text += f"--- Page {i+1} ---\n"
         for block in page:
             doc_text += block + "\n\n"
@@ -157,6 +165,24 @@ def generate_doc_summary(pages_context: List[List[str]]) -> str:
         response = response[0]["text"]
 
     return response
+
+
+def generate_doc_summary(pages_context: List[List[str]]) -> str:
+    """
+    Generates a summary for the given document text (cached).
+    
+    The pages_context is a list of pages, where each page is a list of text blocks (strings).
+    Results are cached in memory to avoid regenerating the same summary.
+    """
+    hashable_context = _convert_to_hashable(pages_context)
+    return _generate_doc_summary_cached(hashable_context)
+
+
+def clear_doc_summary_cache():
+    """
+    Clears the cached document summary. Call this when loading a new document.
+    """
+    _generate_doc_summary_cached.cache_clear()
 
 
 def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
