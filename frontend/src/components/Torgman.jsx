@@ -65,6 +65,18 @@ const Torgman = () => {
     return null;
   };
 
+  // Clear all segment chat histories from sessionStorage (called on successful new translation)
+  const clearChatHistories = () => {
+    const keysToDelete = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('chat_history_')) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => sessionStorage.removeItem(key));
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -201,6 +213,9 @@ const Torgman = () => {
         setFileContent(finalData.xliff); // Store XLIFF content
         setDownloadUrl(url);
       }
+
+      // Wipe chat histories from previous document before saving new translation data
+      clearChatHistories();
 
       // Save to sessionStorage to persist across page refreshes
       sessionStorage.setItem('translationData', JSON.stringify({
