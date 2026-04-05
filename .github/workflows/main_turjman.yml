@@ -20,6 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+       # ✅ ADD THIS — Build React frontend
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build React frontend
+        run: |
+          cd frontend        # ← change this to your actual frontend folder name
+          npm install
+          npm run build
+
       - name: Set up Python version
         uses: actions/setup-python@v5
         with:
