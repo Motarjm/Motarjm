@@ -1,7 +1,9 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Only load .env locally, Azure App Settings are read automatically
+if not os.getenv("WEBSITE_SITE_NAME"):
+    load_dotenv()  # only runs on local machine
 
 os.environ["HUGGINGFACEHUB_API_TOKEN"] = os.getenv("HUGGINGFACE_API_KEY")
 os.environ["GEMINI_API_KEY"] = os.getenv("GEMINI_API_KEY")
