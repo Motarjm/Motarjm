@@ -9,14 +9,18 @@ You will be provided with relevant context to help in translation. Don't transla
 
 TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
 
-**Terminology**:
+<terminology>
 {terminology}
+</terminology>
 
-**Previous Context**:
+<previous_context  — DO NOT TRANSLATE>
 {prev_context}
+</previous_context>
 
-**Source Text**:
+<source_text>
 {source_text}
+</source_text>
+
 
 ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context or terminology. Provide only the translated text without any explanations or notes."""
 
@@ -41,9 +45,6 @@ Output the {target_lang} translation of the source text only, nothing else:"""
 
 TERMINOLOGY_PROMPT = """Extract key terminology from this {source_lang} text and difficult words from the text below and provide translations.
 
-Source Text: {source_text}
-Target language: {target_lang}
-
 Focus on: technical terms, specialized vocabulary, complex/uncommon words
 Ignore: common everyday vocabulary
 
@@ -56,7 +57,14 @@ Return ONLY a JSON object in this format:
   "term1": "translation1",
   "term2": "translation2"
 }}
+
 ONLY PROVIDE ONE TRANSLATION PER TERM.
+
+Target language: {target_lang}
+
+<source_text>
+{source_text}
+</source_text>
 """
 
 TRANSLATOR_ADVICE_SYS_PROMPT = """You are a highly skilled professional Revision Translator. Your task is to take a source text, review a previous translation attempt, and incorporate mandatory revisions based on expert editorial feedback.
@@ -88,23 +96,29 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
 
-**Terminology**:
+<terminology>
 {terminology}
+</terminology>
 
-**Previous Context**:
+<previous_context - DO NOT TRANSLATE>
 {prev_context}
+</previous_context>
 
-**Original Source Text**:
+<original_source_text>
 {source_text}
+</original_source_text>
 
-**Initial Translation**:
+<initial_translation>
 {translation}
+</initial_translation>
 
-**Senior Editor's Feedback** (Priority 1):
+<senior_editor_feedback - (Priority 1)>
 {advice}
+</senior_editor_feedback>
 
-**Evaluation & Score** (Priority 2):
+<evaluation_and_score - (Priority 2)>
 {evaluation}
+</evaluation_and_score>
 
 Provide ONLY the revised translation text. No explanations, notes, or commentary."""
 
@@ -139,17 +153,21 @@ EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
 
-**Previous Context**:
+<previous_context>
 {prev_context}
+</previous_context>
 
-**Terminology**:
+<terminology>
 {terminology}
+</terminology>
 
-**Original Text**:
+<original_source_text>
 {source_text}
+</original_source_text>
 
-**Translation**:
+<translation>
 {translation}
+</translation>
 
 Only Provide a JSON object with:
 - "reason": Brief explanation of identified errors and their severity
@@ -181,18 +199,21 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
 
-**Previous Context**:
+<previous_context>
 {prev_context}
+</previous_context>
 
-**Terminology**:
+<terminology>
 {terminology}
+</terminology>
 
-
-**Source Text**:
+<source_text>
 {source_text}
+</source_text>
 
-**Translation**:
+<initial_translation>
 {translation}
+</initial_translation>
 
 ## Output Format
 - Provide suggestions only, NO revised translation or retranslation.
