@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming
 from app.services.pdf_service import build_translated_pdf_base64
-from app.services.xliff_service import build_xliff_bytes, build_xliff
+from app.services.xliff_service import build_xliff
 from app.schemas.translation import GenerateEditedPDFRequest
 from app.core.simple_calls import clear_doc_summary_cache
 
@@ -39,7 +39,7 @@ async def translate_pdf_file(
             elif event["type"] == "done":
                 translated_contents = event["translated_contents"]
                 pdf_base64 = build_translated_pdf_base64(translated_contents, pdf_bytes)
-                yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'pdf': pdf_base64, 'filename': 'translated.pdf'})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'pdf': pdf_base64})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -50,7 +50,7 @@ async def translate_xliff_file(
     source_lang: str = "en",
     target_lang: str = "ar",
 ):
-    if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf"):
+    if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf") and not file.filename.endswith(".sdlxliff") and not file.filename.endswith(".mqxliff"):
         raise HTTPException(status_code=400, detail="Only .xliff or .xlf files are allowed")
     
     try:
@@ -66,15 +66,25 @@ async def translate_xliff_file(
             if event["type"] == "progress":
                 yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":
-                translated_contents = [event["translated_contents"]]
+                translated_contents = event["translated_contents"]
                 
                 # Build XLIFF output from translated contents
-                xliff_output_str = build_xliff(
-                    translated_contents,  # Wrap in list to match expected format
-                    source_lang,
-                    target_lang
+                # xliff_output_str = build_xliff(
+                #     translated_contents,  # Wrap in list to match expected format
+                #     source_lang,
+                #     target_lang
+                # )
+                xliff_output_str, _ = build_xliff(
+                    xliff_bytes ,
+                    translated_contents,  
                 )
+                # Convert bytes to string
+                if isinstance(xliff_output_str, bytes):
+                    xliff_output_str = xliff_output_str.decode('utf-8')
+
+                
                 # print(translated_contents)
-                yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'xliff': xliff_output_str, 'filename': 'translated.xliff'})}\n\n"
+                # frontend needs that translated_contents to be a nested list
+                yield f"data: {json.dumps({'type': 'done', 'translated_contents': [translated_contents], 'xliff': xliff_output_str})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
