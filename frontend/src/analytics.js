@@ -2,6 +2,7 @@
 // Centralized place to track all analytics events
 
 import posthog from './posthogConfig';
+import { trackApiError, trackFileError } from './errorTracking';
 
 /**
  * Track file selection event
@@ -205,6 +206,45 @@ export const trackEvent = (eventName, properties = {}) => {
   });
 };
 
+/**
+ * Track translation API error
+ * @param {Error} error - The error object
+ * @param {Object} context - Additional context
+ */
+export const trackTranslationError = (error, context = {}) => {
+  trackApiError(error, {
+    endpoint: '/translate',
+    method: 'POST',
+    action: 'Translating document',
+    context: {
+      ...context,
+    },
+  });
+};
+
+/**
+ * Track file processing error
+ * @param {Error} error - The error object
+ * @param {Object} context - File and operation details
+ */
+export const trackFileProcessingError = (error, context = {}) => {
+  trackFileError(error, {
+    ...context,
+  });
+};
+
+/**
+ * Track segment service error
+ * @param {Error} error - The error object
+ * @param {string} operation - What operation failed
+ */
+export const trackSegmentError = (error, operation = 'unknown') => {
+  trackApiError(error, {
+    endpoint: '/segments',
+    action: `Segment operation: ${operation}`,
+  });
+};
+
 export default {
   trackFileSelected,
   trackTranslationStarted,
@@ -220,4 +260,7 @@ export default {
   trackArabicTextEdited,
   trackChatInteraction,
   trackEvent,
+  trackTranslationError,
+  trackFileProcessingError,
+  trackSegmentError,
 };

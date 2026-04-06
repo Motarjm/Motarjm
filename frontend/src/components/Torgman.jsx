@@ -7,8 +7,9 @@ import {
   trackFileSelected,
   trackTranslationStarted,
   trackTranslationCompleted,
-  trackDocumentDownloaded,
+  trackTranslationError,
 } from '../analytics';
+import { trackNetworkError } from '../errorTracking';
 
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -33,7 +34,7 @@ const Torgman = () => {
       if (savedData) {
         const parsed = JSON.parse(savedData);
         setTranslatedContents(parsed.translatedContents);
-        setFileContent(parsed.originalPdf);
+        setFileContent(parsed.originalFile);
         setSourceLang(parsed.sourceLang);
         setTargetLang(parsed.targetLang);
         setDownloadUrl('blob'); // Set a non-empty value to show the button
@@ -61,7 +62,7 @@ const Torgman = () => {
   const getFileType = (fileName) => {
     const ext = fileName.toLowerCase().split('.').pop();
     if (ext === 'pdf') return 'pdf';
-    if (ext === 'xliff' || ext === 'xlf') return 'xliff';
+    if (ext === 'xliff' || ext === 'xlf' || ext === 'sdlxliff' || ext === 'mqxliff') return 'xliff';
     return null;
   };
 
@@ -137,7 +138,18 @@ const Torgman = () => {
       );
 
       if (!response.ok) {
-        throw new Error('فشلت عملية الترجمة على الخادم');
+        // Try to get detailed error from backend
+        let errorDetail = 'فشلت عملية الترجمة على الخادم';
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.detail || errorData.message || errorDetail;
+        } catch (e) {
+          // If response is not JSON, just use status text
+          errorDetail = `${response.status} ${response.statusText}`;
+        }
+        const error = new Error(errorDetail);
+        error.status = response.status;
+        throw error;
       }
 
       // Read the SSE stream
@@ -186,6 +198,8 @@ const Torgman = () => {
       }
 
       // Handle file-specific logic
+      let newFileContent = null;
+      
       if (fileType === 'pdf') {
         // PDF response includes base64 encoded PDF
         const blob = new Blob(
@@ -203,6 +217,7 @@ const Torgman = () => {
           reader.onerror = reject;
           reader.readAsDataURL(selectedFile);
         });
+        newFileContent = base64;
         setFileContent(base64);
         setDownloadUrl(url);
       } else if (fileType === 'xliff') {
@@ -210,7 +225,8 @@ const Torgman = () => {
         const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
         const url = URL.createObjectURL(blob);
         setTranslatedContents(finalData.translated_contents);
-        setFileContent(finalData.xliff); // Store XLIFF content
+        newFileContent = finalData.xliff; // Store XLIFF content
+        setFileContent(finalData.xliff);
         setDownloadUrl(url);
       }
 
@@ -218,12 +234,14 @@ const Torgman = () => {
       clearChatHistories();
 
       // Save to sessionStorage to persist across page refreshes
+      // Use newFileContent directly instead of stale state variable
       sessionStorage.setItem('translationData', JSON.stringify({
         translatedContents: finalData.translated_contents,
-        originalPdf: fileContent, // Store base64 for PDF or XLIFF content for XLIFF
+        originalFile: newFileContent, // Use freshly computed value, not stale state
         sourceLang: sourceLang,
         targetLang: targetLang,
-        fileType: fileType
+        fileType: fileType,
+        fileName: fileName
       }));
 
       // Track translation completion
@@ -233,6 +251,31 @@ const Torgman = () => {
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
     } catch (error) {
       console.error("Translation Error:", error);
+      
+      // Track the error to PostHog
+      if (error.message && error.message.includes('Request timeout')) {
+        trackNetworkError(error, {
+          errorType: 'timeout',
+          endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
+          timeout: 30000,
+          context: {
+            file_name: selectedFile?.name,
+            file_size: selectedFile?.size,
+            source_lang: sourceLang,
+            target_lang: targetLang,
+          }
+        });
+      } else {
+        trackTranslationError(error, {
+          file_name: selectedFile?.name,
+          file_size: selectedFile?.size,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+          http_status: error.status,
+          error_message: error.message,
+        });
+      }
+      
       setStatus('حدث خطأ أثناء الاتصال بالخادم');
     } finally {
       setIsTranslating(false);
@@ -314,7 +357,7 @@ const Torgman = () => {
             ref={fileInputRef} 
             style={{ display: 'none' }} 
             onChange={handleFileChange}
-            accept=".pdf,.xliff,.xlf"
+            accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff"
           />
 
           {/* File Display */}
@@ -382,9 +425,11 @@ const Torgman = () => {
                     navigate('/compare', { 
                       state: { 
                         translatedContents: translatedContents,
-                        originalPdf: fileContent,
+                        originalFile: fileContent,
                         sourceLang: sourceLang,
-                        targetLang: targetLang
+                        targetLang: targetLang,
+                        fileName: fileName,
+                        fileType: getFileType(fileName)
                       }
                     });
                   }}

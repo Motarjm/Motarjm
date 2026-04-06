@@ -5,6 +5,7 @@ import { diffWords } from 'diff';
 import '../assets/focus_chat.css';
 import { API_URL } from '../apiConfig';
 import { trackFocusPanelSession, trackAISuggestionApplied, trackChatInteraction, trackArabicTextCopied } from '../analytics';
+import { trackApiError } from '../errorTracking';
 
 // Inline diff preview component
 const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
@@ -252,6 +253,20 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
         // Remove the empty bot placeholder, don't persist error in history
         setMessages(prev => prev.filter((_, idx) => idx !== botIndex));
         setEphemeralError('⚠️ Failed to get response. Please try again.');
+        
+        // Track chat error
+        trackApiError(err, {
+          endpoint: '/segment/chat',
+          method: 'POST',
+          action: 'Fetching chat response',
+          context: {
+            segment_id: segment?.id,
+            source_lang: sourceLang,
+            target_lang: targetLang,
+            model: selectedModel,
+            chat_history_length: chatHistoryRef.current?.length || 0,
+          }
+        });
       }
     } finally {
       setIsStreaming(false);
@@ -289,6 +304,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
         trackArabicTextCopied(selection.length, 'focus_chat', isFromSuggestion);
       }
     };
+bash /home/site/wwwroot/startup.sh
 
     // Listen for copy command
     document.addEventListener('copy', handleCopy);

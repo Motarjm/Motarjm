@@ -4,6 +4,7 @@ import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
 import { trackNavigation, trackEvent } from '../analytics';
+import { trackApiError } from '../errorTracking';
 
 const CompareInterface = () => {
   const location = useLocation();
@@ -13,10 +14,11 @@ const CompareInterface = () => {
     const saved = sessionStorage.getItem('compare_translatedContents');
     return saved ? JSON.parse(saved) : null;
   });
-  // eslint-disable-next-line no-unused-vars
-  const [originalPdf, setOriginalPdf] = useState(null);
+  const [originalFile, setOriginalFile] = useState(null);
+  const [originalFileName, setOriginalFileName] = useState(null);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
+  const [fileType, setFileType] = useState(null); // Track whether original was PDF or XLIFF
   const [checkedBlocks, setCheckedBlocks] = useState(() => {
     // Load from sessionStorage on mount
     const saved = sessionStorage.getItem('compare_checked_blocks');
@@ -65,12 +67,14 @@ const CompareInterface = () => {
     
     if (isNewNavigation) {
       // Fresh navigation from Torgman.jsx: use location.state data
-      const { translatedContents: stateContents, originalPdf: statePdf, sourceLang: stateLang, targetLang: stateTarget } = location.state || {};
+      const { translatedContents: stateContents, originalFile: stateFile, sourceLang: stateLang, targetLang: stateTarget, fileName: stateFileName, fileType: stateFileType } = location.state || {};
       
       setTranslatedContents(stateContents || null);
-      setOriginalPdf(statePdf || null);
+      setOriginalFile(stateFile || null);
+      setOriginalFileName(stateFileName || null);
       setSourceLang(stateLang || 'English');
       setTargetLang(stateTarget || 'Arabic');
+      setFileType(stateFileType || null);
       
       // Update the last navigation key in sessionStorage
       sessionStorage.setItem('last_nav_key', currentKey);
@@ -82,9 +86,11 @@ const CompareInterface = () => {
         const savedData = sessionStorage.getItem('translationData');
         if (savedData) {
           const parsed = JSON.parse(savedData);
-          setOriginalPdf(parsed.originalPdf || null);
+          setOriginalFile(parsed.originalFile || null);
+          setOriginalFileName(parsed.fileName || null);
           setSourceLang(parsed.sourceLang || 'English');
           setTargetLang(parsed.targetLang || 'Arabic');
+          setFileType(parsed.fileType || null);
         }
       } catch (e) {
         console.error('Failed to parse sessionStorage data:', e);
@@ -157,7 +163,7 @@ const CompareInterface = () => {
   //       },
   //       body: JSON.stringify({
   //         translated_contents: translatedContents,
-  //         original_pdf: originalPdf
+  //         original_file: originalFile
   //       }),
   //     });
 
@@ -179,7 +185,7 @@ const CompareInterface = () => {
   //     navigate('/editing', {
   //       state: {
   //         newPdf: new_pdf_base64,
-  //         originalPdf: originalPdf
+  //         originalFile: originalFile
   //       }
   //     });
 
@@ -192,16 +198,26 @@ const CompareInterface = () => {
   // Generate XLIFF file
   const handleGenerateXLIFF = async () => {
     try {
+      console.log(translatedContents)
+      const requestBody = {
+        translated_contents: translatedContents,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      };
+      
+      // Only include original_xliff if the file was originally an XLIFF
+      if (fileType === 'xliff' && originalFile) {
+        requestBody.original_xliff = originalFile;
+      }
+      // If fileType is 'pdf', original_xliff will be undefined/null, 
+      // triggering build_xliff_from_scratch on the backend
+      
       const response = await fetch(`${API_URL}/generation/xliff`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          translated_contents: translatedContents,
-          source_lang: sourceLang,
-          target_lang: targetLang
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -212,7 +228,20 @@ const CompareInterface = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'translation.xliff';
+      
+      // Generate dynamic download filename
+      if (originalFileName) {
+        var ext = originalFileName.split('.').pop().toLowerCase();
+        if (ext === "pdf")
+        {
+          ext = 'xliff'
+        }
+        const baseName = originalFileName.replace(/\.[^/.]+$/, '');
+        a.download = `${baseName}_translated.${ext}`;
+      } else {
+        a.download = 'translation_translated.xliff';
+      }
+      
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -224,6 +253,7 @@ const CompareInterface = () => {
         checked_segments: checkedCount,
         source_lang: sourceLang,
         target_lang: targetLang,
+        file_type_original: fileType,
       });
 
     } catch (error) {
@@ -231,11 +261,16 @@ const CompareInterface = () => {
       alert('حدث خطأ أثناء إنشاء ملف XLIFF');
       
       // Track XLIFF generation error
-      trackEvent('xliff_generation_failed', {
-        error_message: error.message,
-        total_segments: totalSegments,
-        source_lang: sourceLang,
-        target_lang: targetLang,
+      trackApiError(error, {
+        endpoint: '/generation/xliff',
+        method: 'POST',
+        action: 'Generating XLIFF file',
+        context: {
+          total_segments: totalSegments,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+          file_type_original: fileType,
+        }
       });
     }
   };
@@ -268,6 +303,16 @@ const CompareInterface = () => {
       setBackTranslations(prev => ({ ...prev, [key]: data.backtranslation }));
     } catch (error) {
       console.error('Error fetching back-translation:', error);
+      trackApiError(error, {
+        endpoint: '/segment/backtranslation',
+        method: 'POST',
+        action: 'Fetching back-translation for segment',
+        context: {
+          page_index: pageIndex,
+          block_index: blockIndex,
+          segment_id: key,
+        }
+      });
       setBackTranslations(prev => ({ ...prev, [key]: '__ERROR__' }));
     } finally {
       setBackTranslationLoading(prev => ({ ...prev, [key]: false }));
@@ -324,6 +369,16 @@ const CompareInterface = () => {
       setExplanations(prev => ({ ...prev, [key]: data.explanation }));
     } catch (error) {
       console.error('Error fetching explanation:', error);
+      trackApiError(error, {
+        endpoint: '/segment/explanation',
+        method: 'POST',
+        action: 'Fetching explanation for segment',
+        context: {
+          page_index: pageIndex,
+          block_index: blockIndex,
+          segment_id: key,
+        }
+      });
       setExplanations(prev => ({
         ...prev,
         [key]: '__ERROR__',
@@ -363,6 +418,18 @@ const CompareInterface = () => {
       setSuggestions(prev => ({ ...prev, [key]: data }));
     } catch (error) {
       console.error('Error fetching suggestions:', error);
+      trackApiError(error, {
+        endpoint: '/segment/suggestions',
+        method: 'POST',
+        action: 'Fetching AI suggestions for segment',
+        context: {
+          page_index: pageIndex,
+          block_index: blockIndex,
+          segment_id: key,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+        }
+      });
       setSuggestions(prev => ({
         ...prev,
         [key]: '__ERROR__',
