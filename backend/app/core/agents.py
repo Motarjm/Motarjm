@@ -1,5 +1,6 @@
 import json
 import re
+import logging
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 # the below line is for testing purposes
@@ -10,41 +11,115 @@ from langsmith import traceable
 
 
 
+
 @traceable(run_type="chain")
-def provider_invoke(role, prompt):
+def provider_invoke(role, prompt, max_retries=2):
   """
-  Returns model response based on available providers
+  Returns model response based on available providers with retry logic.
+  Falls back to next provider in the list on failure.
   
   Arguments:
-    - role, str: takes as input 'role' of the agent: 'translator', 'evaluator', 'advisor'
-    - prompt, list
+    - role, str: takes as input 'role' of the agent: 'translator', 'evaluator', 'advisor', etc.
+    - prompt, list: list of langchain messages
+    - max_retries, int: number of retry attempts per provider (default: 2)
     
   Returns:
     - response: output of '.invoke()'
+    
+  Raises:
+    - Exception: if all providers fail
   """
-  response = providers[role].invoke(prompt)  
+  provider_list = providers.get(role, [])
   
-  print(response.response_metadata["model_name"])
+  if not provider_list:
+    raise ValueError(f"No providers found for role: {role}")
   
-  return response
+  last_error = None
+  
+  for provider_idx, provider in enumerate(provider_list):
+    for attempt in range(max_retries + 1):
+      try:
+        print(f"[{role}] Attempting provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
+
+        response = provider.invoke(prompt)
+
+        print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
+        print(response.response_metadata["model_name"])
+        
+        return response
+        
+      except Exception as e:
+        last_error = e
+        print(f"[{role}] Provider {provider_idx + 1} attempt {attempt + 1} failed: {str(e)}")
+
+        # If this is not the last attempt for this provider, retry
+        if attempt < max_retries:
+          continue
+        
+        # If this is not the last provider, try the next one
+        if provider_idx < len(provider_list) - 1:
+          print(f"[{role}] Falling back to next provider...")
+          break
+        
+        # If we've exhausted all providers and attempts, raise the error
+        raise RuntimeError(
+          f"All {len(provider_list)} providers failed for role '{role}' after {max_retries + 1} attempts each. "
+          f"Last error: {str(last_error)}"
+        ) from last_error
 
 
-def provider_stream(role, prompt):
+def provider_stream(role, prompt, max_retries=2):
   """
-  Streams model response tokens based on available providers.
-  Yields chunks of text content.
+  Streams model response tokens based on available providers with retry logic.
+  Falls back to next provider in the list on failure.
   
   Arguments:
-    - role, str: the provider key (e.g. 'chatbot_deepseek')
+    - role, str: the provider key (e.g. 'chatbot_deepseek', 'chatbot_gemini')
     - prompt, list: list of langchain messages
+    - max_retries, int: number of retry attempts per provider (default: 2)
     
   Yields:
     - str: text chunks as they arrive
+    
+  Raises:
+    - Exception: if all providers fail
   """
-  for chunk in providers[role].stream(prompt):
-      yield chunk
-      
-  return
+  provider_list = providers.get(role, [])
+  
+  if not provider_list:
+    raise ValueError(f"No providers found for role: {role}")
+  
+  last_error = None
+  
+  for provider_idx, provider in enumerate(provider_list):
+    for attempt in range(max_retries + 1):
+      try:
+        print(f"[{role}] Streaming attempt with provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
+        
+        for chunk in provider.stream(prompt):
+          yield chunk
+        
+        print(f"[{role}] Stream completed successfully with provider {provider_idx + 1}")
+        return
+        
+      except Exception as e:
+        last_error = e
+        print(f"[{role}] Provider {provider_idx + 1} stream attempt {attempt + 1} failed: {str(e)}")
+
+        # If this is not the last attempt for this provider, retry
+        if attempt < max_retries:
+          continue
+        
+        # If this is not the last provider, try the next one
+        if provider_idx < len(provider_list) - 1:
+          print(f"[{role}] Stream failed, falling back to next provider...")
+          break
+        
+        # If we've exhausted all providers and attempts, raise the error
+        raise RuntimeError(
+          f"All {len(provider_list)} providers failed for role '{role}' (stream) after {max_retries + 1} attempts each. "
+          f"Last error: {str(last_error)}"
+        ) from last_error
 
 
 def translator_agent(state: State) -> dict:
@@ -203,7 +278,7 @@ def advisor_agent(state: State):
 
   return {"messages": [sys_prompt, user_prompt] + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
-
+# ToDO: terminology agent must have context to determine the appropriate translation for the terms
 def terminology_agent(state: State):
   """
   Extract key terminology and difficult words from the text
