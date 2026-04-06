@@ -44,7 +44,6 @@ jobs:
           python -m venv antenv
           source antenv/bin/activate
           pip install --no-cache-dir -r requirements.txt
-          pip uninstall -y opencv-python opencv-contrib-python  # ← add this
 
 
                 
