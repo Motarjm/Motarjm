@@ -304,7 +304,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
         trackArabicTextCopied(selection.length, 'focus_chat', isFromSuggestion);
       }
     };
-bash /home/site/wwwroot/startup.sh
+
 
     // Listen for copy command
     document.addEventListener('copy', handleCopy);
