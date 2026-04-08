@@ -27,6 +27,8 @@ jobs:
           node-version: '20'
 
       - name: Build React frontend
+        env:
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
         run: |
           cd frontend        # ← change this to your actual frontend folder name
           npm install
