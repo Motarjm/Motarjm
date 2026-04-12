@@ -219,11 +219,13 @@ def evaluator_agent(state: State):
     response = response[0]["text"]
     
   # transform response string into json, we should later use 'with_structued_output'
-  if matched := re.search(r'\{.*\}', response, re.DOTALL):
-    matched = matched.group(0)
-    score = int(json.loads(matched)["score"])
-
-  else:
+  
+  try:
+    if matched := re.search(r'\{.*\}', response, re.DOTALL):
+      matched = matched.group(0)
+      score = int(json.loads(matched)["score"])
+      
+  except (json.JSONDecodeError, KeyError, TypeError, ValueError):
     score = 0
 
   return {"messages": prompt + [AIMessage(content= response, agent="EVALUATOR")],
