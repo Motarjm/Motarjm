@@ -3,7 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
-import StyleGuidePanel from './StyleGuidePanel';
+// import StyleGuidePanel from './StyleGuidePanel';
 import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
 import {
   trackFileSelected,
