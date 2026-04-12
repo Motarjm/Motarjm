@@ -8,6 +8,33 @@
 
 import posthog from './posthogConfig';
 
+const MAX_STACK_TRACE_LENGTH = 4000;
+const MAX_TEXT_FIELD_LENGTH = 1000;
+
+const truncateText = (value, maxLength = MAX_TEXT_FIELD_LENGTH) => {
+  if (value === null || value === undefined) return null;
+  const text = String(value);
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+};
+
+const normalizeContext = (context = {}) => {
+  const normalized = { ...context };
+
+  if (normalized.response_data !== undefined) {
+    normalized.response_data = truncateText(normalized.response_data, MAX_TEXT_FIELD_LENGTH);
+  }
+
+  if (normalized.response_preview !== undefined) {
+    normalized.response_preview = truncateText(normalized.response_preview, MAX_TEXT_FIELD_LENGTH);
+  }
+
+  if (normalized.backend_detail !== undefined) {
+    normalized.backend_detail = truncateText(normalized.backend_detail, MAX_TEXT_FIELD_LENGTH);
+  }
+
+  return normalized;
+};
+
 /**
  * Get browser and OS information
  */
@@ -40,6 +67,7 @@ const extractErrorInfo = (error) => {
   let errorMessage = 'Unknown error';
   let errorCode = null;
   let stackTrace = null;
+  let errorName = null;
 
   if (error) {
     // Handle string errors
@@ -49,19 +77,25 @@ const extractErrorInfo = (error) => {
     // Handle Error objects
     else if (error instanceof Error) {
       errorMessage = error.message || error.toString();
+      errorName = error.name || null;
       if (error.code) {
         errorCode = error.code;
       }
       if (error.stack) {
-        // Get first 5 lines of stack trace
-        stackTrace = error.stack.split('\n').slice(0, 5).join('\n');
+        stackTrace = truncateText(error.stack, MAX_STACK_TRACE_LENGTH);
       }
     }
     // Handle plain objects with message property
     else if (typeof error === 'object' && error.message) {
       errorMessage = error.message;
+      if (error.name) {
+        errorName = error.name;
+      }
       if (error.code) {
         errorCode = error.code;
+      }
+      if (error.stack) {
+        stackTrace = truncateText(error.stack, MAX_STACK_TRACE_LENGTH);
       }
     }
     // Handle other types
@@ -70,7 +104,7 @@ const extractErrorInfo = (error) => {
     }
   }
 
-  return { errorMessage, errorCode, stackTrace };
+  return { errorMessage, errorCode, stackTrace, errorName };
 };
 
 /**
@@ -99,12 +133,14 @@ export const trackError = (error, options = {}) => {
       context = {},
     } = options;
 
-    const { errorMessage, errorCode, stackTrace } = extractErrorInfo(error);
+    const { errorMessage, errorCode, stackTrace, errorName } = extractErrorInfo(error);
     const { browser, os, user_agent } = getBrowserInfo();
+    const normalizedContext = normalizeContext(context);
 
     const errorEvent = {
       error_type: errorType,
       error_message: String(errorMessage) || 'Unknown error',
+      error_name: errorName ? String(errorName) : null,
       error_code: errorCode ? String(errorCode) : null,
       severity: severity,
       component: component,
@@ -117,7 +153,7 @@ export const trackError = (error, options = {}) => {
       os: os,
       user_agent: user_agent,
       timestamp: new Date().toISOString(),
-      ...context,
+      ...normalizedContext,
     };
 
     // Log to console in development
@@ -146,6 +182,7 @@ export const trackApiError = (error, options = {}) => {
   const {
     endpoint = 'unknown',
     statusCode = null,
+    statusText = null,
     method = 'unknown',
     action = 'unknown',
     context = {},
@@ -165,6 +202,7 @@ export const trackApiError = (error, options = {}) => {
     context: {
       endpoint: endpoint,
       status_code: statusCode,
+      status_text: statusText,
       http_method: method,
       ...context,
     },

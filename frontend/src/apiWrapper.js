@@ -48,6 +48,7 @@ export const apiCall = async (endpoint, options = {}) => {
   } = options;
 
   const url = `${API_URL}${endpoint}`;
+  const requestStartedAt = Date.now();
   const defaultHeaders = {
     'Content-Type': 'application/json',
     ...headers,
@@ -67,19 +68,35 @@ export const apiCall = async (endpoint, options = {}) => {
 
     // Handle non-2xx responses
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
+      const rawResponse = await response.text().catch(() => '');
+      let errorData = {};
+      if (rawResponse) {
+        try {
+          errorData = JSON.parse(rawResponse);
+        } catch {
+          errorData = {};
+        }
+      }
       const error = new Error(
         errorData.message || errorData.detail || `HTTP ${response.status}`
       );
       error.code = errorData.code || `HTTP_${response.status}`;
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.responsePreview = rawResponse ? rawResponse.substring(0, 500) : null;
 
       trackApiError(error, {
         endpoint: endpoint,
         method: method,
         statusCode: response.status,
+        statusText: response.statusText,
         action: userAction,
         context: {
+          duration_ms: Date.now() - requestStartedAt,
+          request_url_path: endpoint,
+          timeout_ms: timeout,
           response_data: JSON.stringify(errorData).substring(0, 500),
+          response_preview: rawResponse ? rawResponse.substring(0, 500) : null,
           ...context,
         },
       });
@@ -100,14 +117,23 @@ export const apiCall = async (endpoint, options = {}) => {
         errorType: networkErrorType,
         endpoint: endpoint,
         timeout: timeout,
-        context,
+        context: {
+          duration_ms: Date.now() - requestStartedAt,
+          request_url_path: endpoint,
+          ...context,
+        },
       });
     } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
       networkErrorType = 'connection_error';
       trackNetworkError(error, {
         errorType: networkErrorType,
         endpoint: endpoint,
-        context,
+        context: {
+          duration_ms: Date.now() - requestStartedAt,
+          request_url_path: endpoint,
+          timeout_ms: timeout,
+          ...context,
+        },
       });
     } else if (error.code?.startsWith('HTTP_')) {
       // Already tracked in the non-ok response handler
@@ -117,7 +143,12 @@ export const apiCall = async (endpoint, options = {}) => {
         endpoint: endpoint,
         method: method,
         action: userAction,
-        context,
+        context: {
+          duration_ms: Date.now() - requestStartedAt,
+          request_url_path: endpoint,
+          timeout_ms: timeout,
+          ...context,
+        },
       });
     }
 

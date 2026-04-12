@@ -3,6 +3,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
+import StyleGuidePanel from './StyleGuidePanel';
+import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
 import {
   trackFileSelected,
   trackTranslationStarted,
@@ -24,8 +26,22 @@ const Torgman = () => {
   const [progress, setProgress] = useState(0); // NEW
   const [totalBlocks, setTotalBlocks] = useState(0); // NEW
   const [translationStartTime, setTranslationStartTime] = useState(null);
+  const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
+  const [styleGuideData, setStyleGuideData] = useState({});
   const fileInputRef = useRef();
   const navigate = useNavigate();
+  
+  // Load style guide from sessionStorage on mount
+  useEffect(() => {
+    const savedStyleGuide = sessionStorage.getItem('translation_style_guide');
+    if (savedStyleGuide) {
+      try {
+        setStyleGuideData(JSON.parse(savedStyleGuide));
+      } catch (e) {
+        console.error('Failed to load style guide from sessionStorage:', e);
+      }
+    }
+  }, []);
 
   // Load translation data from sessionStorage on component mount
   useEffect(() => {
@@ -114,7 +130,16 @@ const Torgman = () => {
     setStatus('جاري المعالجة...');
     setProgress(0);
     setTotalBlocks(0);
-    setTranslationStartTime(Date.now());
+    const translationStartTs = Date.now();
+    setTranslationStartTime(translationStartTs);
+    let translationPhase = 'preparing_request';
+    let sseParseErrorTracked = false;
+    let latestProgressCompleted = 0;
+    let latestTotalBlocks = 0;
+    const getProgressPercent = () => {
+      if (!latestTotalBlocks || latestTotalBlocks <= 0) return 0;
+      return Math.min(100, Math.max(0, Math.round((latestProgressCompleted / latestTotalBlocks) * 100)));
+    };
 
     try {
       const formData = new FormData();
@@ -127,10 +152,19 @@ const Torgman = () => {
       const sourceLangCode = sourceLangObj?.code || 'en';
       const targetLangCode = targetLangObj?.code || 'ar';
 
+      // Build query params including style guide if present
+      let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
+      if (hasStyleGuideData(styleGuideData)) {
+        const styleGuideXML = formatStyleGuideToXML(styleGuideData);
+        const encodedStyleGuide = encodeURIComponent(styleGuideXML);
+        queryParams += `&style_guide=${encodedStyleGuide}`;
+      }
+
       // Track translation start
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
+      translationPhase = 'uploading_file';
       const response = await fetch(
-        `${API_URL}${endpoint}?source_lang=${sourceLangCode}&target_lang=${targetLangCode}`,
+        `${API_URL}${endpoint}?${queryParams}`,
         {
           method: 'POST',
           body: formData,
@@ -143,16 +177,19 @@ const Torgman = () => {
         try {
           const errorData = await response.json();
           errorDetail = errorData.detail || errorData.message || errorDetail;
-        } catch (e) {
+        } catch {
           // If response is not JSON, just use status text
           errorDetail = `${response.status} ${response.statusText}`;
         }
         const error = new Error(errorDetail);
         error.status = response.status;
+        error.statusText = response.statusText;
+        error.phase = 'http_response_error';
         throw error;
       }
 
       // Read the SSE stream
+      translationPhase = 'reading_stream';
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -166,14 +203,32 @@ const Torgman = () => {
             try {
               const event = JSON.parse(jsonStr);
               if (event.type === 'progress') {
+                translationPhase = 'translating_blocks';
+                latestProgressCompleted = event.completed;
+                latestTotalBlocks = event.total;
                 setProgress(event.completed);
                 setTotalBlocks(event.total);
                 setStatus(`جاري الترجمة... ${event.completed}/${event.total}`);
               } else if (event.type === 'done') {
+                translationPhase = 'finalizing_result';
                 finalData = event;
               }
             } catch (e) {
               console.error('Failed to parse SSE event:', e);
+              if (!sseParseErrorTracked) {
+                sseParseErrorTracked = true;
+                trackTranslationError(e, {
+                  file_name: selectedFile?.name,
+                  file_size: selectedFile?.size,
+                  source_lang: sourceLang,
+                  target_lang: targetLang,
+                  endpoint: endpoint,
+                  translation_phase: 'sse_parse',
+                  elapsed_ms: Date.now() - translationStartTs,
+                  progress_percent: getProgressPercent(),
+                  sse_line_preview: trimmed.substring(0, 300),
+                });
+              }
             }
           }
         }
@@ -194,6 +249,7 @@ const Torgman = () => {
       }
 
       if (!finalData) {
+        translationPhase = 'missing_final_event';
         throw new Error('لم يتم استلام نتيجة الترجمة');
       }
 
@@ -201,6 +257,7 @@ const Torgman = () => {
       let newFileContent = null;
       
       if (fileType === 'pdf') {
+        translationPhase = 'building_pdf_output';
         // PDF response includes base64 encoded PDF
         const blob = new Blob(
           [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
@@ -221,6 +278,7 @@ const Torgman = () => {
         setFileContent(base64);
         setDownloadUrl(url);
       } else if (fileType === 'xliff') {
+        translationPhase = 'building_xliff_output';
         // XLIFF response includes XLIFF XML string
         const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
         const url = URL.createObjectURL(blob);
@@ -245,15 +303,23 @@ const Torgman = () => {
       }));
 
       // Track translation completion
-      const translationDuration = Date.now() - translationStartTime;
+      const translationDuration = Date.now() - translationStartTs;
       trackTranslationCompleted(fileType, selectedFile.size, translationDuration, true);
 
       setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
     } catch (error) {
       console.error("Translation Error:", error);
+      const elapsedMs = Date.now() - translationStartTs;
+      const errorMessageLower = String(error?.message || '').toLowerCase();
+      const isTimeoutError = errorMessageLower.includes('request timeout');
+      const isStreamNetworkError = error instanceof TypeError && (
+        errorMessageLower.includes('network error') ||
+        errorMessageLower.includes('failed to fetch') ||
+        errorMessageLower.includes('load failed')
+      );
       
       // Track the error to PostHog
-      if (error.message && error.message.includes('Request timeout')) {
+      if (isTimeoutError) {
         trackNetworkError(error, {
           errorType: 'timeout',
           endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
@@ -263,7 +329,26 @@ const Torgman = () => {
             file_size: selectedFile?.size,
             source_lang: sourceLang,
             target_lang: targetLang,
+            translation_phase: translationPhase,
+            elapsed_ms: elapsedMs,
+            progress_percent: getProgressPercent(),
           }
+        });
+      } else if (isStreamNetworkError) {
+        trackNetworkError(error, {
+          errorType: 'stream_interrupted',
+          endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
+          timeout: 30000,
+          context: {
+            file_name: selectedFile?.name,
+            file_size: selectedFile?.size,
+            source_lang: sourceLang,
+            target_lang: targetLang,
+            translation_phase: translationPhase,
+            elapsed_ms: elapsedMs,
+            progress_percent: getProgressPercent(),
+            browser_stream_error_message: error?.message || null,
+          },
         });
       } else {
         trackTranslationError(error, {
@@ -271,7 +356,12 @@ const Torgman = () => {
           file_size: selectedFile?.size,
           source_lang: sourceLang,
           target_lang: targetLang,
+          endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
+          translation_phase: translationPhase,
+          elapsed_ms: elapsedMs,
+          progress_percent: getProgressPercent(),
           http_status: error.status,
+          status_text: error.statusText,
           error_message: error.message,
         });
       }
@@ -292,6 +382,16 @@ const Torgman = () => {
     return `~${mins} minutes remaining`;
   };
 
+  const handleStyleGuideConfirm = (data) => {
+    setStyleGuideData(data);
+    sessionStorage.setItem('translation_style_guide', JSON.stringify(data));
+    setIsStyleGuideOpen(false);
+  };
+
+  const handleStyleGuideCancel = () => {
+    setIsStyleGuideOpen(false);
+  };
+
   return (
     <div className="container">
       <section className="hero-section">
@@ -305,6 +405,30 @@ const Torgman = () => {
       <div className="main-grid">
         <div className="card">
           <h2 className="section-title">رفع المستندات</h2>
+          
+          {/* Style Guide Toggle Button
+          <div className="style-guide-toggle">
+            <button
+              className={`btn-toggle-guide ${isStyleGuideOpen ? 'active' : ''} ${hasStyleGuideData(styleGuideData) ? 'has-data' : ''}`}
+              onClick={() => setIsStyleGuideOpen(!isStyleGuideOpen)}
+            >
+              <span className="icon">⚙️</span>
+              {hasStyleGuideData(styleGuideData) ? 'استخدام دليل نمط ✓' : 'إضافة دليل نمط (اختياري)'}
+            </button>
+          </div> */}
+
+          {/* Style Guide Panel - Conditionally Rendered */}
+          {
+            /*
+          isStyleGuideOpen && (
+            <StyleGuidePanel 
+              onConfirm={handleStyleGuideConfirm}
+              onCancel={handleStyleGuideCancel}
+              initialData={styleGuideData}
+            />
+          )
+            */
+          }
           
           {/* Language Selection */}
           <div className="language-selector">
