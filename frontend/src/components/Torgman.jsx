@@ -154,11 +154,11 @@ const Torgman = () => {
 
       // Build query params including style guide if present
       let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
-      if (hasStyleGuideData(styleGuideData)) {
-        const styleGuideXML = formatStyleGuideToXML(styleGuideData);
-        const encodedStyleGuide = encodeURIComponent(styleGuideXML);
-        queryParams += `&style_guide=${encodedStyleGuide}`;
-      }
+      // if (hasStyleGuideData(styleGuideData)) {
+      //   const styleGuideXML = formatStyleGuideToXML(styleGuideData);
+      //   const encodedStyleGuide = encodeURIComponent(styleGuideXML);
+      //   queryParams += `&style_guide=${encodedStyleGuide}`;
+      // }
 
       // Track translation start
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
