@@ -171,10 +171,10 @@ EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with 
 
 <output_example>
 ```json
-{
+{{
   "reason": "The translation is accurate and uses the provided terminology correctly. Minor stylistic issues include the translation of 'tiny little formula' which could be more natural, and the literal translation of 'tattoo this on your forehead' which might sound too strong in Arabic.",
   "score": 90
-}
+}}
 ```
 </output_example>
 
