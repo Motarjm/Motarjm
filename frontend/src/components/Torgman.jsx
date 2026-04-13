@@ -19,6 +19,20 @@ import {
   loadDocument,
 } from '../utils/indexedDbPersistence';
 
+// day month year ->  ٢٠٢٦/١/١٦
+// day is read from the right
+// tags: new improved fixed
+// new -> جديد | improved -> تحسين | fixed -> إصلاح 
+const WHATS_NEW_ITEMS = [
+  {
+    date: '٢٠٢٦/٤/١٣',
+    tag: 'تحسين',
+    tagType: 'improved',
+    text: 'عملك يُحفظ تلقائيًا. أغلق الصفحة وأكمل لاحقًا',
+  },
+  
+];
+
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -32,23 +46,10 @@ const Torgman = () => {
   const [progress, setProgress] = useState(0); // NEW
   const [totalBlocks, setTotalBlocks] = useState(0); // NEW
   const [translationStartTime, setTranslationStartTime] = useState(null);
-  const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
-  const [styleGuideData, setStyleGuideData] = useState({});
   const [activeDocumentId, setActiveDocumentId] = useState(null);
+  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(true);
   const fileInputRef = useRef();
   const navigate = useNavigate();
-  
-  // Load style guide from sessionStorage on mount
-  useEffect(() => {
-    const savedStyleGuide = sessionStorage.getItem('translation_style_guide');
-    if (savedStyleGuide) {
-      try {
-        setStyleGuideData(JSON.parse(savedStyleGuide));
-      } catch (e) {
-        console.error('Failed to load style guide from sessionStorage:', e);
-      }
-    }
-  }, []);
 
   // Load latest translated document from IndexedDB on component mount
   useEffect(() => {
@@ -419,22 +420,51 @@ const Torgman = () => {
     return `~${mins} minutes remaining`;
   };
 
-  const handleStyleGuideConfirm = (data) => {
-    setStyleGuideData(data);
-    sessionStorage.setItem('translation_style_guide', JSON.stringify(data));
-    setIsStyleGuideOpen(false);
-  };
-
-  const handleStyleGuideCancel = () => {
-    setIsStyleGuideOpen(false);
-  };
-
   return (
     <div className="container">
       <section className="hero-section">
         <div className="logo-container">
           <h1 className="logo">تُرجمان</h1>
         </div>
+
+        {isWhatsNewOpen && (
+          <aside className="card whats-new-panel hero-whats-new-panel" aria-label="ما الجديد">
+            <div className="whats-new-header">
+              <h3 className="whats-new-title">ما الجديد</h3>
+              <button
+                type="button"
+                className="whats-new-close"
+                onClick={() => setIsWhatsNewOpen(false)}
+                aria-label="إغلاق لوحة ما الجديد"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="whats-new-subtitle">آخر تحديثات تُرجمان</p>
+
+            <ul className="whats-new-list whats-new-timeline">
+              {WHATS_NEW_ITEMS.map((item, index) => (
+                <li key={`${item.date}-${item.text}`} className="whats-new-item whats-new-timeline-item">
+                  <div className="wn-timeline-col">
+                    <span className={`wn-timeline-dot wn-dot-${item.tagType}`} />
+                    {index < WHATS_NEW_ITEMS.length - 1 && (
+                      <span className="wn-timeline-line" />
+                    )}
+                  </div>
+                  <div className="wn-timeline-content">
+                    <div className="wn-timeline-meta">
+                      <span className={`wn-tag wn-tag-${item.tagType}`}>{item.tag}</span>
+                      <span className="whats-new-date">{item.date}</span>
+                    </div>
+                    <span className="wn-timeline-text">{item.text}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
+
         <div className="accent-line"></div>
         <h2 className="hero-title">ترجم مستنداتك باحترافية وسرعة</h2>
       </section>
@@ -603,6 +633,7 @@ const Torgman = () => {
             {status && <p className="status-msg">{status}</p>}
           </div>
         </div>
+
       </div>
     </div>
   );
