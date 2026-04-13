@@ -326,12 +326,16 @@ class ArabicPDFBuilder:
             
             # Render each text block at its position
             # this is the prev frame for the next frame
-            prev_frame = self._render_text_block(
-                        canvas_obj, page_blocks[0], page_width, page_height)
-            
-            for block in page_blocks[1:]:
+            try:
                 prev_frame = self._render_text_block(
-                            canvas_obj, block, page_width, page_height, prev_frame)
+                            canvas_obj, page_blocks[0], page_width, page_height)
+                
+                for block in page_blocks[1:]:
+                    prev_frame = self._render_text_block(
+                                canvas_obj, block, page_width, page_height, prev_frame)
+                    
+            except Exception as e:
+                pass
             
             # Finish current page and start new one
             canvas_obj.showPage()
