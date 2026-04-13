@@ -6,6 +6,7 @@ import '../assets/focus_chat.css';
 import { API_URL } from '../apiConfig';
 import { trackFocusPanelSession, trackAISuggestionApplied, trackChatInteraction, trackArabicTextCopied } from '../analytics';
 import { trackApiError } from '../errorTracking';
+import { loadSegmentChat, saveSegmentChat } from '../utils/indexedDbPersistence';
 
 // Inline diff preview component
 const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
@@ -48,43 +49,51 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
 };
 
 
-const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
-  const [messages, setMessages] = useState(() => {
-    // Load chat history from sessionStorage on mount
-    try {
-      const saved = sessionStorage.getItem(`chat_history_${segmentId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.messages || [];
-      }
-    } catch (e) {
-      console.error('Failed to load chat history from sessionStorage:', e);
-    }
-    return [];
-  });
+const FocusChatPanel = ({ documentId, segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [isStreaming, setIsStreaming] = useState(false);
   const [ephemeralError, setEphemeralError] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
   const textareaRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
   const focusStartTimeRef = useRef(Date.now()); // Track session start time
 
-  // Load chatHistoryRef from sessionStorage on mount
+  // Load persisted chat history for this document segment.
   useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(`chat_history_${segmentId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        chatHistoryRef.current = parsed.chatHistory || [];
+    let cancelled = false;
+
+    const hydrateHistory = async () => {
+      setHistoryLoaded(false);
+      try {
+        const saved = await loadSegmentChat(documentId, segmentId);
+        if (!cancelled) {
+          setMessages(saved?.messages || []);
+          chatHistoryRef.current = saved?.chatHistory || [];
+        }
+      } catch (e) {
+        console.error('Failed to load raw chat history from IndexedDB:', e);
+        if (!cancelled) {
+          setMessages([]);
+          chatHistoryRef.current = [];
+        }
+      } finally {
+        if (!cancelled) {
+          setHistoryLoaded(true);
+        }
       }
-    } catch (e) {
-      console.error('Failed to load raw chat history from sessionStorage:', e);
-    }
-  }, [segmentId]);
+    };
+
+    hydrateHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, segmentId]);
 
   // Track focus panel session on unmount (panel closes)
   useEffect(() => {
@@ -99,17 +108,17 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Save chat history to sessionStorage whenever messages or chatHistoryRef changes
+  // Persist chat history per document/segment once hydration completes.
   useEffect(() => {
-    try {
-      sessionStorage.setItem(`chat_history_${segmentId}`, JSON.stringify({
+    if (!historyLoaded || !documentId || !segmentId) return;
+
+    saveSegmentChat(documentId, segmentId, {
         messages: messages,
         chatHistory: chatHistoryRef.current
-      }));
-    } catch (e) {
-      console.error('Failed to save chat history to sessionStorage:', e);
-    }
-  }, [messages, segmentId]);
+      }).catch((e) => {
+        console.error('Failed to save chat history to IndexedDB:', e);
+      });
+  }, [documentId, historyLoaded, messages, segmentId]);
 
   // Parse action block from completed bot message
   const parseAction = (text) => {
@@ -144,7 +153,7 @@ const FocusChatPanel = ({ segment, segmentId, pageContext, docContext, sourceLan
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!historyLoaded || !input.trim() || isStreaming) return;
 
     setEphemeralError(null);
     const userMsg = { role: 'user', text: input };

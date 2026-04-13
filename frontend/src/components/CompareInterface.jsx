@@ -5,47 +5,37 @@ import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
 import { trackNavigation, trackEvent } from '../analytics';
 import { trackApiError } from '../errorTracking';
+import {
+  createDocument,
+  getActiveDocumentId,
+  loadDocument,
+  saveDocumentState,
+  setActiveDocumentId,
+} from '../utils/indexedDbPersistence';
 
 const CompareInterface = () => {
   const location = useLocation();
   const [activeSegment, setActiveSegment] = useState(null);
-  const [translatedContents, setTranslatedContents] = useState(() => {
-    // Load from sessionStorage on mount (for page refresh)
-    const saved = sessionStorage.getItem('compare_translatedContents');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [translatedContents, setTranslatedContents] = useState(null);
   const [originalFile, setOriginalFile] = useState(null);
   const [originalFileName, setOriginalFileName] = useState(null);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
   const [fileType, setFileType] = useState(null); // Track whether original was PDF or XLIFF
-  const [checkedBlocks, setCheckedBlocks] = useState(() => {
-    // Load from sessionStorage on mount
-    const saved = sessionStorage.getItem('compare_checked_blocks');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [checkedBlocks, setCheckedBlocks] = useState({});
   const [openSuggestions, setOpenSuggestions] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [suggestions, setSuggestions] = useState(() => {
-    // Load from sessionStorage on mount
-    const saved = sessionStorage.getItem('compare_suggestions');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [suggestions, setSuggestions] = useState({});
   const [suggestionsLoading, setSuggestionsLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openBackTranslations, setOpenBackTranslations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [backTranslations, setBackTranslations] = useState(() => {
-    // Load from sessionStorage on mount
-    const saved = sessionStorage.getItem('compare_backTranslations');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [backTranslations, setBackTranslations] = useState({});
   const [backTranslationLoading, setBackTranslationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [openExplanations, setOpenExplanations] = useState({}); // keyed by "pageIndex-blockIndex" -> boolean
-  const [explanations, setExplanations] = useState(() => {
-    const saved = sessionStorage.getItem('compare_explanations');
-    return saved ? JSON.parse(saved) : {};
-  });
+  const [explanations, setExplanations] = useState({});
   const [explanationLoading, setExplanationLoading] = useState({}); // keyed by "pageIndex-blockIndex"
   const [focusChatSegment, setFocusChatSegment] = useState(null); // "pageIndex-blockIndex" or null
   const [copiedSegment, setCopiedSegment] = useState(null); // Track which segment was copied
+  const [documentId, setDocumentId] = useState(null);
+  const [isHydrated, setIsHydrated] = useState(false);
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -56,84 +46,96 @@ const CompareInterface = () => {
   }, []);
 
   useEffect(() => {   
-    // Use location.key to distinguish between:
-    // 1. Fresh navigation from Torgman.jsx (location.key changes)
-    // 2. Page refresh (location.key stays the same)
-    
-    const currentKey = location.key;
-    const lastNavKey = sessionStorage.getItem('last_nav_key');
-    
-    const isNewNavigation = currentKey !== lastNavKey;
-    
-    if (isNewNavigation) {
-      // Fresh navigation from Torgman.jsx: use location.state data
-      const { translatedContents: stateContents, originalFile: stateFile, sourceLang: stateLang, targetLang: stateTarget, fileName: stateFileName, fileType: stateFileType } = location.state || {};
-      
-      setTranslatedContents(stateContents || null);
-      setOriginalFile(stateFile || null);
-      setOriginalFileName(stateFileName || null);
-      setSourceLang(stateLang || 'English');
-      setTargetLang(stateTarget || 'Arabic');
-      setFileType(stateFileType || null);
-      
-      // Update the last navigation key in sessionStorage
-      sessionStorage.setItem('last_nav_key', currentKey);
-    } else {
-      // Page refresh: location.key matches the saved key
-      // The lazy initializers have already loaded the edited content from sessionStorage.
-      // Only restore metadata if needed.
+    let cancelled = false;
+
+    const hydrateDocument = async () => {
       try {
-        const savedData = sessionStorage.getItem('translationData');
-        if (savedData) {
-          const parsed = JSON.parse(savedData);
-          setOriginalFile(parsed.originalFile || null);
-          setOriginalFileName(parsed.fileName || null);
-          setSourceLang(parsed.sourceLang || 'English');
-          setTargetLang(parsed.targetLang || 'Arabic');
-          setFileType(parsed.fileType || null);
+        const stateDocId = location.state?.documentId || null;
+        let resolvedDocumentId = stateDocId || await getActiveDocumentId();
+        let documentRecord = resolvedDocumentId ? await loadDocument(resolvedDocumentId) : null;
+
+        if (!documentRecord && location.state?.translatedContents) {
+          resolvedDocumentId = await createDocument({
+            translatedContents: location.state.translatedContents,
+            originalFile: location.state.originalFile || null,
+            sourceLang: location.state.sourceLang || 'English',
+            targetLang: location.state.targetLang || 'Arabic',
+            fileType: location.state.fileType || null,
+            fileName: location.state.fileName || null,
+          });
+          documentRecord = await loadDocument(resolvedDocumentId);
         }
+
+        if (!documentRecord || cancelled) {
+          if (!cancelled) {
+            setIsHydrated(true);
+          }
+          return;
+        }
+
+        await setActiveDocumentId(documentRecord.id);
+
+        setDocumentId(documentRecord.id);
+        setTranslatedContents(documentRecord.translatedContents || null);
+        setOriginalFile(documentRecord.originalFile || null);
+        setOriginalFileName(documentRecord.fileName || null);
+        setSourceLang(documentRecord.sourceLang || 'English');
+        setTargetLang(documentRecord.targetLang || 'Arabic');
+        setFileType(documentRecord.fileType || null);
+        setCheckedBlocks(documentRecord.checkedBlocks || {});
+        setSuggestions(documentRecord.suggestions || {});
+        setBackTranslations(documentRecord.backTranslations || {});
+        setExplanations(documentRecord.explanations || {});
       } catch (e) {
-        console.error('Failed to parse sessionStorage data:', e);
+        console.error('Failed to hydrate compare document from IndexedDB:', e);
+      } finally {
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
       }
-    }
-  }, [location.key, location.state]);
+    };
 
-  // Save translatedContents to sessionStorage whenever it changes
-  useEffect(() => {
-    if (translatedContents) {
-      try {
-        sessionStorage.setItem('compare_translatedContents', JSON.stringify(translatedContents));
-      } catch (e) {
-        console.error('Failed to save translatedContents to sessionStorage:', e);
-      }
-    }
-  }, [translatedContents]);
+    hydrateDocument();
 
-  // Persist checkedBlocks to sessionStorage on change
-  useEffect(() => {
-    sessionStorage.setItem('compare_checked_blocks', JSON.stringify(checkedBlocks));
-  }, [checkedBlocks]);
+    return () => {
+      cancelled = true;
+    };
+  }, [location.state]);
 
-  // Persist explanations to sessionStorage on change
   useEffect(() => {
-    if (Object.keys(explanations).length > 0) {
-      sessionStorage.setItem('compare_explanations', JSON.stringify(explanations));
-    }
-  }, [explanations]);
+    if (!isHydrated || !documentId || !translatedContents) return;
+    saveDocumentState(documentId, { translatedContents }).catch((e) => {
+      console.error('Failed to persist translated contents:', e);
+    });
+  }, [documentId, isHydrated, translatedContents]);
 
-  // Persist backTranslations to sessionStorage on change
   useEffect(() => {
-    if (Object.keys(backTranslations).length > 0) {
-      sessionStorage.setItem('compare_backTranslations', JSON.stringify(backTranslations));
-    }
-  }, [backTranslations]);
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { checkedBlocks }).catch((e) => {
+      console.error('Failed to persist checked blocks:', e);
+    });
+  }, [checkedBlocks, documentId, isHydrated]);
 
-  // Persist suggestions to sessionStorage on change
   useEffect(() => {
-    if (Object.keys(suggestions).length > 0) {
-      sessionStorage.setItem('compare_suggestions', JSON.stringify(suggestions));
-    }
-  }, [suggestions]);
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { explanations }).catch((e) => {
+      console.error('Failed to persist explanations:', e);
+    });
+  }, [documentId, explanations, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { backTranslations }).catch((e) => {
+      console.error('Failed to persist back-translations:', e);
+    });
+  }, [backTranslations, documentId, isHydrated]);
+
+  useEffect(() => {
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { suggestions }).catch((e) => {
+      console.error('Failed to persist suggestions:', e);
+    });
+  }, [documentId, isHydrated, suggestions]);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -323,7 +325,7 @@ const CompareInterface = () => {
     const key = `${pageIndex}-${blockIndex}`;
     setCheckedBlocks(prev => {
       const updated = { ...prev, [key]: !prev[key] };
-      // Note: sessionStorage save is handled by the useEffect hook
+      // Persisting state is handled by IndexedDB save effects.
       return updated;
     });
     setOpenSuggestions(prev => ({ ...prev, [key]: false }));
@@ -480,6 +482,27 @@ const CompareInterface = () => {
 
   // Calculate segment ID for display
   let segmentCounter = 0;
+
+  if (!isHydrated) {
+    return (
+      <div className="comparison-container">
+        <div className="top-bar">
+          <div className="top-bar-content">
+            <span className="logo">ترجمان</span>
+          </div>
+        </div>
+        <div className="comparison-content-wrapper">
+          <div className="document-area">
+            <div className="document-container">
+              <div className="suggestions-loading" style={{ marginTop: '2rem' }}>
+                Loading saved translation...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="comparison-container">
@@ -678,6 +701,7 @@ const CompareInterface = () => {
 
       {focusChatSegment && translatedContents && (
         <FocusChatPanel
+          documentId={documentId}
           segment={translatedContents[focusChatSegment.pageIndex][focusChatSegment.blockIndex]}
           segmentId={focusChatSegment.id}
           pageContext={translatedContents[focusChatSegment.pageIndex].map(b => b.original_text)}

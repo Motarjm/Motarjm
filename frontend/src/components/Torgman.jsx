@@ -12,6 +12,12 @@ import {
   trackTranslationError,
 } from '../analytics';
 import { trackNetworkError } from '../errorTracking';
+import {
+  clearAllPersistence,
+  createDocument,
+  getActiveDocumentId,
+  loadDocument,
+} from '../utils/indexedDbPersistence';
 
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -28,6 +34,7 @@ const Torgman = () => {
   const [translationStartTime, setTranslationStartTime] = useState(null);
   const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
   const [styleGuideData, setStyleGuideData] = useState({});
+  const [activeDocumentId, setActiveDocumentId] = useState(null);
   const fileInputRef = useRef();
   const navigate = useNavigate();
   
@@ -43,22 +50,38 @@ const Torgman = () => {
     }
   }, []);
 
-  // Load translation data from sessionStorage on component mount
+  // Load latest translated document from IndexedDB on component mount
   useEffect(() => {
-    try {
-      const savedData = sessionStorage.getItem('translationData');
-      if (savedData) {
-        const parsed = JSON.parse(savedData);
-        setTranslatedContents(parsed.translatedContents);
-        setFileContent(parsed.originalFile);
-        setSourceLang(parsed.sourceLang);
-        setTargetLang(parsed.targetLang);
-        setDownloadUrl('blob'); // Set a non-empty value to show the button
-        setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+    let cancelled = false;
+
+    const hydrateLatestDocument = async () => {
+      try {
+        const documentId = await getActiveDocumentId();
+        if (!documentId) return;
+
+        const savedDocument = await loadDocument(documentId);
+        if (!savedDocument || !savedDocument.translatedContents) return;
+
+        if (!cancelled) {
+          setActiveDocumentId(documentId);
+          setTranslatedContents(savedDocument.translatedContents);
+          setFileContent(savedDocument.originalFile || null);
+          setSourceLang(savedDocument.sourceLang || 'English');
+          setTargetLang(savedDocument.targetLang || 'Arabic');
+          setFileName(savedDocument.fileName || '');
+          setDownloadUrl('indexeddb');
+          setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+        }
+      } catch (e) {
+        console.error('Failed to load translation data from IndexedDB:', e);
       }
-    } catch (e) {
-      console.error('Failed to load translation data from sessionStorage:', e);
-    }
+    };
+
+    hydrateLatestDocument();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -82,16 +105,28 @@ const Torgman = () => {
     return null;
   };
 
-  // Clear all segment chat histories from sessionStorage (called on successful new translation)
-  const clearChatHistories = () => {
-    const keysToDelete = [];
+  // Cleanup legacy sessionStorage keys from the pre-IndexedDB flow.
+  const clearLegacySessionStorage = () => {
+    const keysToDelete = [
+      'translationData',
+      'compare_translatedContents',
+      'compare_checked_blocks',
+      'compare_suggestions',
+      'compare_backTranslations',
+      'compare_explanations',
+      'last_nav_key',
+    ];
+
+    keysToDelete.forEach((key) => sessionStorage.removeItem(key));
+
+    const chatKeysToDelete = [];
     for (let i = 0; i < sessionStorage.length; i++) {
       const key = sessionStorage.key(i);
       if (key && key.startsWith('chat_history_')) {
-        keysToDelete.push(key);
+        chatKeysToDelete.push(key);
       }
     }
-    keysToDelete.forEach(key => sessionStorage.removeItem(key));
+    chatKeysToDelete.forEach((key) => sessionStorage.removeItem(key));
   };
 
   const handleFileChange = (e) => {
@@ -288,19 +323,21 @@ const Torgman = () => {
         setDownloadUrl(url);
       }
 
-      // Wipe chat histories from previous document before saving new translation data
-      clearChatHistories();
+      // Hard reset policy: each new upload replaces all previously persisted IndexedDB data.
+      await clearAllPersistence();
 
-      // Save to sessionStorage to persist across page refreshes
-      // Use newFileContent directly instead of stale state variable
-      sessionStorage.setItem('translationData', JSON.stringify({
+      const persistedDocumentId = await createDocument({
         translatedContents: finalData.translated_contents,
-        originalFile: newFileContent, // Use freshly computed value, not stale state
+        originalFile: newFileContent,
         sourceLang: sourceLang,
         targetLang: targetLang,
         fileType: fileType,
-        fileName: fileName
-      }));
+        fileName: fileName,
+      });
+      setActiveDocumentId(persistedDocumentId);
+
+      // Remove old sessionStorage artifacts so restore behavior is deterministic.
+      clearLegacySessionStorage();
 
       // Track translation completion
       const translationDuration = Date.now() - translationStartTs;
@@ -548,6 +585,7 @@ const Torgman = () => {
                     // trackDocumentDownloaded('pdf');
                     navigate('/compare', { 
                       state: { 
+                        documentId: activeDocumentId,
                         translatedContents: translatedContents,
                         originalFile: fileContent,
                         sourceLang: sourceLang,
