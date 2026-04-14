@@ -33,6 +33,10 @@ const WHATS_NEW_ITEMS = [
   
 ];
 
+const SAMPLE_PDF_NAME = 'tax.pdf';
+const SAMPLE_PDF_URL = `${import.meta.env.BASE_URL}static/${SAMPLE_PDF_NAME}`;
+
+
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
@@ -48,6 +52,7 @@ const Torgman = () => {
   const [translationStartTime, setTranslationStartTime] = useState(null);
   const [activeDocumentId, setActiveDocumentId] = useState(null);
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(true);
+  const [isPreparingSample, setIsPreparingSample] = useState(false);
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
@@ -64,6 +69,7 @@ const Torgman = () => {
         if (!savedDocument || !savedDocument.translatedContents) return;
 
         if (!cancelled) {
+          setSelectedFile(null);
           setActiveDocumentId(documentId);
           setTranslatedContents(savedDocument.translatedContents);
           setFileContent(savedDocument.originalFile || null);
@@ -71,6 +77,11 @@ const Torgman = () => {
           setTargetLang(savedDocument.targetLang || 'Arabic');
           setFileName(savedDocument.fileName || '');
           setDownloadUrl('indexeddb');
+          setIsTranslating(false);
+          setIsPreparingSample(false);
+          setProgress(0);
+          setTotalBlocks(0);
+          setTranslationStartTime(null);
           setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
         }
       } catch (e) {
@@ -130,23 +141,68 @@ const Torgman = () => {
     chatKeysToDelete.forEach((key) => sessionStorage.removeItem(key));
   };
 
+  const resetTranslationUiState = () => {
+    setDownloadUrl('');
+    setTranslatedContents(null);
+    setFileContent(null);
+    setStatus('');
+    setActiveDocumentId(null);
+    setIsTranslating(false);
+    setIsPreparingSample(false);
+    setProgress(0);
+    setTotalBlocks(0);
+    setTranslationStartTime(null);
+  };
+
+  const applySelectedFile = (file) => {
+    if (!file) return false;
+
+    const fileType = getFileType(file.name);
+    if (!fileType) {
+      alert('نوع الملف غير مدعوم. يرجى اختيار ملف PDF أو XLIFF');
+      return false;
+    }
+
+    resetTranslationUiState();
+    setSelectedFile(file);
+    setFileName(file.name);
+
+    trackFileSelected(fileType, file.size);
+    return true;
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const fileType = getFileType(file.name);
-      if (!fileType) {
-        alert('نوع الملف غير مدعوم. يرجى اختيار ملف PDF أو XLIFF');
-        return;
-      }
-      setSelectedFile(file);
-      setFileName(file.name);
-      setDownloadUrl('');
-      setTranslatedContents(null);
-      setFileContent(null);
-      setStatus('');
+    const isValidSelection = applySelectedFile(file);
+    if (!isValidSelection && fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
-      // Track file selection
-      trackFileSelected(fileType, file.size);
+  const handleTrySamplePdf = async () => {
+    if (isPreparingSample || (isTranslating && !downloadUrl)) return;
+
+    setIsPreparingSample(true);
+    setStatus('جاري تجهيز ملف العينة...');
+    
+
+    try {
+      const response = await fetch(SAMPLE_PDF_URL);
+      if (!response.ok) {
+        throw new Error(`Failed to load sample PDF: ${response.status}`);
+      }
+
+      const sampleBlob = await response.blob();
+      const samplePdfFile = new File([sampleBlob], SAMPLE_PDF_NAME, {
+        type: sampleBlob.type || 'application/pdf',
+      });
+
+      applySelectedFile(samplePdfFile);
+    } catch (error) {
+      console.error('Failed to load sample PDF:', error);
+      setStatus('تعذر تجهيز ملف العينة. حاول مرة أخرى.');
+    } finally {
+      setIsPreparingSample(false);
     }
   };
 
@@ -532,6 +588,17 @@ const Torgman = () => {
             </div>
           </div>
 
+          <div className="sample-file-action">
+            <button
+              type="button"
+              className="sample-file-btn"
+              onClick={handleTrySamplePdf}
+              disabled={isPreparingSample || (isTranslating && !downloadUrl)}
+            >
+              {isPreparingSample ? 'جاري تجهيز ملف العينة...' : 'جرّب ملف‫ PDF'}
+            </button>
+          </div>
+
           {/* Upload Area */}
           <div
             className="upload-area"
@@ -559,12 +626,21 @@ const Torgman = () => {
                 <div className="file-details">
                   <div className="file-name">{fileName}</div>
                   <div className="file-meta">
-                    {(selectedFile?.size / 1024).toFixed(1)} KB • جاهز للترجمة
+                    {selectedFile
+                      ? `${(selectedFile.size / 1024).toFixed(1)} KB • جاهز للترجمة`
+                      : 'ملف محفوظ من الجلسة السابقة'}
                   </div>
                 </div>
                 <button 
                   className="remove-file" 
-                  onClick={() => {setFileName(''); setSelectedFile(null);}}
+                  onClick={() => {
+                    setFileName('');
+                    setSelectedFile(null);
+                    resetTranslationUiState();
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
                 >
                   ✕
                 </button>

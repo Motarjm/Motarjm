@@ -320,6 +320,35 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
+.sample-file-action {
+  display: flex;
+  justify-content: center;
+  margin: -0.5rem 0 1.4rem;
+}
+
+.sample-file-btn {
+  border: 1px solid rgba(193, 80, 46, 0.25);
+  background: rgba(193, 80, 46, 0.06);
+  color: var(--terracotta);
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+.sample-file-btn:hover {
+  background: rgba(193, 80, 46, 0.12);
+  border-color: var(--terracotta);
+}
+
+.sample-file-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.7; transform: scale(1.1); }
