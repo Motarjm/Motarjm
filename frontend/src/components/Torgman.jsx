@@ -3,8 +3,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
-// import StyleGuidePanel from './StyleGuidePanel';
-// import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
+import StyleGuidePanel from './StyleGuidePanel';
+import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
 import {
   trackFileSelected,
   trackTranslationStarted,
@@ -50,6 +50,9 @@ const Torgman = () => {
   const [progress, setProgress] = useState(0); // NEW
   const [totalBlocks, setTotalBlocks] = useState(0); // NEW
   const [translationStartTime, setTranslationStartTime] = useState(null);
+  const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
+  const [styleGuideData, setStyleGuideData] = useState({});
+  const [isStyleGuideActive, setIsStyleGuideActive] = useState(false);
   const [activeDocumentId, setActiveDocumentId] = useState(null);
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(true);
   const [isPreparingSample, setIsPreparingSample] = useState(false);
@@ -94,6 +97,27 @@ const Torgman = () => {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Load style guide from session storage on component mount
+  useEffect(() => {
+    const savedStyleGuide = sessionStorage.getItem('translation_style_guide');
+    const savedStyleGuideActive = sessionStorage.getItem('translation_style_guide_active');
+    
+    if (savedStyleGuide) {
+      try {
+        const parsedData = JSON.parse(savedStyleGuide);
+        setStyleGuideData(parsedData);
+        console.log('%c=== LOADED STYLE GUIDE FROM SESSION STORAGE ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
+        console.log('Data:', parsedData);
+      } catch (e) {
+        console.error('Failed to parse saved style guide:', e);
+      }
+    }
+    
+    if (savedStyleGuideActive) {
+      setIsStyleGuideActive(JSON.parse(savedStyleGuideActive));
+    }
   }, []);
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -244,13 +268,20 @@ const Torgman = () => {
       const sourceLangCode = sourceLangObj?.code || 'en';
       const targetLangCode = targetLangObj?.code || 'ar';
 
-      // Build query params including style guide if present
+      // Build query params including style guide if present and active
       let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
-      // if (hasStyleGuideData(styleGuideData)) {
-      //   const styleGuideXML = formatStyleGuideToXML(styleGuideData);
-      //   const encodedStyleGuide = encodeURIComponent(styleGuideXML);
-      //   queryParams += `&style_guide=${encodedStyleGuide}`;
-      // }
+      if (hasStyleGuideData(styleGuideData) && isStyleGuideActive) {
+        const styleGuideXML = formatStyleGuideToXML(styleGuideData);
+        const encodedStyleGuide = encodeURIComponent(styleGuideXML);
+        queryParams += `&style_guide=${encodedStyleGuide}`;
+        
+        // Log style guide being sent
+        console.log('%c=== SENDING STYLE GUIDE TO BACKEND ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
+        console.log('XML:', styleGuideXML);
+        console.log('URL-encoded param:', `style_guide=${encodedStyleGuide}`);
+      } else if (hasStyleGuideData(styleGuideData) && !isStyleGuideActive) {
+        console.log('%c=== STYLE GUIDE SAVED BUT DEACTIVATED - NOT SENDING TO BACKEND ===', 'color: #FF9500; font-weight: bold; font-size: 14px;');
+      }
 
       // Track translation start
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
@@ -476,6 +507,34 @@ const Torgman = () => {
     return `~${mins} minutes remaining`;
   };
 
+  const handleStyleGuideConfirm = (data) => {
+    setStyleGuideData(data);
+    sessionStorage.setItem('translation_style_guide', JSON.stringify(data));
+    sessionStorage.setItem('translation_style_guide_active', JSON.stringify(true));
+    setIsStyleGuideActive(true);
+    setIsStyleGuideOpen(false);
+    
+    // Log the style guide data and XML output
+    console.log('%c=== STYLE GUIDE DATA ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
+    console.log('Form Data:', data);
+    const styleGuideXML = formatStyleGuideToXML(data);
+    console.log('%c=== STYLE GUIDE XML OUTPUT ===', 'color: #C15030; font-weight: bold; font-size: 14px;');
+    console.log(styleGuideXML);
+  };
+
+  const handleStyleGuideToggle = () => {
+    const newActiveState = !isStyleGuideActive;
+    setIsStyleGuideActive(newActiveState);
+    sessionStorage.setItem('translation_style_guide_active', JSON.stringify(newActiveState));
+    
+    console.log(`%c=== STYLE GUIDE ${newActiveState ? 'ACTIVATED' : 'DEACTIVATED'} ===`, 'color: #FF9500; font-weight: bold; font-size: 14px;');
+  };
+
+  const handleStyleGuideCancel = () => {
+    setIsStyleGuideOpen(false);
+  };
+
+
   return (
     <div className="container">
       <section className="hero-section">
@@ -529,28 +588,28 @@ const Torgman = () => {
         <div className="card">
           <h2 className="section-title">رفع المستندات</h2>
           
-          {/* Style Guide Toggle Button
+          {/* Style Guide Toggle Button */}
           <div className="style-guide-toggle">
             <button
-              className={`btn-toggle-guide ${isStyleGuideOpen ? 'active' : ''} ${hasStyleGuideData(styleGuideData) ? 'has-data' : ''}`}
+              className={`btn-toggle-guide ${isStyleGuideOpen ? 'active' : ''} ${hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'has-data' : ''}`}
               onClick={() => setIsStyleGuideOpen(!isStyleGuideOpen)}
             >
               <span className="icon">⚙️</span>
-              {hasStyleGuideData(styleGuideData) ? 'استخدام دليل نمط ✓' : 'إضافة دليل نمط (اختياري)'}
+              {hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'استخدام دليل نمط ✓' : 'إضافة دليل نمط (اختياري)'}
             </button>
-          </div> */}
+          </div>
 
           {/* Style Guide Panel - Conditionally Rendered */}
           {
-            /*
           isStyleGuideOpen && (
             <StyleGuidePanel 
               onConfirm={handleStyleGuideConfirm}
               onCancel={handleStyleGuideCancel}
               initialData={styleGuideData}
+              isActive={isStyleGuideActive}
+              onToggleActive={hasStyleGuideData(styleGuideData) ? handleStyleGuideToggle : undefined}
             />
           )
-            */
           }
           
           {/* Language Selection */}

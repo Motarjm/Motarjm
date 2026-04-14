@@ -557,9 +557,9 @@
   margin-top: 4px;
 }
 
-/* Style Guide Toggle Button
+/* Style Guide Toggle Button */
 .style-guide-toggle {
-  margin-bottom: 2rem;
+  margin-bottom: 0;
   text-align: center;
 }
 
@@ -602,7 +602,7 @@
 .btn-toggle-guide .icon {
   font-size: 1.1rem;
   display: inline-block;
-} */
+}
 
 /* Responsive Design */
 @media (max-width: 768px) {
