@@ -595,7 +595,7 @@ const Torgman = () => {
               onClick={() => setIsStyleGuideOpen(!isStyleGuideOpen)}
             >
               <span className="icon">⚙️</span>
-              {hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'استخدام دليل نمط ✓' : 'إضافة دليل نمط (اختياري)'}
+              {hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'Using Style Guide ✓' : 'Add Style Guide (Optional)'}
             </button>
           </div>
 
