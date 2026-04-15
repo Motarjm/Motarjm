@@ -589,7 +589,7 @@ const Torgman = () => {
           <h2 className="section-title">رفع المستندات</h2>
           
           {/* Style Guide Toggle Button */}
-          <div className="style-guide-toggle">
+          {/* <div className="style-guide-toggle">
             <button
               className={`btn-toggle-guide ${isStyleGuideOpen ? 'active' : ''} ${hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'has-data' : ''}`}
               onClick={() => setIsStyleGuideOpen(!isStyleGuideOpen)}
@@ -597,10 +597,11 @@ const Torgman = () => {
               <span className="icon">⚙️</span>
               {hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'Using Style Guide ✓' : 'Add Style Guide (Optional)'}
             </button>
-          </div>
+          </div> */}
 
           {/* Style Guide Panel - Conditionally Rendered */}
           {
+          /*  
           isStyleGuideOpen && (
             <StyleGuidePanel 
               onConfirm={handleStyleGuideConfirm}
@@ -610,6 +611,7 @@ const Torgman = () => {
               onToggleActive={hasStyleGuideData(styleGuideData) ? handleStyleGuideToggle : undefined}
             />
           )
+          */
           }
           
           {/* Language Selection */}
