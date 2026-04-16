@@ -5,6 +5,7 @@ import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
 import { trackNavigation, trackEvent } from '../analytics';
 import { trackApiError } from '../errorTracking';
+import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
 import {
   createDocument,
   getActiveDocumentId,
@@ -38,6 +39,29 @@ const CompareInterface = () => {
   const [isHydrated, setIsHydrated] = useState(false);
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
+
+  const getActiveStyleGuideQueryValue = () => {
+    try {
+      const savedStyleGuide = sessionStorage.getItem('translation_style_guide');
+      const savedIsActive = sessionStorage.getItem('translation_style_guide_active');
+      const isActive = savedIsActive ? JSON.parse(savedIsActive) : false;
+
+      if (!isActive || !savedStyleGuide) {
+        return '';
+      }
+
+      const parsedStyleGuide = JSON.parse(savedStyleGuide);
+      if (!hasStyleGuideData(parsedStyleGuide)) {
+        return '';
+      }
+
+      const styleGuideXML = formatStyleGuideToXML(parsedStyleGuide);
+      return styleGuideXML ? encodeURIComponent(styleGuideXML) : '';
+    } catch (error) {
+      console.warn('Failed to prepare style guide for segment endpoints:', error);
+      return '';
+    }
+  };
 
 
   useEffect(() => {
@@ -402,7 +426,12 @@ const CompareInterface = () => {
     setSuggestionsLoading(prev => ({ ...prev, [key]: true }));
     try {
       const pageBlocks = translatedContents[pageIndex];
-      const response = await fetch(`${API_URL}/segment/suggestions`, {
+      const styleGuideQueryValue = getActiveStyleGuideQueryValue();
+      const suggestionsEndpoint = styleGuideQueryValue
+        ? `${API_URL}/segment/suggestions?style_guide=${styleGuideQueryValue}`
+        : `${API_URL}/segment/suggestions`;
+
+      const response = await fetch(suggestionsEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -708,6 +737,7 @@ const CompareInterface = () => {
           docContext={translatedContents.map(page => page.map(block => block.original_text))}
           sourceLang={sourceLang}
           targetLang={targetLang}
+          styleGuideQueryValue={getActiveStyleGuideQueryValue()}
           onClose={() => setFocusChatSegment(null)}
           onEditTranslation={(newText) => {
             handleArabicEdit(focusChatSegment.pageIndex, focusChatSegment.blockIndex, newText);

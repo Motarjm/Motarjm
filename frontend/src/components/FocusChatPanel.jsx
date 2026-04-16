@@ -49,7 +49,18 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
 };
 
 
-const FocusChatPanel = ({ documentId, segment, segmentId, pageContext, docContext, sourceLang, targetLang, onClose, onEditTranslation }) => {
+const FocusChatPanel = ({
+  documentId,
+  segment,
+  segmentId,
+  pageContext,
+  docContext,
+  sourceLang,
+  targetLang,
+  styleGuideQueryValue = '',
+  onClose,
+  onEditTranslation,
+}) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini');
@@ -180,7 +191,11 @@ const FocusChatPanel = ({ documentId, segment, segmentId, pageContext, docContex
 
     try {
       abortRef.current = new AbortController();
-      const response = await fetch(`${API_URL}/segment/chat`, {
+      const chatEndpoint = styleGuideQueryValue
+        ? `${API_URL}/segment/chat?style_guide=${styleGuideQueryValue}`
+        : `${API_URL}/segment/chat`;
+
+      const response = await fetch(chatEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortRef.current.signal,
