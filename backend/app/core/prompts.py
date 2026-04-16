@@ -288,9 +288,6 @@ CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expertise in l
 {{"action": "edit_translation", "new_text": "the full revised translation here"}}
 ```
 
-# DOCUMENT PROFILE:
-{doc_summary}
-
 # Notes
 - Only include the action block when the user explicitly asks for a change to the translation
 - Keep responses concise and focused
@@ -359,4 +356,13 @@ DOC_SUMMARY_PROMPT = """Analyze the following document (organized by pages) and 
 
 DOCUMENT:
 {document_text}
+"""
+
+DOC_SUMMARY_ADD_ON = """# DOCUMENT PROFILE:
+{doc_summary}
+"""
+
+# this is not sent to an LLM but added to a prompt
+STYLE_GUIDE_ADD_ON = """**Style Guide**: Follow these style rules strictly:
+{style_rules}
 """

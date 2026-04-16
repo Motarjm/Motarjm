@@ -134,11 +134,16 @@ def translator_agent(state: State) -> dict:
   translation = state.current_translation
   evaluation = state.current_eval
   terminology = state.terminology
-  
+  style_guide = state.style_guide
+
   # empty string, no advice
   if not advice:
+    sys_prompt_content = TRANSLATOR_SYS_PROMPT
+    if style_guide:
+      sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    
     sys_prompt = SystemMessage(
-        content=TRANSLATOR_SYS_PROMPT,
+        content=sys_prompt_content,
         agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
@@ -152,8 +157,12 @@ def translator_agent(state: State) -> dict:
 
   # use advice and current translation
   else:
+    sys_prompt_content = TRANSLATOR_ADVICE_SYS_PROMPT
+    if style_guide:
+      sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    
     sys_prompt = SystemMessage(
-        content=TRANSLATOR_ADVICE_SYS_PROMPT,
+        content=sys_prompt_content,
         agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
@@ -192,9 +201,14 @@ def evaluator_agent(state: State):
   source_lang = state.source_lang
   target_lang = state.target_lang
   terminology = state.terminology
+  style_guide = state.style_guide
+  
+  sys_prompt_content = EVALUATOR_SYS_PROMPT
+  if style_guide:
+    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
   
   sys_prompt = SystemMessage(
-      content= EVALUATOR_SYS_PROMPT,
+      content= sys_prompt_content,
       agent="EVALUATOR")
 
   user_prompt = HumanMessage(
@@ -244,9 +258,14 @@ def advisor_agent(state: State):
   source_lang = state.source_lang
   target_lang = state.target_lang
   terminology = state.terminology
+  style_guide = state.style_guide
+  
+  sys_prompt_content = ADVISOR_SYS_PROMPT
+  if style_guide:
+    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
   
   sys_prompt = SystemMessage(
-      content= ADVISOR_SYS_PROMPT,
+      content= sys_prompt_content,
       agent="ADVISOR")
 
 
@@ -288,9 +307,14 @@ def terminology_agent(state: State):
   source_text = state.source_text
   source_lang = state.source_lang
   target_lang = state.target_lang
+  style_guide = state.style_guide
+  
+  sys_prompt_content = TRANSLATOR_SYS_PROMPT
+  if style_guide:
+    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
 
   sys_prompt = SystemMessage(
-      content=TRANSLATOR_SYS_PROMPT,
+      content=sys_prompt_content,
       agent="TERMINOLOGY"
   )
 

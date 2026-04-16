@@ -18,8 +18,9 @@ def get_suggestions(
     translation: str,
     target_lang: str,
     page_context: List[str],
+    style_guide: str = "",
 ) -> dict:
-    return generate_suggestions(source_text, source_lang, translation, target_lang, page_context)
+    return generate_suggestions(source_text, source_lang, translation, target_lang, page_context, style_guide)
 
 
 def get_backtranslation(
@@ -40,6 +41,7 @@ def stream_chat_response(
     chat_history: List[dict],
     model: str,
     doc_context: List[List[str]],
+    style_guide: str = "",
 ) -> Generator[str, None, None]:
     return stream_chatbot(
         source_text=source_text,
@@ -50,4 +52,5 @@ def stream_chat_response(
         chat_history=chat_history,
         model=model,
         doc_context=doc_context,
+        style_guide=style_guide,
     )

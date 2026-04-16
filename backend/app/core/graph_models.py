@@ -11,6 +11,7 @@ class State(BaseModel):
   source_text: str
   prev_context: str
   terminology: str = ""
+  style_guide: str = ""
   messages: Annotated[List[AnyMessage], operator.add] = []
   current_translation: str = ""
   current_advice: str = ""

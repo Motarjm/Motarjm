@@ -1,7 +1,7 @@
 import json
 import base64
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile, Query
 from fastapi.responses import StreamingResponse
 
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming
@@ -16,8 +16,9 @@ router = APIRouter(prefix="/translation", tags=["Translation"])
 @router.post("/pdf")
 async def translate_pdf_file(
     file: UploadFile = File(...),
-    source_lang: str = "en",
-    target_lang: str = "ar",
+    source_lang: str = Query("en"),
+    target_lang: str = Query("ar"),
+    style_guide: str = Query(None),
 ):
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
@@ -33,7 +34,7 @@ async def translate_pdf_file(
     clear_doc_summary_cache()
 
     def event_stream():
-        for event in translate_file_content_pdf_streaming(pdf_bytes, source_lang, target_lang):
+        for event in translate_file_content_pdf_streaming(pdf_bytes, source_lang, target_lang, style_guide or ""):
             if event["type"] == "progress":
                 yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":
@@ -47,8 +48,9 @@ async def translate_pdf_file(
 @router.post("/xliff")
 async def translate_xliff_file(
     file: UploadFile = File(...),
-    source_lang: str = "en",
-    target_lang: str = "ar",
+    source_lang: str = Query("en"),
+    target_lang: str = Query("ar"),
+    style_guide: str = Query(None),
 ):
     if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf") and not file.filename.endswith(".sdlxliff") and not file.filename.endswith(".mqxliff"):
         raise HTTPException(status_code=400, detail="Only .xliff or .xlf files are allowed")
@@ -62,7 +64,7 @@ async def translate_xliff_file(
     clear_doc_summary_cache()
 
     def event_stream():
-        for event in translate_file_content_xliff_streaming(xliff_bytes, source_lang, target_lang):
+        for event in translate_file_content_xliff_streaming(xliff_bytes, source_lang, target_lang, style_guide or ""):
             if event["type"] == "progress":
                 yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":

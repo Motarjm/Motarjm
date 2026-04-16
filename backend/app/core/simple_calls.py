@@ -31,7 +31,7 @@ def generate_explanation(source_text: str, page_context: List):
     return response
 
 
-def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List):
+def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
     """
     Generates suggestions for the given translation
 
@@ -46,8 +46,12 @@ def generate_suggestions(source_text: str, source_lang: str, translation: str, t
     - suggestion is a string containing the suggestion for improving the translation.
     
     """
+    sys_prompt_content = SUGGESTIONS_SYS_PROMPT
+    if style_guide:
+        sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    
     sys_prompt = SystemMessage(
-        content = SUGGESTIONS_SYS_PROMPT,
+        content = sys_prompt_content,
         agent="suggestions"
     )
     
@@ -156,7 +160,7 @@ def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
         agent="doc_summary"
     )
     
-    print(doc_text)
+    # print(doc_text)
 
     prompt = [sys_prompt, user_prompt]
 
@@ -186,7 +190,7 @@ def clear_doc_summary_cache():
 
 
 def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
-                   page_context: List, chat_history: List[dict], model: str, doc_context: List[List[str]]):
+                   page_context: List, chat_history: List[dict], model: str, doc_context: List[List[str]], style_guide: str = ""):
     """
     Streams chatbot response tokens for a segment chat.
     
@@ -204,11 +208,21 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
     provider_key = f"chatbot_{model}"
     
     page_context_str = "\n\n".join(page_context)
+    
+    
+    sys_prompt_content = CHATBOT_SYS_PROMPT
+    
+    # if there is style guide, dont use doc summary
+    if style_guide:
+        sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
 
-    doc_summary = generate_doc_summary(doc_context)
+    else:
+        doc_summary = generate_doc_summary(doc_context)
+        sys_prompt_content += f"\n\n{DOC_SUMMARY_ADD_ON.format(doc_summary=doc_summary)}"
 
+    
     sys_prompt = SystemMessage(
-        content=CHATBOT_SYS_PROMPT.format(doc_summary=doc_summary),
+        content=sys_prompt_content,
         agent="chatbot"
     )
     

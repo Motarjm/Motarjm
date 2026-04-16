@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.schemas.segment import (
@@ -26,13 +26,14 @@ async def explanation(request: ExplanationRequest):
 
 
 @router.post("/suggestions")
-async def suggestions(request: SuggestionsRequest):
+async def suggestions(request: SuggestionsRequest, style_guide: str = Query(None)):
     result = get_suggestions(
         request.source_text,
         request.sourceLang,
         request.translation,
         request.targetLang,
         request.page_blocks,
+        style_guide or "",
     )
     return [{"text": text, "model": model} for model, text in result.items()]
 
@@ -49,7 +50,7 @@ async def backtranslation(request: BacktranslationRequest):
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, style_guide: str = Query(None)):
     chat_history = [msg.model_dump() for msg in request.chat_history]
 
     def event_stream():
@@ -63,6 +64,7 @@ async def chat(request: ChatRequest):
                 chat_history=chat_history,
                 model=request.model,
                 doc_context=request.doc_context,
+                style_guide=style_guide or "",
             ):
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
