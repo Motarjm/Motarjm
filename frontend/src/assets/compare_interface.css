@@ -624,3 +624,201 @@
 .backtranslation-box .explanation-error {
   font-size: 0.85rem;
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE  (≤ 768px)
+   All changes are scoped inside this media query — desktop
+   layout is completely untouched.
+   ============================================================ */
+
+
+@media (max-width: 768px) {
+
+  /* ── Top bar ─────────────────────────────────────────────── */
+  .comparison-container .top-bar-content {
+    padding: 0.45rem 0.8rem;
+    min-height: 48px;
+    height: 48px;
+    gap: 0.5rem;
+  }
+
+  .comparison-container .top-bar .logo {
+    font-size: 1rem;
+    letter-spacing: 1px;
+    text-shadow: none;
+  }
+
+  .progress-badge {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.65rem;
+  }
+
+  .sidebar-btn {
+    padding: 0.38rem 0.75rem;
+    font-size: 0.78rem;
+  }
+
+  /* ── Document area ───────────────────────────────────────── */
+  .document-area {
+    padding: 1rem 0;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--terracotta) #d4cfc3; /* thumb track */
+  }
+
+  .document-area::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .document-area::-webkit-scrollbar-track {
+    background: #d4cfc3;
+  }
+
+  .document-area::-webkit-scrollbar-thumb {
+    background: #c1502e;
+    border-radius: 8px;
+  }
+
+  .document-container {
+    padding: 0 0.75rem 3rem 0.75rem;
+    max-width: 100%;
+  }
+
+  /* ── Hide the desktop column headers (useless when stacked) ─ */
+  .comparison-table-header {
+    display: none;
+  }
+
+  /* ── Page group ──────────────────────────────────────────── */
+  .page-group {
+    padding: 1rem 0.75rem 0.75rem;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .page-divider-label {
+    /* Remove the large desktop left-margin */
+    margin-left: 0;
+    font-size: 0.95rem;
+    padding: 0.3rem 1rem;
+  }
+
+  /* ── Segment row: switch from 4-column grid → flex column ── */
+  .segment-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+
+  /* bt-open on mobile: no extra top-margin needed */
+  .segment-row.bt-open {
+    margin-top: 0;
+  }
+
+  /* ── ID / checkbox strip at the top of each pair ─────────── */
+  .segment-id-column {
+    flex-direction: row;
+    padding-top: 0;
+    justify-content: flex-start;
+    align-items: center;
+    font-size: 0.8rem;
+    gap: 0.4rem;
+    order: 0;
+    opacity: 0.6;
+  }
+
+  .segment-row.active-row .segment-id-column {
+    opacity: 1;
+  }
+
+  /* ── Segment cards ───────────────────────────────────────── */
+  .segment {
+    padding: 1rem;
+    border-radius: 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* English on top */
+  .english-side {
+    order: 1;
+  }
+
+  /* Arabic below */
+  .arabic-side {
+    order: 2;
+  }
+
+  /* Middle actions (back-translation) between the two */
+  .segment-middle-actions {
+    order: 3;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* On desktop this is absolute-positioned above bt-open rows.
+     On mobile: just flow normally in the column. */
+  .segment-row.bt-open .backtranslation-btn {
+    position: static;
+  }
+
+  .backtranslation-box {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  /* ── Text sizes ──────────────────────────────────────────── */
+  .arabic-side .segment-text {
+    font-size: 1rem;
+  }
+
+  .english-side .segment-text {
+    font-size: 0.9rem;
+  }
+
+  /* ── Action buttons ──────────────────────────────────────── */
+  .segment-action-btn {
+    font-size: 0.7rem;
+    padding: 4px 8px;
+  }
+
+  /* Arabic action row: left-to-right feels natural in a stacked card */
+  .segment-action-row {
+    justify-content: flex-end;
+  }
+
+  /* Suggestions panel full-width */
+  .suggestions-panel {
+    max-width: 100%;
+  }
+
+  /* Explanation box full-width */
+  .explanation-box {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 480px) {
+  .comparison-container .top-bar-content {
+    min-height: 44px;
+    height: 44px;
+    padding: 0.35rem 0.65rem;
+  }
+
+  .comparison-container .top-bar .logo {
+    font-size: 1.5rem;
+    letter-spacing: 0.5px;
+  }
+
+  .progress-badge {
+    font-size: 0.7rem;
+    padding: 0.24rem 0.52rem;
+  }
+}

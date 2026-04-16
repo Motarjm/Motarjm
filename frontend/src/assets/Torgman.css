@@ -604,11 +604,67 @@
   display: inline-block;
 }
 
-/* Responsive Design */
+/* ============================================================
+   MOBILE RESPONSIVE  (desktop untouched)
+   ============================================================ */
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 2.5rem 1.5rem;
+  }
+
+  .hero-section {
+    padding: 2.5rem 1.2rem;
+  }
+
+  .logo {
+    font-size: 5rem;
+    letter-spacing: 2px;
+  }
+
+  .hero-title {
+    font-size: 2.1rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1.15rem;
+  }
+
+  .card {
+    padding: 2rem;
+  }
+}
+
 @media (max-width: 768px) {
+  .container {
+    padding: 2rem 1rem;
+  }
+
+  .hero-section {
+    margin-bottom: 2.2rem;
+    padding: 1.8rem 0.5rem;
+  }
+
+  .logo {
+    font-size: 4rem;
+    letter-spacing: 1px;
+  }
+
+  .hero-title {
+    font-size: 1.8rem;
+    line-height: 1.35;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+    line-height: 1.6;
+    margin-bottom: 1.2rem;
+  }
+
   .whats-new-panel {
     max-width: 100%;
     margin: 0 auto 1rem;
+    padding: 1rem;
   }
 
   .hero-whats-new-panel {
@@ -617,23 +673,137 @@
     right: 0;
   }
 
+  .whats-new-list {
+    max-height: 40vh;
+  }
+
+  .card {
+    padding: 1.4rem;
+  }
+
+  .section-title {
+    font-size: 1.45rem;
+    margin-bottom: 1.25rem;
+  }
+
   .language-selector {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.8rem;
+    padding: 1rem;
   }
-  
+
   .arrow-icon {
     text-align: center;
     transform: rotate(90deg);
-    margin: 0.5rem 0;
+    margin: 0.25rem 0;
+    font-size: 1.5rem;
   }
-  
+
+  .upload-area {
+    padding: 2.2rem 1rem;
+  }
+
+  .upload-icon {
+    font-size: 2.6rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .upload-text {
+    font-size: 1rem;
+  }
+
+  .upload-hint {
+    font-size: 0.9rem;
+  }
+
   .results-actions {
     flex-direction: column;
+    gap: 0.8rem;
   }
-  
+
   .download-btn,
   .edit-btn {
     max-width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 1.5rem 0.75rem;
+  }
+
+  .hero-section {
+    padding: 1.2rem 0;
+    margin-bottom: 1.6rem;
+  }
+
+  .logo {
+    font-size: 3.2rem;
+  }
+
+  .hero-title {
+    font-size: 1.45rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .file-card {
+    gap: 0.75rem;
+    padding: 0.85rem 0.9rem;
+  }
+
+  .file-type-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+  }
+
+  .file-name {
+    font-size: 0.88rem;
+    overflow-wrap: anywhere;
+  }
+
+  .file-meta {
+    font-size: 0.75rem;
+  }
+
+  .translate-btn {
+    font-size: 0.95rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .sample-file-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .logo {
+    font-size: 2.8rem;
+  }
+
+  .hero-title {
+    font-size: 1.3rem;
+  }
+
+  .hero-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .whats-new-title {
+    font-size: 1.2rem;
+  }
+
+  .whats-new-subtitle,
+  .wn-timeline-text {
+    font-size: 0.82rem;
   }
 }

@@ -24,6 +24,8 @@ body {
   background: linear-gradient(to bottom, var(--cream) 0%, var(--sand) 100%);
   min-height: 100vh;
   color: var(--charcoal);
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
 }
 
 body::before {
@@ -59,7 +61,8 @@ body::before {
     padding: 2rem 1rem;
   }
 
-  .logo {
+  .hero-section .logo,
+  .logo-container .logo {
     font-size: 3.5rem !important;
   }
 

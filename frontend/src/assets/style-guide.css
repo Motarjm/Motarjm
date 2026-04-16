@@ -376,29 +376,108 @@ textarea::placeholder {
   color: var(--terracotta);
 }
 
-/* Responsive */
+/* ============================================================
+   MOBILE RESPONSIVE  (desktop untouched)
+   ============================================================ */
+
 @media (max-width: 768px) {
   .style-guide-panel {
-    padding: 1.5rem;
+    padding: 1.25rem;
+    margin: 1.2rem 0;
   }
 
-  .section-card {
-    padding: 1.5rem;
+  .sg-header {
+    margin-bottom: 1.2rem;
+  }
+
+  .sg-header-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.9rem;
+  }
+
+  .sg-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .sg-header p {
+    font-size: 0.9rem;
+  }
+
+  .sg-active-toggle {
+    margin-top: 0;
+  }
+
+  .toggle-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.5rem 0.95rem;
+    font-size: 0.85rem;
+  }
+
+  .section-nav {
+    justify-content: flex-start;
+    gap: 0.35rem;
+    margin-bottom: 1.2rem;
   }
 
   .nav-pill {
-    font-size: 0.8rem;
-    padding: 0.4rem 0.8rem;
+    font-size: 0.76rem;
+    padding: 0.34rem 0.7rem;
+  }
+
+  .section-card {
+    padding: 1.2rem;
+    margin-bottom: 1.3rem;
+  }
+
+  .section-title {
+    font-size: 1.22rem;
+  }
+
+  .section-desc {
+    font-size: 0.88rem;
+    margin-bottom: 1rem;
+  }
+
+  .field-label {
+    font-size: 0.86rem;
+    margin-bottom: 0.55rem;
+  }
+
+  .fields-container {
+    gap: 1rem;
+  }
+
+  .chip-row {
+    gap: 0.45rem;
   }
 
   .chip {
-    font-size: 0.8rem;
-    padding: 0.5rem 0.9rem;
+    font-size: 0.76rem;
+    padding: 0.42rem 0.72rem;
+  }
+
+  .review-section {
+    padding: 1rem;
+  }
+
+  .summary-item {
+    font-size: 0.84rem;
+  }
+
+  .btn-close-panel {
+    top: 0.6rem;
+    right: 0.6rem;
+    font-size: 1.25rem;
+    padding: 0.2rem 0.4rem;
   }
 
   .nav-btns {
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.7rem;
+    margin-top: 1.2rem;
+    padding-top: 1rem;
   }
 
   .nav-btns > div {
@@ -407,5 +486,29 @@ textarea::placeholder {
 
   .btn {
     width: 100%;
+  }
+
+  .step-indicator {
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .style-guide-panel {
+    padding: 0.9rem;
+  }
+
+  .section-card {
+    padding: 0.95rem;
+  }
+
+  .chip {
+    font-size: 0.72rem;
+    padding: 0.38rem 0.64rem;
+  }
+
+  .btn {
+    font-size: 0.85rem;
+    padding: 0.66rem 1rem;
   }
 }

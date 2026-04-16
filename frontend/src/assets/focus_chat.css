@@ -544,3 +544,152 @@
   cursor: not-allowed;
   background: #999;
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE  (desktop untouched)
+   ============================================================ */
+
+@media (max-width: 1024px) {
+  .focus-topbar {
+    padding: 0.6rem 1.2rem;
+  }
+
+  .focus-texts {
+    padding: 1.1rem 1.2rem;
+  }
+
+  .focus-chat {
+    width: 520px;
+  }
+}
+
+@media (max-width: 768px) {
+  .focus-overlay {
+    height: 100dvh;
+  }
+
+  .focus-topbar {
+    gap: 0.7rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .focus-back-btn {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.78rem;
+  }
+
+  .focus-segment-label {
+    font-size: 0.78rem;
+  }
+
+  .focus-body {
+    flex-direction: column;
+  }
+
+  .focus-texts {
+    height: 52dvh;
+    flex: none;
+    padding: 4rem 0.75rem 0.75rem;
+    gap: 0.6rem;
+    scroll-padding-top: 1rem;
+  }
+
+  .focus-text-card:first-child {
+    flex: 1.5;
+    min-height: 0;
+  }
+
+  .focus-text-card:last-child {
+    flex: 0.9;
+    min-height: 0;
+  }
+
+  .focus-text-content {
+    overflow-y: auto;
+  }
+
+  .focus-text-card {
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+  }
+
+  .focus-text-content {
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .focus-chat {
+    width: 100%;
+    height: 48dvh;
+    border-left: none;
+    border-top: 1px solid rgba(107, 125, 92, 0.12);
+  }
+
+  .focus-chat-header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .focus-chat-context-note {
+    font-size: 0.68rem;
+  }
+
+  .focus-chat-messages {
+    padding: 0.75rem;
+  }
+
+  .focus-chat-msg,
+  .focus-chat-thinking {
+    max-width: 92%;
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+
+  .diff-preview {
+    padding: 0.55rem 0.75rem;
+    max-height: 170px;
+  }
+
+  .diff-row {
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .focus-chat-input-row {
+    gap: 0.35rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .focus-chat-model-select {
+    font-size: 0.72rem;
+    min-height: 32px;
+    padding: 0.35rem 0.45rem;
+  }
+
+  .focus-chat-input {
+    font-size: 0.85rem;
+    min-height: 38px;
+    padding: 0.55rem 0.65rem;
+  }
+
+  .focus-chat-send {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (max-width: 480px) {
+  .focus-text-label {
+    font-size: 0.58rem;
+    margin-bottom: 0.35rem;
+  }
+
+  .focus-text-content {
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+
+  .diff-btn {
+    font-size: 0.74rem;
+    padding: 0.28rem 0.6rem;
+  }
+}
