@@ -8,12 +8,14 @@ import { trackApiError, trackFileError } from './errorTracking';
  * Track file selection event
  * @param {string} fileType - 'pdf' or 'xliff'
  * @param {number} fileSize - Size of file in bytes
+ * @param {string} fileName - Original selected file name
  */
-export const trackFileSelected = (fileType, fileSize) => {
-  posthog.capture('file_selected', {
+export const trackFileSelected = (fileType, fileSize, fileName) => {
+  posthog.capture('fileSelected', {
     file_type: fileType,
     file_size: fileSize,
     file_size_kb: Math.round(fileSize / 1024),
+    file_name: fileName,
     timestamp: new Date().toISOString(),
   });
 };

@@ -203,7 +203,7 @@ const Torgman = () => {
     setSelectedFile(file);
     setFileName(file.name);
 
-    trackFileSelected(fileType, file.size);
+    trackFileSelected(fileType, file.size, file.name);
     return true;
   };
 
