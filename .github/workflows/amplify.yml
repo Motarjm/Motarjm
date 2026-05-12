@@ -63,6 +63,6 @@ jobs:
         
       - name: Deploy to Amplify
         run: |
-          amplify pull d3pivdadkf3t8g
+          amplify pull --appId d3pivdadkf3t8g --envName main --yes
           amplify configure set region eu-west-2
           amplify push --yes
