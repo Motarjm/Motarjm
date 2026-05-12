@@ -1,0 +1,67 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+
+# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
+
+name: Build and deploy Python app to Azure Web App - turjman
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build React frontend
+        env:
+          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Create virtual environment and install dependencies (smoke check)
+        run: |
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Remove build-only directories
+        run: |
+          rm -rf frontend/node_modules
+          rm -rf antenv
+
+           
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
+          
+      - name: Install Amplify CLI
+        run: npm install -g @aws-amplify/cli
+        
+      - name: Deploy to Amplify
+        run: |
+          amplify configure set region eu-west-2
+          amplify push --yes
