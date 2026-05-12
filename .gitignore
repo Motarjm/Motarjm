@@ -25,5 +25,8 @@ Thumbs.db
 *.log
 *.tmp
 
-node_modules/
-yes/
+# amplify
+node_modules
+.amplify
+amplify_outputs*
+amplifyconfiguration*
