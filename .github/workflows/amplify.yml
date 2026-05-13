@@ -59,8 +59,8 @@ jobs:
           aws-region: eu-west-2
           
       - name: Install Amplify CLI
-        run: npm install -g @aws-amplify/cli
+        run: npm install -g @aws-amplify/backend-cli
         
       - name: Deploy to Amplify
         run: |
-          amplify push --yes
+          npx ampx pipeline-deploy --branch main --app-id d3pivdadkf3t8g
