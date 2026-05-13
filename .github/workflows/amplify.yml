@@ -60,6 +60,11 @@ jobs:
           
       - name: Install Amplify CLI
         run: npm install -g @aws-amplify/backend-cli
+
+      - name: Install Amplify backend dependencies
+        run: |
+          cd amplify
+          npm install
         
       - name: Deploy to Amplify
         run: |
