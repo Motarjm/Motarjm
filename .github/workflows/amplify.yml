@@ -58,14 +58,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
           
-      - name: Install Amplify CLI
-        run: npm install -g @aws-amplify/backend-cli
+      # - name: Install Amplify CLI
+      #   run: npm install -g @aws-amplify/backend-cli
 
-      - name: Install Amplify backend dependencies
-        run: |
-          cd amplify
-          npm install
+      # - name: Install Amplify backend dependencies
+      #   run: |
+      #     cd amplify
+      #     npm install
         
+      # - name: Deploy to Amplify
+      #   run: |
+      #     npx ampx pipeline-deploy --branch main --app-id d3pivdadkf3t8g
       - name: Deploy to Amplify
         run: |
-          npx ampx pipeline-deploy --branch main --app-id d3pivdadkf3t8g
+          curl -X POST -d {} "${{ secrets.AMPLIFY_WEBHOOK_URL }}" \
+          -H "Content-Type: application/json"
