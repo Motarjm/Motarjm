@@ -41,7 +41,7 @@ jobs:
             git pull origin main
             python3 -m venv antenv
             source antenv/bin/activate
-            pip install -r requirements.txt
+            pip install --no-cache-dir -r requirements.txt
             pkill -f uvicorn || true
             cd backend
             nohup antenv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
