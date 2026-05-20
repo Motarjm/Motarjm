@@ -1,9 +1,4 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
-name: Build and deploy Python app to AWS Web App - turjman
+name: Build and deploy to Lightsail
 
 on:
   push:
@@ -14,9 +9,6 @@ on:
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -34,42 +26,22 @@ jobs:
           npm install
           npm run build
 
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Create virtual environment and install dependencies (smoke check)
-        run: |
-          python -m venv antenv
-          source antenv/bin/activate
-          pip install --no-cache-dir -r requirements.txt
-
       - name: Remove build-only directories
         run: |
           rm -rf frontend/node_modules
-          rm -rf antenv
 
-           
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: Deploy to Lightsail via SSH
+        uses: appleboy/ssh-action@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-2
-          
-      # - name: Install Amplify CLI
-      #   run: npm install -g @aws-amplify/backend-cli
-
-      # - name: Install Amplify backend dependencies
-      #   run: |
-      #     cd amplify
-      #     npm install
-        
-      # - name: Deploy to Amplify
-      #   run: |
-      #     npx ampx pipeline-deploy --branch main --app-id d3pivdadkf3t8g
-      - name: Deploy to Amplify
-        run: |
-          curl -X POST -d {} "${{ secrets.AMPLIFY_WEBHOOK_URL }}" \
-          -H "Content-Type: application/json"
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/Motarjm
+            git pull origin main
+            python3 -m venv antenv
+            source antenv/bin/activate
+            pip install -r requirements.txt
+            pkill -f uvicorn || true
+            cd backend
+            nohup antenv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
