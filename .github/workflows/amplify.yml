@@ -36,6 +36,7 @@ jobs:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          command_timeout: 30m
           script: |
             cd /home/ubuntu/Motarjm
             export PYENV_ROOT="$HOME/.pyenv"
