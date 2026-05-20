@@ -41,6 +41,7 @@ jobs:
             export PYENV_ROOT="$HOME/.pyenv"
             export PATH="$PYENV_ROOT/bin:$PATH"
             eval "$(pyenv init -)"
+            python3 --version
             git pull origin main
             python3 -m venv antenv
             source antenv/bin/activate
