@@ -39,17 +39,10 @@ jobs:
           command_timeout: 30m
           script: |
             cd /home/ubuntu/Motarjm
-            export PYENV_ROOT="$HOME/.pyenv"
-            export PATH="$PYENV_ROOT/bin:$PATH"
-            eval "$(pyenv init -)"
-            python3 --version
             git pull origin main
             python3 -m venv antenv
             source antenv/bin/activate
-            pip install --no-cache-dir -r requirements.txt
-            pkill -f uvicorn || true
-            cd backend
-            uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-            disown
+            pip install -r requirements.txt
+            sudo systemctl restart turjman
             echo "Server started"
 
