@@ -49,7 +49,7 @@ jobs:
             pip install --no-cache-dir -r requirements.txt
             pkill -f uvicorn || true
             cd backend
-            nohup antenv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+            uvicorn app.main:app --host 0.0.0.0 --port 8000 &
             disown
             echo "Server started"
 
