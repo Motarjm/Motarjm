@@ -391,6 +391,38 @@
   font-weight: 400;
 }
 
+.glossary-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.glossary-upload-btn {
+  border: 1px dashed rgba(107, 125, 92, 0.35);
+  background: white;
+  color: var(--olive);
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+.glossary-upload-btn:hover {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  background: rgba(193, 80, 46, 0.05);
+}
+
+.glossary-upload-hint {
+  color: var(--olive);
+  font-size: 0.8rem;
+}
+
 /* File List Styling */
 .file-list-container {
   margin: 1.5rem 0;

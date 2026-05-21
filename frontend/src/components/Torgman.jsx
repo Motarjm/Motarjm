@@ -52,6 +52,9 @@ const SAMPLE_PDF_URL = `${import.meta.env.BASE_URL}static/${SAMPLE_PDF_NAME}`;
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [glossaryFile, setGlossaryFile] = useState(null);
+  const [glossaryFileName, setGlossaryFileName] = useState('');
+  const [glossaryFileSize, setGlossaryFileSize] = useState(null);
   const [status, setStatus] = useState('');
   const [downloadUrl, setDownloadUrl] = useState(''); 
   const [translatedContents, setTranslatedContents] = useState(null);
@@ -69,6 +72,7 @@ const Torgman = () => {
   const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(true);
   const [isPreparingSample, setIsPreparingSample] = useState(false);
   const fileInputRef = useRef();
+  const glossaryInputRef = useRef();
   const navigate = useNavigate();
 
   // Load latest translated document from IndexedDB on component mount
@@ -76,12 +80,15 @@ const Torgman = () => {
     let cancelled = false;
 
     const hydrateLatestDocument = async () => {
+      let hasDbGlossary = false;
       try {
         const documentId = await getActiveDocumentId();
         if (!documentId) return;
 
         const savedDocument = await loadDocument(documentId);
         if (!savedDocument || !savedDocument.translatedContents) return;
+
+        hasDbGlossary = Boolean(savedDocument.glossaryFileName);
 
         if (!cancelled) {
           setSelectedFile(null);
@@ -91,6 +98,8 @@ const Torgman = () => {
           setSourceLang(savedDocument.sourceLang || 'English');
           setTargetLang(savedDocument.targetLang || 'Arabic');
           setFileName(savedDocument.fileName || '');
+          setGlossaryFileName(savedDocument.glossaryFileName || '');
+          setGlossaryFileSize(savedDocument.glossaryFileSize || null);
           setDownloadUrl('indexeddb');
           setIsTranslating(false);
           setIsPreparingSample(false);
@@ -101,6 +110,15 @@ const Torgman = () => {
         }
       } catch (e) {
         console.error('Failed to load translation data from IndexedDB:', e);
+      }
+
+      if (!cancelled && !hasDbGlossary) {
+        const savedGlossaryName = sessionStorage.getItem('translation_glossary_name') || '';
+        const savedGlossarySize = sessionStorage.getItem('translation_glossary_size');
+        if (savedGlossaryName) {
+          setGlossaryFileName(savedGlossaryName);
+          setGlossaryFileSize(savedGlossarySize ? Number(savedGlossarySize) : null);
+        }
       }
     };
 
@@ -152,6 +170,8 @@ const Torgman = () => {
     if (ext === 'xliff' || ext === 'xlf' || ext === 'sdlxliff' || ext === 'mqxliff') return 'xliff';
     return null;
   };
+
+  const isTbxFile = (name) => name?.toLowerCase().endsWith('.tbx');
 
   // Cleanup legacy sessionStorage keys from the pre-IndexedDB flow.
   const clearLegacySessionStorage = () => {
@@ -207,11 +227,39 @@ const Torgman = () => {
     return true;
   };
 
+  const applyGlossaryFile = (file) => {
+    if (!file) return false;
+
+    if (!isTbxFile(file.name)) {
+      alert('نوع ملف المسرد غير مدعوم. يرجى اختيار ملف TBX');
+      return false;
+    }
+
+    setGlossaryFile(file);
+    setGlossaryFileName(file.name);
+    setGlossaryFileSize(file.size || null);
+    sessionStorage.setItem('translation_glossary_name', file.name);
+    if (file.size) {
+      sessionStorage.setItem('translation_glossary_size', String(file.size));
+    } else {
+      sessionStorage.removeItem('translation_glossary_size');
+    }
+    return true;
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     const isValidSelection = applySelectedFile(file);
     if (!isValidSelection && fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+  };
+
+  const handleGlossaryChange = (e) => {
+    const file = e.target.files[0];
+    const isValidSelection = applyGlossaryFile(file);
+    if (!isValidSelection && glossaryInputRef.current) {
+      glossaryInputRef.current.value = '';
     }
   };
 
@@ -272,6 +320,9 @@ const Torgman = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+      if (glossaryFile) {
+        formData.append('glossary', glossaryFile);
+      }
 
       // Determine endpoint and source language code
       const endpoint = fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff';
@@ -433,6 +484,8 @@ const Torgman = () => {
         targetLang: targetLang,
         fileType: fileType,
         fileName: fileName,
+        glossaryFileName: glossaryFileName,
+        glossaryFileSize: glossaryFileSize,
       });
       setActiveDocumentId(persistedDocumentId);
 
@@ -689,6 +742,23 @@ const Torgman = () => {
             accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff"
           />
 
+          <div className="glossary-upload">
+            <button
+              type="button"
+              className="glossary-upload-btn"
+              onClick={() => glossaryInputRef.current.click()}
+            >
+              أضف ملف مصطلحات (TBX)
+            </button>
+          </div>
+          <input
+            type="file"
+            ref={glossaryInputRef}
+            style={{ display: 'none' }}
+            onChange={handleGlossaryChange}
+            accept=".tbx"
+          />
+
           {/* File Display */}
           {fileName && (
             <div className="file-list-container">
@@ -710,6 +780,39 @@ const Torgman = () => {
                     resetTranslationUiState();
                     if (fileInputRef.current) {
                       fileInputRef.current.value = '';
+                    }
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {glossaryFileName && (
+            <div className="file-list-container">
+              <div className="file-card">
+                <span className="file-type-icon">📘</span>
+                <div className="file-details">
+                  <div className="file-name">{glossaryFileName}</div>
+                  <div className="file-meta">
+                    {glossaryFile
+                      ? `${(glossaryFile.size / 1024).toFixed(1)} KB • جاهز للاستخدام`
+                      : glossaryFileSize
+                        ? `${(glossaryFileSize / 1024).toFixed(1)} KB • ملف مسرد محفوظ من الجلسة السابقة`
+                        : 'ملف مسرد محفوظ من الجلسة السابقة'}
+                  </div>
+                </div>
+                <button
+                  className="remove-file"
+                  onClick={() => {
+                    setGlossaryFileName('');
+                    setGlossaryFile(null);
+                    setGlossaryFileSize(null);
+                    sessionStorage.removeItem('translation_glossary_name');
+                    sessionStorage.removeItem('translation_glossary_size');
+                    if (glossaryInputRef.current) {
+                      glossaryInputRef.current.value = '';
                     }
                   }}
                 >
