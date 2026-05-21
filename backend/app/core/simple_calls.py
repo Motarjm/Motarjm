@@ -94,7 +94,7 @@ def generate_suggestions(source_text: str, source_lang: str, translation: str, t
     # hardcoded for now, should be more sophisticated
     return {
         "Gemini": response1,
-        "Grok": response2,
+        "Claude": response2,
         "ChatGPT": response3
     }
 

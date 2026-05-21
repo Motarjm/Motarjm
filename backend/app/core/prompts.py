@@ -9,6 +9,14 @@ You will be provided with relevant context to help in translation. Don't transla
 
 TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
 
+<instructions>
+- Translate ONLY the source text.
+- Use the provided terminology as the preferred translation for the listed terms.
+- You MAY slightly inflect, reorder, or grammatically adapt terminology entries (e.g., adding prefixes like بـ/الـ/وـ, changing case endings, adjusting verb forms) so they fit naturally into the Arabic sentence — but do NOT replace or paraphrase them with unrelated words.
+- Do not translate or reproduce the previous context or terminology table.
+- Output only the translated text with no notes or explanations.
+</instructions>
+
 <terminology>
 {terminology}
 </terminology>
@@ -92,6 +100,14 @@ Produce a revised translation that fully implements all of the senior editor's s
 
 # sometimes, it also translated prev context
 TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and terminology:
+
+<instructions>
+- Translate ONLY the source text.
+- Use the provided terminology as the preferred translation for the listed terms.
+- You MAY slightly inflect, reorder, or grammatically adapt terminology entries (e.g., adding prefixes like بـ/الـ/وـ, changing case endings, adjusting verb forms) so they fit naturally into the Arabic sentence — but do NOT replace or paraphrase them with unrelated words.
+- Do not translate or reproduce the previous context or terminology table.
+- Output only the translated text with no notes or explanations.
+</instructions>
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}

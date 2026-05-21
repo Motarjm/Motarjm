@@ -93,7 +93,7 @@ providers = {"translator": [claude_haiku_4_5,
              "explanator": [gemini_2_5_flash_lite,deepseek],
 
              "suggestions1": [gemini_2_5_flash_lite],
-             "suggestions2": [grok], # grok
+             "suggestions2": [claude_haiku_4_5], # grok
              
              "suggestions3": [gpt_5_nano], # gpt5 nano,
              
