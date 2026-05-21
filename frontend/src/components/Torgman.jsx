@@ -25,6 +25,13 @@ import {
 // new -> جديد | improved -> تحسين | fixed -> إصلاح 
 const WHATS_NEW_ITEMS = [
   {
+    
+    date: '٢٠٢٦/٥/٢١',
+    tag: 'جديد',
+    tagType: 'new',
+    text:'يمكنك الآن رفع ملف مصطلحات لاستخدامه أثناء الترجمة.',
+  },
+  {
     date: '٢٠٢٦/٤/١٦',
     tag: 'تحسين',
     tagType: 'improved',
