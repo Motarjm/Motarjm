@@ -1,6 +1,10 @@
 import json
 import re
 import logging
+import unicodedata
+from typing import Dict, Optional
+from rapidfuzz import process as rf_process
+from rapidfuzz.distance import Levenshtein
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 # the below line is for testing purposes
@@ -334,8 +338,17 @@ def terminology_agent(state: State):
   if not isinstance(response, str):
     response = response[0]["text"]
 
-  return {"messages": prompt + [AIMessage(content=response, agent="TERMINOLOGY")],
-          "terminology": response}
+  parsed_terms = _safe_parse_terminology_json(response)
+  if parsed_terms is None:
+    return {"messages": prompt + [AIMessage(content=response, agent="TERMINOLOGY")],
+            "terminology": response}
+
+  glossary_terms = state.glossary or {}
+  matched_terms = _apply_glossary_matches(parsed_terms, glossary_terms)  
+  matched_terms_json = json.dumps(matched_terms, ensure_ascii=False)
+
+  return {"messages": prompt + [AIMessage(content=matched_terms_json, agent="TERMINOLOGY")],
+          "terminology": matched_terms_json}
 
 
 def increment_iteration(state: State):
@@ -379,3 +392,88 @@ def check_score(state: State):
   else:
     return {"messages": []}
 
+
+
+def _safe_parse_terminology_json(raw_text: str) -> Optional[Dict[str, str]]:
+  # Parse raw LLM output into a dict; tolerate extra text around JSON.
+  if not raw_text:
+    return None
+
+  try:
+    return json.loads(raw_text)
+  except json.JSONDecodeError:
+    pass
+
+  if matched := re.search(r'\{.*\}', raw_text, re.DOTALL):
+    try:
+      return json.loads(matched.group(0))
+    except json.JSONDecodeError:
+      return None
+
+  return None
+
+
+def _normalize_term(value: str) -> str:
+  # Normalize by casefolding and removing whitespace/punctuation/symbols.
+  if not value:
+    return ""
+  folded = value.casefold()
+  filtered = []
+  for char in folded:
+    if char.isspace():
+      continue
+    category = unicodedata.category(char)
+    if category.startswith("P") or category.startswith("S"):
+      continue
+    filtered.append(char)
+  return "".join(filtered)
+
+
+def _apply_glossary_matches(
+  terminology: Dict[str, str],
+  glossary: Dict[str, str],
+  score_cutoff: float = 0.9,
+) -> Dict[str, str]:
+  # Replace LLM translations with glossary translations on best fuzzy match.
+  if not glossary:
+    return terminology
+
+  # Build normalized glossary lookup for RapidFuzz matching.
+  choices = []
+  choice_map = []
+  for term, translation in glossary.items():
+    normalized = _normalize_term(term)
+    if not normalized:
+      continue
+    if normalized in choices:
+      continue
+    choices.append(normalized)
+    choice_map.append((term, translation))
+
+  if not choices:
+    return terminology
+
+  matched: Dict[str, str] = {}
+  for term, llm_translation in terminology.items():
+    normalized_term = _normalize_term(term)
+    if not normalized_term:
+      matched[term] = llm_translation
+      continue
+
+    # Use Levenshtein normalized similarity to pick best glossary term.
+    result = rf_process.extractOne(
+      normalized_term,
+      choices,
+      scorer=Levenshtein.normalized_similarity,
+      score_cutoff=score_cutoff,
+    )
+
+    if result is None:
+      matched[term] = llm_translation
+      continue
+
+    _, _, idx = result
+    _, glossary_translation = choice_map[idx]
+    matched[term] = glossary_translation
+
+  return matched
