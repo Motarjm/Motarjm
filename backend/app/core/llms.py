@@ -29,6 +29,28 @@ gemini_2_5_flash_lite = ChatOpenAI(
     
 )
 
+gemini_3_flash_prev = ChatOpenAI(
+    model="google/gemini-3-flash-preview",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 2048,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+    
+)
+
+claude_haiku_4_5 = ChatOpenAI(
+    model="anthropic/claude-haiku-4.5",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 2048,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+    
+)
+
 grok = ChatOpenAI(
     model="x-ai/grok-4.1-fast",
     base_url="https://openrouter.ai/api/v1",
@@ -53,19 +75,18 @@ gpt_5_nano  = ChatOpenAI(
 )
 
 
-providers = {"translator": [gemini_2_5_flash_lite,
+providers = {"translator": [claude_haiku_4_5,
                             deepseek],
                                 # deepseek,
              
-             "evaluator": [gemini_2_5_flash_lite,
-                           deepseek],
+             "evaluator": [deepseek, grok],
                         
                  
              
-             "advisor": [grok,deepseek],
+             "advisor": [gemini_3_flash_prev,deepseek],
                           
              
-             "terminology": [gemini_2_5_flash_lite,
+             "terminology": [gemini_3_flash_prev,
                              deepseek],
                 #  deepseek],
              
@@ -80,7 +101,7 @@ providers = {"translator": [gemini_2_5_flash_lite,
 
              # chatbot — keyed by frontend model name
              "chatbot_deepseek": [deepseek],    # deepseek
-             "chatbot_gemini": [gemini_2_5_flash_lite],  # gemini
+             "chatbot_gemini": [gemini_3_flash_prev],  # gemini
              "chatbot_grok": [grok],            # grok
              
              "doc_summary": [gemini_2_5_flash_lite]
