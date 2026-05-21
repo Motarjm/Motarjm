@@ -1,7 +1,0 @@
-{
-  "type": "module",
-  "dependencies": {
-    "@aws-amplify/backend": "^1.22.0",
-    "@aws-amplify/backend-cli": "^1.8.2"
-  }
-}
