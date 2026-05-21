@@ -1,5 +1,5 @@
 import requests
-from typing import Generator, List
+from typing import Dict, Generator, List, Optional
 import pymupdf
 from app.services.extract_text import extract_text_from_pdf
 from app.services.xliff_service import extract_text_from_xliff
@@ -8,7 +8,14 @@ from app.core.workflow import graph
 from app.services.build_pdf import ArabicPDFBuilder
 
 
-def translate_text(text: str, prev_text: str, source_lang: str, target_lang: str, style_guide: str = "") -> str:
+def translate_text(
+    text: str,
+    prev_text: str,
+    source_lang: str,
+    target_lang: str,
+    style_guide: str = "",
+    glossary: Optional[Dict[str, str]] = None,
+) -> str:
     """
     Translates a single text segment using the LangGraph pipeline.
     """
@@ -19,6 +26,7 @@ def translate_text(text: str, prev_text: str, source_lang: str, target_lang: str
         max_iterations=2,
         prev_context=prev_text,
         style_guide=style_guide,
+        glossary=glossary or {},
     )
 
     try:
@@ -32,7 +40,11 @@ def translate_text(text: str, prev_text: str, source_lang: str, target_lang: str
 
 
 def translate_file_content_pdf_streaming(
-    pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str = ""
+    pdf_bytes: bytes,
+    source_lang: str,
+    target_lang: str,
+    style_guide: str = "",
+    glossary: Optional[Dict[str, str]] = None,
 ) -> Generator[dict, None, None]:
     """
     Translates all text blocks in a PDF, yielding progress and done events.
@@ -165,7 +177,14 @@ def translate_file_content_pdf_streaming(
         translated_blocks = []
         for i, block in enumerate(page):
             prev_text = page[i - 1]["text"] if i > 0 else ""
-            translated_text = translate_text(block["text"], prev_text, source_lang, target_lang, style_guide)
+            translated_text = translate_text(
+                block["text"],
+                prev_text,
+                source_lang,
+                target_lang,
+                style_guide,
+                glossary=glossary,
+            )
 
             print(f"\nPage {page_num} | Block {i}: {translated_text}")
 
@@ -183,7 +202,11 @@ def translate_file_content_pdf_streaming(
     yield {"type": "done", "translated_contents": translated_content}
 
 def translate_file_content_xliff_streaming(
-    xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str = ""
+    xliff_bytes: bytes,
+    source_lang: str,
+    target_lang: str,
+    style_guide: str = "",
+    glossary: Optional[Dict[str, str]] = None,
 ) -> Generator[dict, None, None]:
     """
     Translates all text segments in an XLIFF file, yielding progress and done events.
@@ -208,7 +231,14 @@ def translate_file_content_xliff_streaming(
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
-        translated_text = translate_text(segment["text"], prev_text, source_lang, target_lang, style_guide)
+        translated_text = translate_text(
+            segment["text"],
+            prev_text,
+            source_lang,
+            target_lang,
+            style_guide,
+            glossary=glossary,
+        )
 
         print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
 
