@@ -537,17 +537,17 @@ const CompareInterface = () => {
     <div className="comparison-container">
       <div className="top-bar">
         <div className="top-bar-content">
-          <span className="logo">ترجمان</span>
+          <span className="logo">تُرجمان</span>
           <div className="button-group">
-            <span className="progress-badge">
-              ✓ {checkedCount} / {totalSegments}
-            </span>
             {/* <button className="sidebar-btn" onClick={handleGeneratePDF}>
               Generate PDF
             </button> */}
             <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
               Generate XLIFF
             </button>
+            <span className="progress-badge">
+              ✓ {checkedCount} / {totalSegments}
+            </span>
           </div>
         </div>
       </div>
