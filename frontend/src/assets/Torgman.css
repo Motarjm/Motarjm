@@ -1,9 +1,54 @@
 /* Torgman Main Page Styles */
 
+.torgman-page {
+  min-height: 100vh;
+}
+
+.torgman-page .top-bar {
+  width: 100%;
+  background: var(--sand);
+  border-bottom: 1px solid rgba(107, 125, 92, 0.18);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  direction: rtl;
+  box-shadow: 0 6px 16px rgba(45, 45, 45, 0.08);
+}
+
+.torgman-page .top-bar-content {
+  background: var(--cream);
+  padding: 0.75rem 2rem;
+  border-bottom: 1px solid rgba(107, 125, 92, 0.12);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-direction: row-reverse;
+  height: 60px;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0.5rem;
+}
+
+.torgman-page .top-bar .logo {
+  font-family: 'Gulzar', cursive;
+  font-size: 1.7rem;
+  font-weight: 500;
+  color: var(--terracotta);
+  text-shadow: 0 1px 2px rgba(193, 80, 46, 0.2);
+  letter-spacing: 1.5px;
+}
+
 .container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 3rem 2rem;
+}
+
+.torgman-page .container {
+  padding: 2rem 2rem 3rem;
 }
 
 .hero-section {
@@ -358,7 +403,7 @@
 .upload-area {
   border: 2px dashed rgba(107, 125, 92, 0.3);
   border-radius: 2px;
-  padding: 3.5rem 2rem;
+  padding: 2.21rem 1.36rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -372,22 +417,22 @@
 }
 
 .upload-icon {
-  font-size: 3.5rem;
-  margin-bottom: 1.5rem;
+  font-size: 2.38rem;
+  margin-bottom: 0.94rem;
   opacity: 0.7;
   transition: all 0.3s ease;
 }
 
 .upload-text {
   color: var(--charcoal);
-  font-size: 1.2rem;
+  font-size: 0.89rem;
   margin-bottom: 0.5rem;
   font-weight: 600;
 }
 
 .upload-hint {
   color: var(--olive);
-  font-size: 1rem;
+  font-size: 0.77rem;
   font-weight: 400;
 }
 
@@ -645,6 +690,19 @@
     padding: 2.5rem 1.5rem;
   }
 
+  .torgman-page .top-bar-content {
+    padding: 0.7rem 1.5rem;
+    height: 56px;
+  }
+
+  .torgman-page .top-bar .logo {
+    font-size: 1.6rem;
+  }
+
+  .torgman-page .container {
+    padding: 1.8rem 1.5rem 2.5rem;
+  }
+
   .hero-section {
     padding: 2.5rem 1.2rem;
   }
@@ -670,6 +728,20 @@
 @media (max-width: 768px) {
   .container {
     padding: 2rem 1rem;
+  }
+
+  .torgman-page .top-bar-content {
+    padding: 0.6rem 1rem;
+    height: 52px;
+  }
+
+  .torgman-page .top-bar .logo {
+    font-size: 1.4rem;
+    letter-spacing: 1px;
+  }
+
+  .torgman-page .container {
+    padding: 1.6rem 1rem 2.2rem;
   }
 
   .hero-section {
@@ -733,20 +805,20 @@
   }
 
   .upload-area {
-    padding: 2.2rem 1rem;
+    padding: 1.53rem 0.77rem;
   }
 
   .upload-icon {
-    font-size: 2.6rem;
-    margin-bottom: 0.8rem;
+    font-size: 1.87rem;
+    margin-bottom: 0.6rem;
   }
 
   .upload-text {
-    font-size: 1rem;
+    font-size: 0.81rem;
   }
 
   .upload-hint {
-    font-size: 0.9rem;
+    font-size: 0.72rem;
   }
 
   .results-actions {
@@ -763,6 +835,20 @@
 @media (max-width: 480px) {
   .container {
     padding: 1.5rem 0.75rem;
+  }
+
+  .torgman-page .top-bar-content {
+    padding: 0.5rem 0.75rem;
+    height: 48px;
+  }
+
+  .torgman-page .top-bar .logo {
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+  }
+
+  .torgman-page .container {
+    padding: 1.3rem 0.75rem 2rem;
   }
 
   .hero-section {

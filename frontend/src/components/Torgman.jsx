@@ -608,13 +608,15 @@ const Torgman = () => {
 
 
   return (
-    <div className="container">
-      <section className="hero-section">
-        <div className="logo-container">
-          <h1 className="logo">تُرجمان</h1>
+    <div className="torgman-page">
+      <div className="top-bar">
+        <div className="top-bar-content">
+          <span className="logo">تُرجمان</span>
         </div>
+      </div>
 
-        {isWhatsNewOpen && (
+      <div className="container">
+        {/* {isWhatsNewOpen && (
           <aside className="card whats-new-panel hero-whats-new-panel" aria-label="ما الجديد">
             <div className="whats-new-header">
               <h3 className="whats-new-title">ما الجديد</h3>
@@ -650,16 +652,11 @@ const Torgman = () => {
               ))}
             </ul>
           </aside>
-        )}
+        )} */}
 
-        <div className="accent-line"></div>
-        <h2 className="hero-title">ترجم مستنداتك باحترافية وسرعة</h2>
-      </section>
-
-      <div className="main-grid">
+        <div className="main-grid">
         <div className="card">
-          <h2 className="section-title">رفع المستندات</h2>
-          
+        
           {/* Style Guide Toggle Button */}
            <div className="style-guide-toggle">
             <button
@@ -687,23 +684,6 @@ const Torgman = () => {
           {/* Language Selection */}
           <div className="language-selector">
             <div className="lang-group">
-              <label className="lang-label">اللغة المصدر</label>
-              <select 
-                value={sourceLang} 
-                onChange={(e) => setSourceLang(e.target.value)}
-                className="lang-select"
-              >
-                {Sourcelanguages.map(lang => (
-                  <option key={lang.code} value={lang.englishName}>
-                    {lang.name} ({lang.englishName})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="arrow-icon">→</div>
-
-            <div className="lang-group">
               <label className="lang-label">اللغة المستهدفة</label>
               <select 
                 value={targetLang} 
@@ -711,6 +691,23 @@ const Torgman = () => {
                 className="lang-select"
               >
                 {Targetlanguages.map(lang => (
+                  <option key={lang.code} value={lang.englishName}>
+                    {lang.name} ({lang.englishName})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="arrow-icon">←</div>
+
+            <div className="lang-group">
+              <label className="lang-label">اللغة المصدر</label>
+              <select 
+                value={sourceLang} 
+                onChange={(e) => setSourceLang(e.target.value)}
+                className="lang-select"
+              >
+                {Sourcelanguages.map(lang => (
                   <option key={lang.code} value={lang.englishName}>
                     {lang.name} ({lang.englishName})
                   </option>
@@ -893,6 +890,7 @@ const Torgman = () => {
 
       </div>
     </div>
+  </div>
   );
 };
 
