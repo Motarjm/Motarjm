@@ -231,7 +231,7 @@ def extract_text_from_pdf(pdf_source: PdfSource):
     the inner index represent the different blocks of text inside a page
 
     Arguments:
-        - pdf_file, bytes or path: a stream of bytes or path representing the pdf file
+        - pdf_source, bytes or path: a stream of bytes or path representing the pdf file
 
     Returns:
         - all_content, List[list[dict]]:

@@ -34,9 +34,7 @@ async def translate_pdf_file(
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf_path = Path(temp_pdf.name)
-            await file.seek(0)
             shutil.copyfileobj(file.file, temp_pdf)
-            temp_pdf.flush()
     except Exception:
         if temp_pdf_path:
             try:
