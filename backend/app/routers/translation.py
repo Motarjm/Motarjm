@@ -12,6 +12,8 @@ from app.schemas.translation import GenerateEditedPDFRequest
 from app.core.simple_calls import clear_doc_summary_cache
 
 router = APIRouter(prefix="/translation", tags=["Translation"])
+MAX_UPLOAD_SIZE_MB = 5
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
 @router.post("/pdf")
@@ -31,6 +33,8 @@ async def translate_pdf_file(
         pdf_bytes = await file.read()
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to read PDF file")
+    if len(pdf_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="File size exceeds 5MB limit")
 
     glossary_dict = {}
     if glossary:
@@ -40,6 +44,8 @@ async def translate_pdf_file(
             tbx_bytes = await glossary.read()
         except Exception:
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
+        if len(tbx_bytes) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Glossary file size exceeds 5MB limit")
 
         try:
             glossary_dict = parse_tbx_basic(
@@ -95,6 +101,8 @@ async def translate_xliff_file(
         xliff_bytes = await file.read()
     except Exception:
         raise HTTPException(status_code=400, detail="Failed to read XLIFF file")
+    if len(xliff_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail="File size exceeds 5MB limit")
 
     glossary_dict = {}
     if glossary:
@@ -104,6 +112,8 @@ async def translate_xliff_file(
             tbx_bytes = await glossary.read()
         except Exception:
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
+        if len(tbx_bytes) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(status_code=413, detail="Glossary file size exceeds 5MB limit")
 
         try:
             glossary_dict = parse_tbx_basic(

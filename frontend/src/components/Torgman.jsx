@@ -54,6 +54,8 @@ const WHATS_NEW_ITEMS = [
 
 const SAMPLE_PDF_NAME = 'tax.pdf';
 const SAMPLE_PDF_URL = `${import.meta.env.BASE_URL}static/${SAMPLE_PDF_NAME}`;
+const MAX_UPLOAD_SIZE_MB = 5;
+const MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
 
 
 const Torgman = () => {
@@ -225,6 +227,10 @@ const Torgman = () => {
       alert('نوع الملف غير مدعوم. يرجى اختيار ملف PDF أو XLIFF');
       return false;
     }
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      alert(`حجم الملف أكبر من ${MAX_UPLOAD_SIZE_MB}MB. الحد الأقصى المسموح هو ${MAX_UPLOAD_SIZE_MB}MB.`);
+      return false;
+    }
 
     resetTranslationUiState();
     setSelectedFile(file);
@@ -239,6 +245,10 @@ const Torgman = () => {
 
     if (!isTbxFile(file.name)) {
       alert('نوع ملف المسرد غير مدعوم. يرجى اختيار ملف TBX');
+      return false;
+    }
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      alert(`حجم ملف المسرد أكبر من ${MAX_UPLOAD_SIZE_MB}MB. الحد الأقصى المسموح هو ${MAX_UPLOAD_SIZE_MB}MB.`);
       return false;
     }
 
@@ -734,7 +744,7 @@ const Torgman = () => {
           >
             <div className="upload-icon">📤</div>
             <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
-            <div className="upload-hint">PDF, XLIFF ‫(الحد الأقصى ‫10MB)</div>
+            <div className="upload-hint">PDF, XLIFF ‫(الحد الأقصى ‫5MB)</div>
 
 
           </div>
