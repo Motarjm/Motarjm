@@ -16,6 +16,16 @@ MAX_UPLOAD_SIZE_MB = 5
 MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 
+async def read_with_limit(upload: UploadFile, read_error_detail: str, size_error_detail: str) -> bytes:
+    try:
+        data = await upload.read(MAX_UPLOAD_SIZE_BYTES + 1)
+    except Exception:
+        raise HTTPException(status_code=400, detail=read_error_detail)
+    if len(data) > MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(status_code=413, detail=size_error_detail)
+    return data
+
+
 @router.post("/pdf")
 async def translate_pdf_file(
     file: UploadFile = File(...),
@@ -29,23 +39,21 @@ async def translate_pdf_file(
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
 
-    try:
-        pdf_bytes = await file.read()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to read PDF file")
-    if len(pdf_bytes) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="File size exceeds 5MB limit")
+    pdf_bytes = await read_with_limit(
+        file,
+        read_error_detail="Failed to read PDF file",
+        size_error_detail="File size exceeds 5MB limit",
+    )
 
     glossary_dict = {}
     if glossary:
         if not glossary.filename.endswith(".tbx"):
             raise HTTPException(status_code=400, detail="Only .tbx glossary files are allowed")
-        try:
-            tbx_bytes = await glossary.read()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        if len(tbx_bytes) > MAX_UPLOAD_SIZE_BYTES:
-            raise HTTPException(status_code=413, detail="Glossary file size exceeds 5MB limit")
+        tbx_bytes = await read_with_limit(
+            glossary,
+            read_error_detail="Failed to read TBX file",
+            size_error_detail="Glossary file size exceeds 5MB limit",
+        )
 
         try:
             glossary_dict = parse_tbx_basic(
@@ -97,23 +105,21 @@ async def translate_xliff_file(
     if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf") and not file.filename.endswith(".sdlxliff") and not file.filename.endswith(".mqxliff"):
         raise HTTPException(status_code=400, detail="Only .xliff or .xlf files are allowed")
     
-    try:
-        xliff_bytes = await file.read()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Failed to read XLIFF file")
-    if len(xliff_bytes) > MAX_UPLOAD_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="File size exceeds 5MB limit")
+    xliff_bytes = await read_with_limit(
+        file,
+        read_error_detail="Failed to read XLIFF file",
+        size_error_detail="File size exceeds 5MB limit",
+    )
 
     glossary_dict = {}
     if glossary:
         if not glossary.filename.endswith(".tbx"):
             raise HTTPException(status_code=400, detail="Only .tbx glossary files are allowed")
-        try:
-            tbx_bytes = await glossary.read()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        if len(tbx_bytes) > MAX_UPLOAD_SIZE_BYTES:
-            raise HTTPException(status_code=413, detail="Glossary file size exceeds 5MB limit")
+        tbx_bytes = await read_with_limit(
+            glossary,
+            read_error_detail="Failed to read TBX file",
+            size_error_detail="Glossary file size exceeds 5MB limit",
+        )
 
         try:
             glossary_dict = parse_tbx_basic(
