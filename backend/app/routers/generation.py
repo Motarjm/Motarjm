@@ -25,6 +25,11 @@ async def generate_edited_pdf(request: GenerateEditedPDFRequest):
     return StreamingResponse(
         BytesIO(pdf_bytes),
         media_type="application/pdf",
+            headers={
+            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
     )
 
 
@@ -60,5 +65,11 @@ async def generate_xliff(request: GenerateXliffRequest):
 
     return StreamingResponse(
         BytesIO(xliff_bytes),
-        media_type="application/xml"
+        media_type="application/xml",
+            headers={
+            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+        
     )

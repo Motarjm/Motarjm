@@ -72,7 +72,12 @@ async def translate_pdf_file(
                 pdf_base64 = build_translated_pdf_base64(translated_contents, pdf_bytes)
                 yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'pdf': pdf_base64})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(), media_type="text/event-stream",
+                                 headers={
+            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        })
 
 
 @router.post("/xliff")
@@ -147,4 +152,9 @@ async def translate_xliff_file(
                 # frontend needs that translated_contents to be a nested list
                 yield f"data: {json.dumps({'type': 'done', 'translated_contents': [translated_contents], 'xliff': xliff_output_str})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(), media_type="text/event-stream",
+                                 headers={
+            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        })

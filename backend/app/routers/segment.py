@@ -71,4 +71,9 @@ async def chat(request: ChatRequest, style_guide: str = Query(None)):
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(), media_type="text/event-stream",
+                                 headers={
+            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        })
