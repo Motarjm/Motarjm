@@ -1,11 +1,11 @@
 import requests
 from typing import Dict, Generator, List, Optional
-import pymupdf
 from app.services.extract_text import extract_text_from_pdf
 from app.services.xliff_service import extract_text_from_xliff
 from app.core.graph_models import State
 from app.core.workflow import graph
 from app.services.build_pdf import ArabicPDFBuilder
+from app.services.pdf_utils import PdfSource, open_pdf
 
 
 def translate_text(
@@ -40,7 +40,7 @@ def translate_text(
 
 
 def translate_file_content_pdf_streaming(
-    pdf_bytes: bytes,
+    pdf_source: PdfSource,
     source_lang: str,
     target_lang: str,
     style_guide: str = "",
@@ -52,6 +52,8 @@ def translate_file_content_pdf_streaming(
     Yields:
         {"type": "progress", "completed": int, "total": int}
         {"type": "done", "translated_contents": List[List[dict]]}
+
+    pdf_source can be a bytes buffer or a filesystem path.
 
     Each block in translated_contents:
         {"original_text": str, "translated_text": str, "bbox": list}
@@ -157,17 +159,17 @@ def translate_file_content_pdf_streaming(
     #     ],
     # ]
     
-    content = extract_text_from_pdf(pdf_bytes)
-    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    content = extract_text_from_pdf(pdf_source)
     builder = ArabicPDFBuilder()
-
     ordered_content = []
-    for page_index, page_blocks in enumerate(content):
-        page = doc[page_index]
-        ordered_blocks = builder.return_reading_order(
-            page_blocks, page.rect.width, page.rect.height
-        )
-        ordered_content.append(ordered_blocks)
+
+    with open_pdf(pdf_source) as doc:
+        for page_index, page_blocks in enumerate(content):
+            page = doc[page_index]
+            ordered_blocks = builder.return_reading_order(
+                page_blocks, page.rect.width, page.rect.height
+            )
+            ordered_content.append(ordered_blocks)
 
     total_blocks = sum(len(page) for page in ordered_content)
     completed_blocks = 0

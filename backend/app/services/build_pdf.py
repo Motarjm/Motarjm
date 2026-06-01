@@ -1,5 +1,4 @@
 import copy
-import pymupdf
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Frame, Paragraph, KeepTogether
 from reportlab.lib.styles import ParagraphStyle
@@ -8,6 +7,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from arabic_reshaper import ArabicReshaper, reshape
 from bidi.algorithm import get_display
+from app.services.pdf_utils import open_pdf
 
 
 class ArabicPDFBuilder:
@@ -298,7 +298,7 @@ class ArabicPDFBuilder:
         Args:
             translated_pages: List of pages, each containing list of text blocks
                              Each block has 'text' and 'bbox' keys
-            original_pdf_bytes: BytesIO stream of the original PDF (for dimensions)
+            original_pdf_bytes: Bytes buffer or path of the original PDF (for dimensions)
             output: Path or bytes stream for output PDF file
             
         Returns:
@@ -306,39 +306,37 @@ class ArabicPDFBuilder:
         """
         translated_pages = copy.deepcopy(translated_pages)
 
-        # Open original PDF to get page dimensions
-        original_doc = pymupdf.open(stream=original_pdf_bytes, filetype="pdf")
-        
-        # Create canvas for drawing
-        canvas_obj = canvas.Canvas(output)
-        
-        # Process each page
-        for page_index, page_blocks in enumerate(translated_pages):
-            # Get page dimensions from original PDF
-            page = original_doc[page_index]
-            page_width = page.rect.width
-            page_height = page.rect.height
+        with open_pdf(original_pdf_bytes) as original_doc:
+            # Create canvas for drawing
+            canvas_obj = canvas.Canvas(output)
 
-            page_blocks = self.return_reading_order(page_blocks, page_width, page_height)
+            # Process each page
+            for page_index, page_blocks in enumerate(translated_pages):
+                # Get page dimensions from original PDF
+                page = original_doc[page_index]
+                page_width = page.rect.width
+                page_height = page.rect.height
 
-            # Set page size for current page
-            canvas_obj.setPageSize((page_width, page_height))
-            
-            # Render each text block at its position
-            # this is the prev frame for the next frame
-            try:
-                prev_frame = self._render_text_block(
-                            canvas_obj, page_blocks[0], page_width, page_height)
+                page_blocks = self.return_reading_order(page_blocks, page_width, page_height)
+
+                # Set page size for current page
+                canvas_obj.setPageSize((page_width, page_height))
                 
-                for block in page_blocks[1:]:
+                # Render each text block at its position
+                # this is the prev frame for the next frame
+                try:
                     prev_frame = self._render_text_block(
-                                canvas_obj, block, page_width, page_height, prev_frame)
+                                canvas_obj, page_blocks[0], page_width, page_height)
                     
-            except Exception as e:
-                pass
+                    for block in page_blocks[1:]:
+                        prev_frame = self._render_text_block(
+                                    canvas_obj, block, page_width, page_height, prev_frame)
+                        
+                except Exception as e:
+                    pass
+                
+                # Finish current page and start new one
+                canvas_obj.showPage()
             
-            # Finish current page and start new one
-            canvas_obj.showPage()
-        
-        # Save and close the PDF
-        canvas_obj.save()
+            # Save and close the PDF
+            canvas_obj.save()

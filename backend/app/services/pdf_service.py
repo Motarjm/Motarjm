@@ -3,11 +3,12 @@ from io import BytesIO
 from typing import List
 
 from app.services.build_pdf import ArabicPDFBuilder
+from app.services.pdf_utils import PdfSource
 
 
-def build_translated_pdf(translated_contents: list, original_pdf_bytes: bytes) -> bytes:
+def build_translated_pdf(translated_contents: list, original_pdf_bytes: PdfSource) -> bytes:
     """
-    Builds a translated PDF from translated contents and original PDF bytes.
+    Builds a translated PDF from translated contents and original PDF bytes or path.
     Returns the resulting PDF as bytes.
     """
     builder = ArabicPDFBuilder()
@@ -17,7 +18,7 @@ def build_translated_pdf(translated_contents: list, original_pdf_bytes: bytes) -
     return buffer.read()
 
 
-def build_translated_pdf_base64(translated_contents: list, original_pdf_bytes: bytes) -> str:
+def build_translated_pdf_base64(translated_contents: list, original_pdf_bytes: PdfSource) -> str:
     """
     Builds a translated PDF and returns it as a base64-encoded string.
     """

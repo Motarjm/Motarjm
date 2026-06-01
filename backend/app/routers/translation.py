@@ -1,5 +1,9 @@
-import json
 import base64
+import json
+import os
+import shutil
+import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
 from fastapi.responses import StreamingResponse
@@ -27,10 +31,21 @@ async def translate_pdf_file(
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
 
+    temp_pdf_path = None
     try:
-        pdf_bytes = await file.read()
+        temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        temp_pdf_path = Path(temp_pdf.name)
+        await file.seek(0)
+        shutil.copyfileobj(file.file, temp_pdf)
+        temp_pdf.flush()
+        temp_pdf.close()
     except Exception:
-        raise HTTPException(status_code=400, detail="Failed to read PDF file")
+        if temp_pdf_path:
+            try:
+                os.remove(temp_pdf_path)
+            except FileNotFoundError:
+                pass
+        raise HTTPException(status_code=400, detail="Failed to persist PDF file")
 
     glossary_dict = {}
     if glossary:
@@ -58,19 +73,26 @@ async def translate_pdf_file(
     clear_doc_summary_cache()
 
     def event_stream():
-        for event in translate_file_content_pdf_streaming(
-            pdf_bytes,
-            source_lang,
-            target_lang,
-            style_guide or "",
-            glossary=glossary_dict,
-        ):
-            if event["type"] == "progress":
-                yield f"data: {json.dumps(event)}\n\n"
-            elif event["type"] == "done":
-                translated_contents = event["translated_contents"]
-                pdf_base64 = build_translated_pdf_base64(translated_contents, pdf_bytes)
-                yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'pdf': pdf_base64})}\n\n"
+        try:
+            for event in translate_file_content_pdf_streaming(
+                temp_pdf_path,
+                source_lang,
+                target_lang,
+                style_guide or "",
+                glossary=glossary_dict,
+            ):
+                if event["type"] == "progress":
+                    yield f"data: {json.dumps(event)}\n\n"
+                elif event["type"] == "done":
+                    translated_contents = event["translated_contents"]
+                    pdf_base64 = build_translated_pdf_base64(translated_contents, temp_pdf_path)
+                    yield f"data: {json.dumps({'type': 'done', 'translated_contents': translated_contents, 'pdf': pdf_base64})}\n\n"
+        finally:
+            if temp_pdf_path:
+                try:
+                    os.remove(temp_pdf_path)
+                except FileNotFoundError:
+                    pass
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
                                  headers={
