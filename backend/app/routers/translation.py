@@ -1,6 +1,5 @@
 import base64
 import json
-import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -33,17 +32,16 @@ async def translate_pdf_file(
 
     temp_pdf_path = None
     try:
-        temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-        temp_pdf_path = Path(temp_pdf.name)
-        await file.seek(0)
-        shutil.copyfileobj(file.file, temp_pdf)
-        temp_pdf.flush()
-        temp_pdf.close()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+            temp_pdf_path = Path(temp_pdf.name)
+            await file.seek(0)
+            shutil.copyfileobj(file.file, temp_pdf)
+            temp_pdf.flush()
     except Exception:
         if temp_pdf_path:
             try:
-                os.remove(temp_pdf_path)
-            except FileNotFoundError:
+                temp_pdf_path.unlink(missing_ok=True)
+            except OSError:
                 pass
         raise HTTPException(status_code=400, detail="Failed to persist PDF file")
 
@@ -90,8 +88,8 @@ async def translate_pdf_file(
         finally:
             if temp_pdf_path:
                 try:
-                    os.remove(temp_pdf_path)
-                except FileNotFoundError:
+                    temp_pdf_path.unlink(missing_ok=True)
+                except OSError:
                     pass
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
