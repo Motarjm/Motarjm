@@ -233,6 +233,7 @@ class ArabicPDFBuilder:
         
         I am using here yolo's bbox where original point is on top left of doc
         """
+        translated_blocks = copy.deepcopy(translated_blocks)
         def avg_x(column_blocks):
             return sum((b["bbox"][0] + b["bbox"][2]) / 2 for b in column_blocks) / len(column_blocks)
 
@@ -242,8 +243,8 @@ class ArabicPDFBuilder:
         for block in translated_blocks:
             x0, y0, x1, y1 = block['bbox']
             
-            x0, x1 = self._mirror_x_coordinate(x0, x1, page_width)
-            block["bbox"] = [x0, y0, x1, y1]
+            # x0, x1 = self._mirror_x_coordinate(x0, x1, page_width)
+            # block["bbox"] = [x0, y0, x1, y1]
             width_sum += (abs(x0 - x1))
             
             
@@ -271,7 +272,7 @@ class ArabicPDFBuilder:
 
         # sort columns by x
         ordered_columns = sorted(columns, key=lambda col: min([b["bbox"][0] for b in col]), reverse=True)
-
+        
         # sort blocks in each column by y
         for i, col in enumerate(ordered_columns):
             ordered_columns_by_y = sorted(col, key=lambda b: b["bbox"][3])
@@ -279,7 +280,6 @@ class ArabicPDFBuilder:
         
         # sort headings by y
         headings = sorted(headings, key=lambda b: b["bbox"][3])
-        
         ordered_blocks = headings + [b for col in ordered_columns for b in col]
         return ordered_blocks
 

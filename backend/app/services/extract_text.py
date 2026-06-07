@@ -9,7 +9,7 @@ from app.patches.patch_langchain_imports import *
 from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
-
+import cv2
 
 _yolo_models: Dict[str, YOLO] = {}
 _ocr_models: Dict[str, PaddleOCR] = {}
@@ -118,7 +118,9 @@ def yolo_predict(image, device="cpu"):
     # Perform prediction
     result = model(
         image,
-        conf=0.5,
+        conf=0.15,
+        # disables multi-class classification
+        agnostic_nms = True,
         device=device
     )
 
@@ -179,7 +181,7 @@ def is_bbox_inside(small_bbox, large_bbox, tolerance=5):
 
 
 
-def extract_text_from_image(image):
+def extract_text_from_image(image, c) :
     """
     Extracts text from image
 
@@ -204,8 +206,17 @@ def extract_text_from_image(image):
         # look for the classification label of this block, is it plain text or figure and so on
         name_idx = yolo_result_data[block_num][-1].item()
 
-        # we only need to extract text from a block of plain text or title
-        if yolo_result_names[name_idx] not in ["Section-header", "Text", "Title"]:
+        # we only need to extract text from those blocks
+        # i removed table
+        if yolo_result_names[name_idx] not in [ 'Caption',
+                                            'Footnote',
+                                            'Formula',
+                                            'List-item',
+                                            'Page-footer',
+                                            'Section-header',
+                                            'Text',
+                                            'Title']:
+        
             continue
 
         block_bbox = yolo_result_data[block_num][:4].tolist()
@@ -214,7 +225,8 @@ def extract_text_from_image(image):
             # check if small bounding box of the ocr is inside the bigger box of yolo
             if is_bbox_inside(ocr_result_boxes[i], block_bbox, tolerance=8):
               block_text += ocr_result_texts[i] + "\n"
-
+              
+        
         ocr_text.append(
           {
               "text": block_text,
@@ -222,6 +234,35 @@ def extract_text_from_image(image):
           }
         )
 
+# the below code is for debugging purposes to visualize the extracted text and their bounding boxes, it can be removed later
+    """
+    # Loop through OCR results and draw boxes
+    for item in ocr_text:
+        text = item["text"]
+        bbox = item["bbox"]
+
+        # print(text, end="\n\n=============\n\n")
+        
+        # Convert bbox coordinates to integers
+        # bbox format could be: [x1, y1, x2, y2] or [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+        if len(bbox) == 4 and all(isinstance(x, (int, float)) for x in bbox):
+            # Rectangle format [x1, y1, x2, y2]
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            
+        elif len(bbox) == 4 and all(len(point) == 2 for point in bbox):
+            # Polygon format [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            pts = np.array(bbox, dtype=np.int32)
+            cv2.polylines(image, [pts], True, (0, 255, 0), 2)
+        
+    
+    # Save or display result
+    cv2.imwrite(f"tmp/{c}.png", image)
+    # cv2.imshow("Output", image)
+    # cv2.waitKey(0)
+    # cv2.destroyWindow("Output")
+    """
+    
     return ocr_text
 
 
@@ -241,10 +282,12 @@ def extract_text_from_pdf(pdf_bytes: bytes):
 
     """
     all_content = []
+    c = 1
     for image in pdf_to_images(pdf_bytes):
         all_content.append(
-            extract_text_from_image(image)
+            extract_text_from_image(image, c)
         )
+        c+=1
 
     return all_content
 
