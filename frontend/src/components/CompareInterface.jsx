@@ -628,12 +628,12 @@ const CompareInterface = () => {
 
                       {/* Back-translation button between English and Arabic */}
                       <div className="segment-middle-actions">
-                        <button
+                        {/* <button
                           className={`segment-action-btn backtranslation-btn ${openBackTranslations[segmentId] ? 'active' : ''}`}
                           onClick={(e) => { e.stopPropagation(); handleFetchBackTranslation(pageIndex, blockIndex); }}
                         >
                           🔄 ترجمة عكسية
-                        </button>
+                        </button> */}
                         {openBackTranslations[segmentId] && (
                           <div className="backtranslation-box" onClick={(e) => e.stopPropagation()}>
                             {backTranslationLoading[segmentId] ? (
