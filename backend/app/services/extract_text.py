@@ -15,6 +15,7 @@ _yolo_models: Dict[str, YOLO] = {}
 _ocr_models: Dict[str, PaddleOCR] = {}
 _model_init_lock = Lock()
 
+#TODO: USE PADDLEPADDLE DOCLAYOUT INSTEAD OF YOLO: https://huggingface.co/PaddlePaddle/PP-DocLayoutV3_safetensors
 
 def _nms_numpy(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float = 0.5) -> np.ndarray:
     """Apply non-maximum suppression and return kept indices."""
