@@ -161,13 +161,13 @@ def translate_file_content_pdf_streaming(
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     builder = ArabicPDFBuilder()
 
-    ordered_content = []
-    for page_index, page_blocks in enumerate(content):
-        page = doc[page_index]
-        ordered_blocks = builder.return_reading_order(
-            page_blocks, page.rect.width, page.rect.height
-        )
-        ordered_content.append(ordered_blocks)
+    ordered_content = content
+    # for page_index, page_blocks in enumerate(content):
+    #     page = doc[page_index]
+    #     ordered_blocks = builder.return_reading_order(
+    #         page_blocks, page.rect.width, page.rect.height
+    #     )
+    #     ordered_content.append(ordered_blocks)
 
     total_blocks = sum(len(page) for page in ordered_content)
     completed_blocks = 0
@@ -177,14 +177,15 @@ def translate_file_content_pdf_streaming(
         translated_blocks = []
         for i, block in enumerate(page):
             prev_text = page[i - 1]["text"] if i > 0 else ""
-            translated_text = translate_text(
-                block["text"],
-                prev_text,
-                source_lang,
-                target_lang,
-                style_guide,
-                glossary=glossary,
-            )
+            translated_text = block["text"]
+            # translated_text = translate_text(
+            #     block["text"],
+            #     prev_text,
+            #     source_lang,
+            #     target_lang,
+            #     style_guide,
+            #     glossary=glossary,
+            # )
 
             print(f"\nPage {page_num} | Block {i}: {translated_text}")
 

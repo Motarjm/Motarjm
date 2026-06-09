@@ -1,4 +1,5 @@
 from io import BytesIO
+import os
 from threading import Lock
 from typing import Dict
 import pymupdf
@@ -10,6 +11,10 @@ from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
 import cv2
+import opendataloader_pdf
+from itertools import groupby
+import json
+import tempfile
 
 _yolo_models: Dict[str, YOLO] = {}
 _ocr_models: Dict[str, PaddleOCR] = {}
@@ -66,7 +71,7 @@ def _get_yolo_model(device: str = "cpu") -> YOLO:
 
         filepath = hf_hub_download(
             repo_id="Armaggheddon/yolo26-document-layout",
-            filename="yolo26n_doc_layout.pt",
+            filename="yolo26s_doc_layout.pt",
             repo_type="model",
         )
         _yolo_models[device] = YOLO(filepath)
@@ -267,6 +272,47 @@ def extract_text_from_image(image, c) :
     return ocr_text
 
 
+def extract_text_blocks(json_path):
+    with open(json_path) as f:
+        data = json.load(f)
+
+    results = []  # list of {"page": int, "text": str, "bbox": list}
+    TEXT_TYPES = {"heading", "paragraph", "caption"}
+    print(data)
+    for block in data["kids"]:
+        t = block["type"]
+
+        # ── Direct text types ──────────────────────────────────────
+        if t in TEXT_TYPES:
+            results.append({
+                "page": block["page number"],
+                "text": block["content"],
+                "bbox": block["bounding box"],
+            })
+            
+        # ── List: extract each list item individually ──────────────
+        elif t == "list":
+            for item in block.get("list items", []):
+                results.append({
+                    "page": item["page number"],
+                    "text": item["content"],
+                    "bbox": item["bounding box"],
+                })
+                
+        
+
+        
+
+        # image and table → skip
+        
+    # group by page number
+    # resulting structure: List[List[dict]]]
+    results = [list(group) for _, group in groupby(results, key=lambda x: x["page"])]
+
+    return results
+
+
+
 def extract_text_from_pdf(pdf_bytes: bytes):
     """
     Takes a pdf file and returns a List[List[dict]], outer index represent the different pages
@@ -283,12 +329,29 @@ def extract_text_from_pdf(pdf_bytes: bytes):
 
     """
     all_content = []
-    c = 1
-    for image in pdf_to_images(pdf_bytes):
-        all_content.append(
-            extract_text_from_image(image, c)
-        )
-        c+=1
+    # c = 1
+    # for image in pdf_to_images(pdf_bytes):
+    #     all_content.append(
+    #         extract_text_from_image(image, c)
+    #     )
+    #     c+=1
 
-    return all_content
+    # Convert PDFs to Markdown and JSON
+    with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False) as tmp_file:
+        tmp_file.write(pdf_bytes)
+        tmp_path = tmp_file.name
+    
+    try:
+        # Now use the temporary file path
+        opendataloader_pdf.convert(
+            input_path=tmp_path,
+            format="json"
+        )
+        # You can now read results from output_dir
+        return extract_text_blocks(f"{tmp_path.split('.')[0]}.json")
+        
+    finally:
+        # Clean up the temporary file
+        os.unlink(tmp_path)
+        
 
