@@ -4,7 +4,7 @@ import base64
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query
 from fastapi.responses import StreamingResponse
 
-from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming
+from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming, is_image_based
 from app.services.glossary_service import parse_tbx_basic, store_glossary
 from app.services.pdf_service import build_translated_pdf_base64
 from app.services.xliff_service import build_xliff
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/translation", tags=["Translation"])
 async def translate_pdf_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
+    translation_memory: UploadFile = File(None),
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
@@ -53,7 +54,10 @@ async def translate_pdf_file(
 
         glossary_dict = glossary_dict or {}
         store_glossary(glossary_dict)
-
+        
+    if is_image_based(pdf_bytes):
+        raise HTTPException(status_code=400, detail="Image-based PDFs are not supported for translation. Please provide a text-based PDF.")
+    
     # Clear cached document summary for new document
     clear_doc_summary_cache()
 
