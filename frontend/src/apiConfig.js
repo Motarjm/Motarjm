@@ -1,7 +1,7 @@
 // src/apiConfig.js
 
 // while using local host use this url, instead with tunneling use an emtpy string
-// export const API_URL = 'http://localhost:8001';
+// export const API_URL = 'http://localhost:8000';
 
 // with tunneling
 export const API_URL = '';
