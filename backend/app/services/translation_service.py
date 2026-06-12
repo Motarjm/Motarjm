@@ -8,6 +8,23 @@ from app.core.workflow import graph
 from app.services.build_pdf import ArabicPDFBuilder
 
 
+def is_image_based(pdf_bytes: bytes, sample_pages: int = 5) -> bool:
+    """
+    Checks if a PDF is image-based by sampling the first few pages and looking for text.
+    Returns True if no text is found in the sampled pages, indicating it's likely image-based.
+    """
+    doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    pages_to_check = min(sample_pages, len(doc))
+    
+    text_found = 0
+    for i in range(pages_to_check):
+        text = doc[i].get_text().strip()
+        if text:
+            text_found += 1
+    
+    doc.close()
+    return text_found == 0  # True = image-based
+
 def translate_text(
     text: str,
     prev_text: str,
@@ -161,13 +178,13 @@ def translate_file_content_pdf_streaming(
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     builder = ArabicPDFBuilder()
 
-    ordered_content = []
-    for page_index, page_blocks in enumerate(content):
-        page = doc[page_index]
-        ordered_blocks = builder.return_reading_order(
-            page_blocks, page.rect.width, page.rect.height
-        )
-        ordered_content.append(ordered_blocks)
+    ordered_content = content
+    # for page_index, page_blocks in enumerate(content):
+    #     page = doc[page_index]
+    #     ordered_blocks = builder.return_reading_order(
+    #         page_blocks, page.rect.width, page.rect.height
+    #     )
+    #     ordered_content.append(ordered_blocks)
 
     total_blocks = sum(len(page) for page in ordered_content)
     completed_blocks = 0
@@ -177,6 +194,7 @@ def translate_file_content_pdf_streaming(
         translated_blocks = []
         for i, block in enumerate(page):
             prev_text = page[i - 1]["text"] if i > 0 else ""
+            # translated_text = block["text"]
             translated_text = translate_text(
                 block["text"],
                 prev_text,
