@@ -37,6 +37,8 @@ const CompareInterface = () => {
   const [copiedSegment, setCopiedSegment] = useState(null); // Track which segment was copied
   const [documentId, setDocumentId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
+
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -533,6 +535,64 @@ const CompareInterface = () => {
     );
   }
 
+  const handleReviewDocument = async () => {
+  if (!translatedContents) {
+    alert('No translated content to review.');
+    return;
+  }
+  setIsReviewing(true);
+  try {
+    const response = await fetch(`${API_URL}/document/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        translated_contents: translatedContents,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      }),
+    });
+    if (!response.ok) throw new Error('Review failed');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        // SSE events are delimited by double newlines
+        const events = buffer.split('\n\n');
+        buffer = events.pop(); // keep incomplete trailing event in buffer
+
+        for (const event of events) {
+          const line = event.trim();
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            if (parsed.type === 'token') {
+              fullText += parsed.content;
+            } else if (parsed.type === 'error') {
+              console.error('Review error from server:', parsed.content);
+            }
+          } catch { /* skip malformed lines */ }
+        }
+      }
+
+
+    alert('Document review completed.');
+    console.log('Review results:', fullText);
+    // Future enhancement: open a modal or side panel with suggestions
+  } catch (error) {
+    console.error('Review error:', error);
+    alert('Failed to review document. Please try again later.');
+  } finally {
+    setIsReviewing(false);
+  }
+};
+
   return (
     <div className="comparison-container">
       <div className="top-bar">
@@ -544,6 +604,13 @@ const CompareInterface = () => {
             </button> */}
             <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
               Generate XLIFF
+            </button>
+             <button
+              className="sidebar-btn"
+              onClick={handleReviewDocument}
+              disabled={isReviewing}
+            >
+              {isReviewing ? '...Reviewing' : 'Review Document'}
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
