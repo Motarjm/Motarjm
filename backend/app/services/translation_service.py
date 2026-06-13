@@ -1,7 +1,7 @@
 import requests
 from typing import Dict, Generator, List, Optional
 import pymupdf
-from app.services.extract_text import extract_text_from_pdf
+from app.services.extract_text import extract_text_from_pdf, get_docx_blocks
 from app.services.xliff_service import extract_text_from_xliff
 from app.core.graph_models import State
 from app.core.workflow import graph
@@ -249,6 +249,7 @@ def translate_file_content_xliff_streaming(
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
+        # translated_text = segment["text"]
         translated_text = translate_text(
             segment["text"],
             prev_text,
@@ -264,6 +265,59 @@ def translate_file_content_xliff_streaming(
             "original_text": segment["text"],
             "translated_text": translated_text,
             "id": segment["id"],
+        })
+
+        completed_segments += 1
+        yield {"type": "progress", "completed": completed_segments, "total": total_segments}
+
+    yield {"type": "done", "translated_contents": translated_content}
+
+
+def translate_file_content_docx_streaming(
+    docx_bytes: bytes,
+    source_lang: str,
+    target_lang: str,
+    style_guide: str = "",
+    glossary: Optional[Dict[str, str]] = None,
+) -> Generator[dict, None, None]:
+    """
+    Translates all text segments in an DOCX file, yielding progress and done events.
+
+    Unlike PDF translation, DOCX does not require text extraction, reordering, or bbox handling.
+    It simply processes source segments in order.
+
+    Yields:
+        {"type": "progress", "completed": int, "total": int}
+        {"type": "done", "translated_contents": List[dict]}
+
+    Each item in translated_contents:
+        {"original_text": str, "translated_text": str, "id": str}
+    """
+    
+    # Extract segments from DOCX file
+    segments = get_docx_blocks(docx_bytes)
+    
+    total_segments = len(segments)
+    completed_segments = 0
+    translated_content = []
+
+    for i, segment in enumerate(segments):
+        prev_text = segments[i - 1]["text"] if i > 0 else ""
+        # translated_text = segment["text"]
+        translated_text = translate_text(
+            segment["text"],
+            prev_text,
+            source_lang,
+            target_lang,
+            style_guide,
+            glossary=glossary,
+        )
+
+        # print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
+
+        translated_content.append({
+            "original_text": segment["text"],
+            "translated_text": translated_text,
         })
 
         completed_segments += 1

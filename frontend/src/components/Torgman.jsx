@@ -175,6 +175,7 @@ const Torgman = () => {
     const ext = fileName.toLowerCase().split('.').pop();
     if (ext === 'pdf') return 'pdf';
     if (ext === 'xliff' || ext === 'xlf' || ext === 'sdlxliff' || ext === 'mqxliff') return 'xliff';
+    if (ext === 'docx') return 'docx';
     return null;
   };
 
@@ -222,7 +223,7 @@ const Torgman = () => {
 
     const fileType = getFileType(file.name);
     if (!fileType) {
-      alert('نوع الملف غير مدعوم. يرجى اختيار ملف PDF أو XLIFF');
+      alert('نوع الملف غير مدعوم. يرجى اختيار ملف PDF أو XLIFF أو DOCX');
       return false;
     }
 
@@ -332,7 +333,12 @@ const Torgman = () => {
       }
 
       // Determine endpoint and source language code
-      const endpoint = fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff';
+      const endpoints = {
+              'pdf': '/translation/pdf',
+              'docx': '/translation/docx',
+              'xliff': '/translation/xliff'
+            };
+      const endpoint = endpoints[fileType];
       const sourceLangObj = Sourcelanguages.find(lang => lang.englishName === sourceLang);
       const targetLangObj = Targetlanguages.find(lang => lang.englishName === targetLang);
       const sourceLangCode = sourceLangObj?.code || 'en';
@@ -470,7 +476,7 @@ const Torgman = () => {
         newFileContent = base64;
         setFileContent(base64);
         setDownloadUrl(url);
-      } else if (fileType === 'xliff') {
+      } else if (fileType === 'xliff' || fileType == "docx") {
         translationPhase = 'building_xliff_output';
         // XLIFF response includes XLIFF XML string
         const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
@@ -734,7 +740,7 @@ const Torgman = () => {
           >
             <div className="upload-icon">📤</div>
             <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
-            <div className="upload-hint">PDF, XLIFF ‫(الحد الأقصى ‫10MB)</div>
+            <div className="upload-hint">PDF, XLIFF, DOCX ‫(الحد الأقصى ‫10MB)</div>
 
 
           </div>
@@ -743,7 +749,7 @@ const Torgman = () => {
             ref={fileInputRef} 
             style={{ display: 'none' }} 
             onChange={handleFileChange}
-            accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff"
+            accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff,.docx"
           />
 
           <div className="glossary-upload">

@@ -15,6 +15,8 @@ from itertools import groupby
 import json
 import tempfile
 import re
+from docx import Document
+
 
 ABBREVIATIONS = {
     "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "vs", "etc",
@@ -59,7 +61,7 @@ def protect_false_periods(text: str) -> str:
 
 
 
-def extract_text_pymupdf(pdf_bytes):
+def extract_text_pymupdf(pdf_bytes) -> list[list[dict]]:
     doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
     content = []
     for page_num, page in enumerate(doc):
@@ -87,7 +89,7 @@ def extract_text_pymupdf(pdf_bytes):
     
 
 
-def extract_text_from_pdf(pdf_bytes: bytes):
+def extract_text_from_pdf(pdf_bytes: bytes)  -> list[list[dict]]:
     """
     Takes a pdf file and returns a List[List[dict]], outer index represent the different pages
     the inner index represent the different blocks of text inside a page
@@ -105,3 +107,19 @@ def extract_text_from_pdf(pdf_bytes: bytes):
     return extract_text_pymupdf(pdf_bytes)
  
 
+
+def get_docx_blocks(docx_bytes: bytes) -> list[list[dict]]:
+    doc = Document(docx_bytes)
+    blocks = []
+    # i cant detect pages for now, so i will put all in one page
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue  # skip empty paragraphs and tables and images
+        
+        blocks.append({
+            "text": text,
+            "bbox": []  # No bounding box for DOCX paragraphs
+        })
+        
+    return blocks

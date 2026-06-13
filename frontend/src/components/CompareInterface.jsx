@@ -258,7 +258,7 @@ const CompareInterface = () => {
       // Generate dynamic download filename
       if (originalFileName) {
         var ext = originalFileName.split('.').pop().toLowerCase();
-        if (ext === "pdf")
+        if (ext === "pdf" || ext === "docx")
         {
           ext = 'xliff'
         }
