@@ -10,8 +10,7 @@ from app.patches.patch_langchain_imports import *
 # from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
-import cv2
-import opendataloader_pdf
+# import cv2
 from itertools import groupby
 import json
 import tempfile
