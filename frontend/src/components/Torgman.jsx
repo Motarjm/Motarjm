@@ -509,7 +509,7 @@ const Torgman = () => {
       const translationDuration = Date.now() - translationStartTs;
       trackTranslationCompleted(fileType, selectedFile.size, translationDuration, true);
 
-      setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+      setStatus('‫تمت الترجمة بنجاح!');
     } catch (error) {
       console.error("Translation Error:", error);
       const elapsedMs = Date.now() - translationStartTs;
