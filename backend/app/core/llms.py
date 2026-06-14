@@ -48,7 +48,16 @@ claude_haiku_4_5 = ChatOpenAI(
     reasoning = {
         "effort": "none",
     }
-    
+)
+
+claude_sonnet_4_6 = ChatOpenAI(
+    model="anthropic/claude-sonnet-4.6",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 2048,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
 )
 
 grok = ChatOpenAI(
@@ -75,7 +84,7 @@ gpt_5_nano  = ChatOpenAI(
 )
 
 
-providers = {"translator": [claude_haiku_4_5,
+providers = {"translator": [claude_sonnet_4_6,
                             deepseek],
                                 # deepseek,
              
