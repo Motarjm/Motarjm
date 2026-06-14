@@ -311,7 +311,7 @@ const Torgman = () => {
     }
 
     setIsTranslating(true);
-    setStatus('قيد المعالجة...');
+    setStatus('‫قيد المعالجة...');
     setProgress(0);
     setTotalBlocks(0);
     const translationStartTs = Date.now();
@@ -407,7 +407,7 @@ const Torgman = () => {
                 latestTotalBlocks = event.total;
                 setProgress(event.completed);
                 setTotalBlocks(event.total);
-                setStatus(`قيد الترجمة... ${event.completed}/${event.total}`);
+                setStatus(`‫قيد الترجمة... ${event.completed}/${event.total}`);
               } else if (event.type === 'done') {
                 translationPhase = 'finalizing_result';
                 finalData = event;
@@ -576,7 +576,7 @@ const Torgman = () => {
   };
 
   const getEstimatedTime = () => {
-    if (!translationStartTime || progress < 1) return 'قيد التقدير...';
+    if (!translationStartTime || progress < 1) return '‫قيد التقدير...';
     const elapsed = (Date.now() - translationStartTime) / 1000; // seconds
     const avgPerBlock = elapsed / progress;
     const remaining = avgPerBlock * (totalBlocks - progress);
@@ -857,7 +857,7 @@ const Torgman = () => {
                 onClick={handleTranslateFile}
                 disabled={!selectedFile || isTranslating}
               >
-                {isTranslating ? 'قيد التحميل...' : 'ترجم المستندات'}
+                {isTranslating ? '‫قيد التحميل...' : 'ترجم المستندات'}
               </button>
             ) : (
               <div className="results-actions">
