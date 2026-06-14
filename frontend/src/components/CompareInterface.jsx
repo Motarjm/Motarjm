@@ -38,6 +38,9 @@ const CompareInterface = () => {
   const [documentId, setDocumentId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
+  // NEW: review suggestions state
+  const [reviewSuggestions, setReviewSuggestions] = useState({});
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -112,6 +115,8 @@ const CompareInterface = () => {
         setSuggestions(documentRecord.suggestions || {});
         setBackTranslations(documentRecord.backTranslations || {});
         setExplanations(documentRecord.explanations || {});
+        // NEW: load persisted review suggestions
+        setReviewSuggestions(documentRecord.reviewSuggestions || {});
       } catch (e) {
         console.error('Failed to hydrate compare document from IndexedDB:', e);
       } finally {
@@ -162,6 +167,14 @@ const CompareInterface = () => {
       console.error('Failed to persist suggestions:', e);
     });
   }, [documentId, isHydrated, suggestions]);
+
+  // NEW: persist review suggestions
+  useEffect(() => {
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { reviewSuggestions }).catch((e) => {
+      console.error('Failed to persist review suggestions:', e);
+    });
+  }, [reviewSuggestions, documentId, isHydrated]);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -535,37 +548,40 @@ const CompareInterface = () => {
     );
   }
 
+  // NEW: handle document review (replaces the old handleReviewDocument)
   const handleReviewDocument = async () => {
-  if (!translatedContents) {
-    alert('No translated content to review.');
-    return;
-  }
-  setIsReviewing(true);
-  try {
-    const response = await fetch(`${API_URL}/document/review`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        translated_contents: translatedContents,
-        source_lang: sourceLang,
-        target_lang: targetLang,
-      }),
-    });
-    if (!response.ok) throw new Error('Review failed');
+    if (!translatedContents) {
+      alert('No translated content to review.');
+      return;
+    }
+    setReviewLoading(true);
+    // Clear old suggestions and reset dismissed/applied flags
+    setReviewSuggestions({});
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let fullText = '';
-    let buffer = '';
+    try {
+      const response = await fetch(`${API_URL}/document/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          translated_contents: translatedContents,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+        }),
+      });
+      if (!response.ok) throw new Error('Review failed');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullText = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        // SSE events are delimited by double newlines
         const events = buffer.split('\n\n');
-        buffer = events.pop(); // keep incomplete trailing event in buffer
+        buffer = events.pop();
 
         for (const event of events) {
           const line = event.trim();
@@ -581,17 +597,51 @@ const CompareInterface = () => {
         }
       }
 
+      // Expect the fullText to be a JSON object like:
+      // {
+      //   "0-0": { suggestion: "النص الجديد", note: "تحسين السلاسة" },
+      //   "0-1": { suggestion: "...", note: "..." }
+      // }
+      // Clean the response: remove possible Markdown code fences and leading/trailing whitespace
+      let cleanedText = fullText.trim();
+      // Remove ```json or ``` at the beginning and end
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.slice(7); // remove ```json
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.slice(3); // remove ```
+      }
+      if (cleanedText.endsWith('```')) {
+        cleanedText = cleanedText.slice(0, -3);
+      }
+      cleanedText = cleanedText.trim();
+      console.log('Cleaned review response:', cleanedText);
 
-    alert('Document review completed.');
-    console.log('Review results:', fullText);
-    // Future enhancement: open a modal or side panel with suggestions
-  } catch (error) {
-    console.error('Review error:', error);
-    alert('Failed to review document. Please try again later.');
-  } finally {
-    setIsReviewing(false);
+      const parsedSuggestions = JSON.parse(cleanedText);
+
+      let normalized = {};
+      for (const item of parsedSuggestions) {
+    const key = item.id;          // e.g., "0-0"
+    if (key) {
+      normalized[key] = {
+        suggestion: item.revised_translation || item.suggestion || '',
+        note: item.notes || item.note || 'اقتراح المراجعة',
+        dismissed: false,
+        applied: false,
+      };
+    }
   }
-};
+
+      setReviewSuggestions(normalized);
+      console.log(normalized);
+      console.log(translatedContents);
+      console.log('Review suggestions updated:', suggestions);
+    } catch (error) {
+      console.error('Review error:', error);
+      alert('Failed to review document. Please check the console or try again.');
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   return (
     <div className="comparison-container">
@@ -608,9 +658,9 @@ const CompareInterface = () => {
              <button
               className="sidebar-btn"
               onClick={handleReviewDocument}
-              disabled={isReviewing}
+              disabled={reviewLoading}
             >
-              {isReviewing ? '...Reviewing' : 'Review Document'}
+              {reviewLoading ? '⏳ Reviewing...' : '🔍 Review Document'}
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
@@ -639,7 +689,6 @@ const CompareInterface = () => {
                 {page.map((block, blockIndex) => {
                   segmentCounter++;
                   const segmentId = `${pageIndex}-${blockIndex}`;
-                  
                   return (
                     <div 
                       key={segmentId}
@@ -760,6 +809,52 @@ const CompareInterface = () => {
                                 </div>
                               ))
                             )}
+                          </div>
+                        )}
+                        {/* NEW: Revision suggestion banner */}
+                        {reviewSuggestions[segmentId] && (
+                          <div className="revision-banner" onClick={(e) => e.stopPropagation()}>
+                            <div className="revision-banner-content">
+                              <div className="revision-note">{reviewSuggestions[segmentId].note}</div>
+                              <div className="revision-suggestion-text">{reviewSuggestions[segmentId].suggestion}</div>
+                              <div className="revision-actions">
+                                <button
+                                  className="revision-apply-btn"
+                                  onClick={() => {
+                                    handleArabicEdit(pageIndex, blockIndex, reviewSuggestions[segmentId].suggestion);
+                                    setReviewSuggestions(prev => ({
+                                      ...prev,
+                                      [segmentId]: { ...prev[segmentId], applied: true }
+                                    }));
+                                  }}
+                                >
+                                  ✓ Apply
+                                </button>
+                                <button
+                                  className="revision-dismiss-btn"
+                                  onClick={() => {
+                                    setReviewSuggestions(prev => ({
+                                      ...prev,
+                                      [segmentId]: { ...prev[segmentId], dismissed: true }
+                                    }));
+                                  }}
+                                >
+                                  ✗ Dismiss
+                                </button>
+                                <button
+                                  className="revision-chat-btn"
+                                  onClick={() => {
+                                    trackEvent('focus_chat_opened', {
+                                      segment_id: segmentId,
+                                      source: 'revision_banner',
+                                    });
+                                    setFocusChatSegment({ pageIndex, blockIndex, id: segmentId });
+                                  }}
+                                >
+                                  💬 Chat about revision
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         )}
                         <div className="segment-action-row">
