@@ -303,53 +303,6 @@ def advisor_agent(state: State):
 
   return {"messages": [sys_prompt, user_prompt] + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
-# ToDO: terminology agent must have context to determine the appropriate translation for the terms
-def terminology_agent(state: State):
-  """
-  Extract key terminology and difficult words from the text
-  """
-  source_text = state.source_text
-  source_lang = state.source_lang
-  target_lang = state.target_lang
-  style_guide = state.style_guide
-  
-  sys_prompt_content = TRANSLATOR_SYS_PROMPT
-  if style_guide:
-    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
-
-  sys_prompt = SystemMessage(
-      content=sys_prompt_content,
-      agent="TERMINOLOGY"
-  )
-
-  user_prompt = HumanMessage(
-      content=TERMINOLOGY_PROMPT.format(
-          source_text=source_text,
-          target_lang=target_lang,
-          source_lang=source_lang
-      ),
-      agent="TERMINOLOGY"
-  )
-
-  prompt = [sys_prompt, user_prompt]
-
-  # response = terminology.invoke(prompt).content
-  response = provider_invoke("terminology", prompt).content
-  if not isinstance(response, str):
-    response = response[0]["text"]
-
-  parsed_terms = _safe_parse_terminology_json(response)
-  if parsed_terms is None:
-    return {"messages": prompt + [AIMessage(content=response, agent="TERMINOLOGY")],
-            "terminology": response}
-
-  glossary_terms = state.glossary or {}
-  matched_terms = _apply_glossary_matches(parsed_terms, glossary_terms)  
-  matched_terms_json = json.dumps(matched_terms, ensure_ascii=False)
-
-  return {"messages": prompt + [AIMessage(content=matched_terms_json, agent="TERMINOLOGY")],
-          "terminology": matched_terms_json}
-
 
 def increment_iteration(state: State):
   """
@@ -435,6 +388,11 @@ def _apply_glossary_matches(
   score_cutoff: float = 0.9,
 ) -> Dict[str, str]:
   # Replace LLM translations with glossary translations on best fuzzy match.
+  """
+  The LLM terminology is always the base layer — the glossary only overrides entries where it has a confident match. 
+  Everything else falls through unchanged.
+  """
+  
   if not glossary:
     return terminology
 

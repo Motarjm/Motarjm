@@ -51,22 +51,35 @@ Do NOT translate anything outside those tags.
 
 Output the {target_lang} translation of the source text only, nothing else:"""
 
-TERMINOLOGY_PROMPT = """Extract key terminology from this {source_lang} text and difficult words from the text below and provide translations.
+TERMINOLOGY_PROMPT = """Extract key terminology and named entities from the {source_lang} text below, to serve as a consistent translation glossary.
 
-Focus on: technical terms, specialized vocabulary, complex/uncommon words
-Ignore: common everyday vocabulary
+Extract TWO categories:
 
-Guidelines:
-- For multi-word expressions or idioms, include them as single entries
-- If a word has multiple meanings, provide the translation that fits the context
+1. NAMED ENTITIES — Extract every named entity exactly as it appears:
+   - People (full names, titles, honorifics)
+   - Organizations, institutions, companies
+   - Places (cities, countries, regions, landmarks)
+   - Products, brands, works (books, films, laws, treaties)
+   - Events (conferences, wars, agreements)
 
-Return ONLY a JSON object in this format:
+2. KEY TERMS — Technical and specialized vocabulary:
+   - Technical terms and specialized vocabulary
+   - Complex or uncommon words
+   - Domain-specific jargon
+   - Multi-word expressions and idioms (as single entries)
+
+Rules:
+- Maximum 5 words per entry — if a phrase is longer, it is a clause, not a term; skip it
+- Omit common everyday vocabulary
+- One translation per entry — choose the meaning that fits this context
+- Named entities with no standard {target_lang} translation should be transliterated or kept in original form
+- Named entities that have a well-known {target_lang} equivalent should use that
+
+Return ONLY a JSON object — no preamble, no markdown, no explanation:
 {{
   "term1": "translation1",
   "term2": "translation2"
 }}
-
-ONLY PROVIDE ONE TRANSLATION PER TERM.
 
 Target language: {target_lang}
 

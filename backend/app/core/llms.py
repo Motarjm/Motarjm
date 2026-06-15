@@ -95,7 +95,7 @@ providers = {"translator": [claude_sonnet_4_6,
              "advisor": [gemini_3_flash_prev,deepseek],
                           
              
-             "terminology": [gemini_3_flash_prev,
+             "terminology": [claude_haiku_4_5,
                              deepseek],
                 #  deepseek],
              

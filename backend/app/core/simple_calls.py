@@ -3,7 +3,7 @@ import re
 from functools import lru_cache
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
-from app.core.agents import provider_invoke, provider_stream
+from app.core.agents import provider_invoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
 from typing import List, Tuple
 
 def generate_explanation(source_text: str, page_context: List):
@@ -260,3 +260,55 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
             yield content
         elif isinstance(content, list) and content:
             yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+            
+            
+
+def terminology_agent(document, source_lang, target_lang, style_guide, glossary):
+  """
+  Extract key terminology and difficult words from the text
+  """
+  
+  sys_prompt_content = TRANSLATOR_SYS_PROMPT
+  if style_guide:
+    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+
+  sys_prompt = SystemMessage(
+      content=sys_prompt_content,
+      agent="TERMINOLOGY"
+  )
+  
+  context = ""
+  for i, page in enumerate(document, 1):
+      context += f"<page n='{i}'>" + "\n"
+      for block in page:
+          context += block["text"] + "\n\n"
+        
+      context += "</page>\n"
+    
+ 
+  user_prompt = HumanMessage(
+      content=TERMINOLOGY_PROMPT.format(
+          source_text=context,
+          target_lang=target_lang,
+          source_lang=source_lang
+      ),
+      agent="TERMINOLOGY"
+  )
+
+  prompt = [sys_prompt, user_prompt]
+
+  response = provider_invoke("terminology", prompt).content
+  if not isinstance(response, str):
+    response = response[0]["text"]
+
+  parsed_terms = _safe_parse_terminology_json(response)
+  if parsed_terms is None:
+    return response
+
+  glossary_terms = glossary or {}
+  matched_terms = _apply_glossary_matches(parsed_terms, glossary_terms)  
+  matched_terms_json = json.dumps(matched_terms, ensure_ascii=False)
+  
+  return matched_terms_json
+
+
