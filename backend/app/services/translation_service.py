@@ -256,6 +256,12 @@ def translate_file_content_xliff_streaming(
     total_segments = len(segments)
     completed_segments = 0
     translated_content = []
+    
+    terminology = terminology_agent(document=segments, 
+                                    source_lang=source_lang, 
+                                    target_lang=target_lang,
+                                    style_guide=style_guide, 
+                                    glossary=glossary)
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
@@ -267,6 +273,7 @@ def translate_file_content_xliff_streaming(
             target_lang,
             style_guide,
             glossary=glossary,
+            terminology=terminology
         )
 
         print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
@@ -310,6 +317,12 @@ def translate_file_content_docx_streaming(
     total_segments = len(segments)
     completed_segments = 0
     translated_content = []
+    
+    terminology = terminology_agent(document=segments, 
+                                    source_lang=source_lang, 
+                                    target_lang=target_lang,
+                                    style_guide=style_guide, 
+                                    glossary=glossary)
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
@@ -321,6 +334,7 @@ def translate_file_content_docx_streaming(
             target_lang,
             style_guide,
             glossary=glossary,
+            terminology=terminology
         )
 
         # print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
