@@ -5,6 +5,7 @@ from app.services.extract_text import extract_text_from_pdf, get_docx_blocks
 from app.services.xliff_service import extract_text_from_xliff
 from app.core.graph_models import State
 from app.core.workflow import graph
+from app.core.simple_calls import terminology_agent
 from app.services.build_pdf import ArabicPDFBuilder
 
 
@@ -32,6 +33,7 @@ def translate_text(
     target_lang: str,
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
+    terminology: Optional[str] = None,
 ) -> str:
     """
     Translates a single text segment using the LangGraph pipeline.
@@ -44,6 +46,7 @@ def translate_text(
         prev_context=prev_text,
         style_guide=style_guide,
         glossary=glossary or {},
+        terminology=terminology or "",
     )
 
     try:
@@ -189,6 +192,12 @@ def translate_file_content_pdf_streaming(
     total_blocks = sum(len(page) for page in ordered_content)
     completed_blocks = 0
     translated_content = []
+    
+    terminology = terminology_agent(document=ordered_content, 
+                                    source_lang=source_lang, 
+                                    target_lang=target_lang,
+                                    style_guide=style_guide, 
+                                    glossary=glossary)
 
     for page_num, page in enumerate(ordered_content):
         translated_blocks = []
@@ -202,6 +211,7 @@ def translate_file_content_pdf_streaming(
                 target_lang,
                 style_guide,
                 glossary=glossary,
+                terminology=terminology
             )
 
             print(f"\nPage {page_num} | Block {i}: {translated_text}")
@@ -246,6 +256,12 @@ def translate_file_content_xliff_streaming(
     total_segments = len(segments)
     completed_segments = 0
     translated_content = []
+    
+    terminology = terminology_agent(document=segments, 
+                                    source_lang=source_lang, 
+                                    target_lang=target_lang,
+                                    style_guide=style_guide, 
+                                    glossary=glossary)
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
@@ -257,6 +273,7 @@ def translate_file_content_xliff_streaming(
             target_lang,
             style_guide,
             glossary=glossary,
+            terminology=terminology
         )
 
         print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
@@ -300,6 +317,12 @@ def translate_file_content_docx_streaming(
     total_segments = len(segments)
     completed_segments = 0
     translated_content = []
+    
+    terminology = terminology_agent(document=segments, 
+                                    source_lang=source_lang, 
+                                    target_lang=target_lang,
+                                    style_guide=style_guide, 
+                                    glossary=glossary)
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
@@ -311,6 +334,7 @@ def translate_file_content_docx_streaming(
             target_lang,
             style_guide,
             glossary=glossary,
+            terminology=terminology
         )
 
         # print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
