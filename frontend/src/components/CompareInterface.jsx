@@ -548,14 +548,47 @@ const CompareInterface = () => {
     );
   }
 
-  // NEW: handle document review (replaces the old handleReviewDocument)
+  // Scan `text` starting from `from`, extract every complete top-level JSON object,
+  // dispatch it to state immediately, and return the index of the last processed character.
+  const extractAndApplySegments = (text, from, applyFn) => {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let objectStart = -1;
+    let lastProcessed = from;
+
+    for (let i = from; i < text.length; i++) {
+      const ch = text[i];
+      if (escape)             { escape = false; continue; }
+      if (ch === '\\' && inString) { escape = true;  continue; }
+      if (ch === '"')         { inString = !inString; continue; }
+      if (inString)           { continue; }
+
+      if (ch === '{') {
+        if (depth === 0) objectStart = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0 && objectStart !== -1) {
+          try {
+            const item = JSON.parse(text.slice(objectStart, i + 1));
+            applyFn(item);
+          } catch { /* object not yet complete — skip */ }
+          lastProcessed = i + 1;
+          objectStart = -1;
+        }
+      }
+    }
+    return lastProcessed;
+  };
+
+  // handle document review
   const handleReviewDocument = async () => {
     if (!translatedContents) {
       alert('No translated content to review.');
       return;
     }
     setReviewLoading(true);
-    // Clear old suggestions and reset dismissed/applied flags
     setReviewSuggestions({});
 
     try {
@@ -574,6 +607,22 @@ const CompareInterface = () => {
       const decoder = new TextDecoder();
       let buffer = '';
       let fullText = '';
+      let scanFrom = 0;
+
+      // Called each time a complete segment object is extracted from the stream.
+      const applySegment = (item) => {
+        const key = item.id;
+        if (!key) return;
+        setReviewSuggestions(prev => ({
+          ...prev,
+          [key]: {
+            suggestion: item.revised_translation || item.suggestion || '',
+            note: item.notes || item.note || '',
+            dismissed: false,
+            applied: false,
+          },
+        }));
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -591,50 +640,18 @@ const CompareInterface = () => {
             if (parsed.type === 'token') {
               fullText += parsed.content;
             } else if (parsed.type === 'error') {
-              console.error('Review error from server:', parsed.content);
+              console.error('Review SSE error:', parsed.content);
             }
-          } catch { /* skip malformed lines */ }
+          } catch { /* skip malformed SSE lines */ }
         }
+
+        // After each chunk, try to flush any newly completed segment objects.
+        scanFrom = extractAndApplySegments(fullText, scanFrom, applySegment);
       }
 
-      // Expect the fullText to be a JSON object like:
-      // {
-      //   "0-0": { suggestion: "النص الجديد", note: "تحسين السلاسة" },
-      //   "0-1": { suggestion: "...", note: "..." }
-      // }
-      // Clean the response: remove possible Markdown code fences and leading/trailing whitespace
-      let cleanedText = fullText.trim();
-      // Remove ```json or ``` at the beginning and end
-      if (cleanedText.startsWith('```json')) {
-        cleanedText = cleanedText.slice(7); // remove ```json
-      } else if (cleanedText.startsWith('```')) {
-        cleanedText = cleanedText.slice(3); // remove ```
-      }
-      if (cleanedText.endsWith('```')) {
-        cleanedText = cleanedText.slice(0, -3);
-      }
-      cleanedText = cleanedText.trim();
-      console.log('Cleaned review response:', cleanedText);
+      // Final pass — catches any trailing object not followed by a newline.
+      extractAndApplySegments(fullText, scanFrom, applySegment);
 
-      const parsedSuggestions = JSON.parse(cleanedText);
-
-      let normalized = {};
-      for (const item of parsedSuggestions) {
-    const key = item.id;          // e.g., "0-0"
-    if (key) {
-      normalized[key] = {
-        suggestion: item.revised_translation || item.suggestion || '',
-        note: item.notes || item.note || 'اقتراح المراجعة',
-        dismissed: false,
-        applied: false,
-      };
-    }
-  }
-
-      setReviewSuggestions(normalized);
-      console.log(normalized);
-      console.log(translatedContents);
-      console.log('Review suggestions updated:', suggestions);
     } catch (error) {
       console.error('Review error:', error);
       alert('Failed to review document. Please check the console or try again.');
@@ -660,7 +677,7 @@ const CompareInterface = () => {
               onClick={handleReviewDocument}
               disabled={reviewLoading}
             >
-              {reviewLoading ? '⏳ Reviewing...' : '🔍 Review Document'}
+              {reviewLoading ? '...Reviewing' : 'Review Document'}
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
@@ -811,8 +828,8 @@ const CompareInterface = () => {
                             )}
                           </div>
                         )}
-                        {/* NEW: Revision suggestion banner */}
-                        {reviewSuggestions[segmentId] && (
+                        {/* NEW: Revision suggestion banner — only shown when the reviewer left a note */}
+                        {reviewSuggestions[segmentId]?.note && !reviewSuggestions[segmentId].dismissed && !reviewSuggestions[segmentId].applied && (
                           <div className="revision-banner" onClick={(e) => e.stopPropagation()}>
                             <div className="revision-banner-content">
                               <div className="revision-note">{reviewSuggestions[segmentId].note}</div>
