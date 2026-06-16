@@ -41,6 +41,8 @@ const CompareInterface = () => {
   // NEW: review suggestions state
   const [reviewSuggestions, setReviewSuggestions] = useState({});
   const [reviewLoading, setReviewLoading] = useState(false);
+  // NEW: track which segment is currently being processed during review
+  const [reviewingSegmentId, setReviewingSegmentId] = useState(null);
 
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -589,6 +591,8 @@ const CompareInterface = () => {
       return;
     }
     setReviewLoading(true);
+    // Clear any previous highlight
+    setReviewingSegmentId(null);
     setReviewSuggestions({});
 
     try {
@@ -613,6 +617,8 @@ const CompareInterface = () => {
       const applySegment = (item) => {
         const key = item.id;
         if (!key) return;
+        // Highlight the segment we just received
+        setReviewingSegmentId(key);
         setReviewSuggestions(prev => ({
           ...prev,
           [key]: {
@@ -657,6 +663,8 @@ const CompareInterface = () => {
       alert('Failed to review document. Please check the console or try again.');
     } finally {
       setReviewLoading(false);
+      // Remove highlight when done
+      setReviewingSegmentId(null);
     }
   };
 
@@ -710,7 +718,7 @@ const CompareInterface = () => {
                     <div 
                       key={segmentId}
                       id={`row-${segmentId}`}
-                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${openBackTranslations[segmentId] ? 'bt-open' : ''}`}
+                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${openBackTranslations[segmentId] ? 'bt-open' : ''} ${reviewingSegmentId === segmentId ? 'reviewing-row' : ''}`}
                       onClick={() => handleSegmentClick(pageIndex, blockIndex)}
                     >
                       <div className="segment-id-column">
@@ -858,7 +866,7 @@ const CompareInterface = () => {
                                 >
                                   ✗ Dismiss
                                 </button>
-                                <button
+                                {/* <button
                                   className="revision-chat-btn"
                                   onClick={() => {
                                     trackEvent('focus_chat_opened', {
@@ -869,7 +877,7 @@ const CompareInterface = () => {
                                   }}
                                 >
                                   💬 Chat about revision
-                                </button>
+                                </button> */}
                               </div>
                             </div>
                           </div>
