@@ -23,7 +23,7 @@ app.include_router(segment.router)
 app.include_router(document.router)
 
 # get absolute path to backend/app folder
-BASE_DIR = os.path.dirnamgit e(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Path to React build (dist) directory
 REACT_BUILD_DIR = os.path.join(BASE_DIR, '..', '..', 'frontend', 'dist')
