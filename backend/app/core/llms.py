@@ -21,7 +21,7 @@ deepseek = ChatOpenAI(
 gemini_2_5_flash_lite = ChatOpenAI(
     model="google/gemini-2.5-flash-lite",
     base_url="https://openrouter.ai/api/v1",
-    max_tokens = 2048,
+    max_tokens = 4096,
     temperature=0.01,
     reasoning = {
         "effort": "none",
@@ -104,7 +104,8 @@ providers = {"translator": [claude_haiku_4_5,
              "chatbot_gemini": [gemini_3_flash_prev],  # gemini
              "chatbot_grok": [grok],            # grok
              
-             "doc_summary": [gemini_2_5_flash_lite]
+             "doc_summary": [gemini_2_5_flash_lite],
+             "reviewer": [gemini_3_flash_prev]
 
              }
 
