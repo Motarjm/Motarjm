@@ -1,6 +1,6 @@
 import json
 import base64
-from fastapi import APIRouter, File, HTTPException, UploadFile, Query
+from fastapi import APIRouter, File, HTTPException, UploadFile, Query, Request
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming, is_image_based, translate_file_content_docx_streaming
@@ -19,6 +19,7 @@ router = APIRouter(prefix="/translation", tags=["Translation"])
 
 @router.post("/pdf")
 async def translate_pdf_file(
+    request: Request,           
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
@@ -64,7 +65,7 @@ async def translate_pdf_file(
     # Clear cached document summary for new document
     clear_doc_summary_cache()
 
-    def event_stream():
+    async def event_stream():
         for event in translate_file_content_pdf_streaming(
             pdf_bytes,
             source_lang,
@@ -72,6 +73,10 @@ async def translate_pdf_file(
             style_guide or "",
             glossary=glossary_dict,
         ):
+            if await request.is_disconnected():
+                print("Client Cancelled")
+                break
+            
             if event["type"] == "progress":
                 yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":
@@ -89,6 +94,7 @@ async def translate_pdf_file(
 
 @router.post("/xliff")
 async def translate_xliff_file(
+    request: Request,           
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     source_lang: str = Query("en"),
@@ -127,7 +133,7 @@ async def translate_xliff_file(
     # Clear cached document summary for new document
     clear_doc_summary_cache()
 
-    def event_stream():
+    async def event_stream():
         for event in translate_file_content_xliff_streaming(
             xliff_bytes,
             source_lang,
@@ -135,6 +141,10 @@ async def translate_xliff_file(
             style_guide or "",
             glossary=glossary_dict,
         ):
+            if await request.is_disconnected():
+                print("Client Cancelled")
+                break
+            
             if event["type"] == "progress":
                 yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":
@@ -168,6 +178,7 @@ async def translate_xliff_file(
 
 @router.post("/docx")
 async def translate_docx_file(
+    request: Request,           
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
@@ -208,7 +219,7 @@ async def translate_docx_file(
     # Clear cached document summary for new document
     clear_doc_summary_cache()
 
-    def event_stream():
+    async def event_stream():
         for event in translate_file_content_docx_streaming(
             BytesIO(docx_bytes),
             source_lang,
@@ -216,6 +227,10 @@ async def translate_docx_file(
             style_guide or "",
             glossary=glossary_dict,
         ):
+            if await request.is_disconnected():
+                print("Client Cancelled")
+                break
+            
             if event["type"] == "progress":
                 yield f"data: {json.dumps(event)}\n\n"
             elif event["type"] == "done":
