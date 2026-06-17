@@ -278,13 +278,20 @@ def terminology_agent(document, source_lang, target_lang, style_guide, glossary)
   )
   
   context = ""
-  for i, page in enumerate(document, 1):
-      context += f"<page n='{i}'>" + "\n"
-      for block in page:
-          context += block["text"] + "\n\n"
+  # if a list then there is multiple pages
+  # if a dict then there is only one page
+  if isinstance(document[0], list):    
+    for i, page in enumerate(document, 1):
+        context += f"<page n='{i}'>" + "\n"
+        for block in page:
+            context += block["text"] + "\n\n"
+            
+        context += "</page>\n"
         
-      context += "</page>\n"
-    
+  else:
+      for block in document:
+            context += block["text"] + "\n\n"
+      
  
   user_prompt = HumanMessage(
       content=TERMINOLOGY_PROMPT.format(
