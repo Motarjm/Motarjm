@@ -37,6 +37,13 @@ const CompareInterface = () => {
   const [copiedSegment, setCopiedSegment] = useState(null); // Track which segment was copied
   const [documentId, setDocumentId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isReviewing, setIsReviewing] = useState(false);
+  // NEW: review suggestions state
+  const [reviewSuggestions, setReviewSuggestions] = useState({});
+  const [reviewLoading, setReviewLoading] = useState(false);
+  // NEW: track which segment is currently being processed during review
+  const [reviewingSegmentId, setReviewingSegmentId] = useState(null);
+
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
 
@@ -110,6 +117,8 @@ const CompareInterface = () => {
         setSuggestions(documentRecord.suggestions || {});
         setBackTranslations(documentRecord.backTranslations || {});
         setExplanations(documentRecord.explanations || {});
+        // NEW: load persisted review suggestions
+        setReviewSuggestions(documentRecord.reviewSuggestions || {});
       } catch (e) {
         console.error('Failed to hydrate compare document from IndexedDB:', e);
       } finally {
@@ -160,6 +169,14 @@ const CompareInterface = () => {
       console.error('Failed to persist suggestions:', e);
     });
   }, [documentId, isHydrated, suggestions]);
+
+  // NEW: persist review suggestions
+  useEffect(() => {
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { reviewSuggestions }).catch((e) => {
+      console.error('Failed to persist review suggestions:', e);
+    });
+  }, [reviewSuggestions, documentId, isHydrated]);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -533,6 +550,124 @@ const CompareInterface = () => {
     );
   }
 
+  // Scan `text` starting from `from`, extract every complete top-level JSON object,
+  // dispatch it to state immediately, and return the index of the last processed character.
+  const extractAndApplySegments = (text, from, applyFn) => {
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    let objectStart = -1;
+    let lastProcessed = from;
+
+    for (let i = from; i < text.length; i++) {
+      const ch = text[i];
+      if (escape)             { escape = false; continue; }
+      if (ch === '\\' && inString) { escape = true;  continue; }
+      if (ch === '"')         { inString = !inString; continue; }
+      if (inString)           { continue; }
+
+      if (ch === '{') {
+        if (depth === 0) objectStart = i;
+        depth++;
+      } else if (ch === '}') {
+        depth--;
+        if (depth === 0 && objectStart !== -1) {
+          try {
+            const item = JSON.parse(text.slice(objectStart, i + 1));
+            applyFn(item);
+          } catch { /* object not yet complete — skip */ }
+          lastProcessed = i + 1;
+          objectStart = -1;
+        }
+      }
+    }
+    return lastProcessed;
+  };
+
+  // handle document review
+  const handleReviewDocument = async () => {
+    if (!translatedContents) {
+      alert('No translated content to review.');
+      return;
+    }
+    setReviewLoading(true);
+    // Clear any previous highlight
+    setReviewingSegmentId(null);
+    setReviewSuggestions({});
+
+    try {
+      const response = await fetch(`${API_URL}/document/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          translated_contents: translatedContents,
+          source_lang: sourceLang,
+          target_lang: targetLang,
+        }),
+      });
+      if (!response.ok) throw new Error('Review failed');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullText = '';
+      let scanFrom = 0;
+
+      // Called each time a complete segment object is extracted from the stream.
+      const applySegment = (item) => {
+        const key = item.id;
+        if (!key) return;
+        // Highlight the segment we just received
+        setReviewingSegmentId(key);
+        setReviewSuggestions(prev => ({
+          ...prev,
+          [key]: {
+            suggestion: item.revised_translation || item.suggestion || '',
+            note: item.notes || item.note || '',
+            dismissed: false,
+            applied: false,
+          },
+        }));
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+
+        for (const event of events) {
+          const line = event.trim();
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            if (parsed.type === 'token') {
+              fullText += parsed.content;
+            } else if (parsed.type === 'error') {
+              console.error('Review SSE error:', parsed.content);
+            }
+          } catch { /* skip malformed SSE lines */ }
+        }
+
+        // After each chunk, try to flush any newly completed segment objects.
+        scanFrom = extractAndApplySegments(fullText, scanFrom, applySegment);
+      }
+
+      // Final pass — catches any trailing object not followed by a newline.
+      extractAndApplySegments(fullText, scanFrom, applySegment);
+
+    } catch (error) {
+      console.error('Review error:', error);
+      alert('Failed to review document. Please check the console or try again.');
+    } finally {
+      setReviewLoading(false);
+      // Remove highlight when done
+      setReviewingSegmentId(null);
+    }
+  };
+
   return (
     <div className="comparison-container">
       <div className="top-bar">
@@ -544,6 +679,13 @@ const CompareInterface = () => {
             </button> */}
             <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
               Generate XLIFF
+            </button>
+             <button
+              className="sidebar-btn"
+              onClick={handleReviewDocument}
+              disabled={reviewLoading}
+            >
+              {reviewLoading ? '...Reviewing' : 'Review Document'}
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
@@ -572,12 +714,11 @@ const CompareInterface = () => {
                 {page.map((block, blockIndex) => {
                   segmentCounter++;
                   const segmentId = `${pageIndex}-${blockIndex}`;
-                  
                   return (
                     <div 
                       key={segmentId}
                       id={`row-${segmentId}`}
-                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${openBackTranslations[segmentId] ? 'bt-open' : ''}`}
+                      className={`segment-row ${activeSegment === segmentId ? 'active-row' : ''} ${openBackTranslations[segmentId] ? 'bt-open' : ''} ${reviewingSegmentId === segmentId ? 'reviewing-row' : ''}`}
                       onClick={() => handleSegmentClick(pageIndex, blockIndex)}
                     >
                       <div className="segment-id-column">
@@ -693,6 +834,52 @@ const CompareInterface = () => {
                                 </div>
                               ))
                             )}
+                          </div>
+                        )}
+                        {/* NEW: Revision suggestion banner — only shown when the reviewer left a note */}
+                        {reviewSuggestions[segmentId]?.note && !reviewSuggestions[segmentId].dismissed && !reviewSuggestions[segmentId].applied && (
+                          <div className="revision-banner" onClick={(e) => e.stopPropagation()}>
+                            <div className="revision-banner-content">
+                              <div className="revision-note">{reviewSuggestions[segmentId].note}</div>
+                              <div className="revision-suggestion-text">{reviewSuggestions[segmentId].suggestion}</div>
+                              <div className="revision-actions">
+                                <button
+                                  className="revision-apply-btn"
+                                  onClick={() => {
+                                    handleArabicEdit(pageIndex, blockIndex, reviewSuggestions[segmentId].suggestion);
+                                    setReviewSuggestions(prev => ({
+                                      ...prev,
+                                      [segmentId]: { ...prev[segmentId], applied: true }
+                                    }));
+                                  }}
+                                >
+                                  ✓ Apply
+                                </button>
+                                <button
+                                  className="revision-dismiss-btn"
+                                  onClick={() => {
+                                    setReviewSuggestions(prev => ({
+                                      ...prev,
+                                      [segmentId]: { ...prev[segmentId], dismissed: true }
+                                    }));
+                                  }}
+                                >
+                                  ✗ Dismiss
+                                </button>
+                                {/* <button
+                                  className="revision-chat-btn"
+                                  onClick={() => {
+                                    trackEvent('focus_chat_opened', {
+                                      segment_id: segmentId,
+                                      source: 'revision_banner',
+                                    });
+                                    setFocusChatSegment({ pageIndex, blockIndex, id: segmentId });
+                                  }}
+                                >
+                                  💬 Chat about revision
+                                </button> */}
+                              </div>
+                            </div>
                           </div>
                         )}
                         <div className="segment-action-row">

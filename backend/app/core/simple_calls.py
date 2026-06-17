@@ -261,6 +261,69 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
         elif isinstance(content, list) and content:
             yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
             
+
+def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str):
+    """
+    Streams reviewer response tokens.
+    
+    
+    
+    Arguments:
+        - source_lang / target_lang: language pair
+        - doc_context: list of list of dicts of source and translated blocks for the whole document
+    
+    Yields:
+        - str: text chunks
+        
+        
+    """
+    segment_page = 0
+    segments = []
+    # the difference between doc_source and doc_context is that doc_source is a list of list of strings (only original text),
+    # while doc_context is a list of list of dicts with "original_text" and "translated_text" keys. 
+    doc_source = []
+    for page in doc_context:
+        current_page_blocks = []
+        for block_num, block in enumerate(page):            
+            current_page_blocks.append(block["original_text"])
+            segments.append(
+                {
+                    "id": f'{segment_page}-{block_num}',
+                    "source": block["original_text"],
+                    "translation": block["translated_text"]
+                }
+            )
+                
+            
+        doc_source.append(current_page_blocks)
+        segment_page += 1
+        
+    segments = json.dumps(segments, ensure_ascii=False, indent=2)
+    
+    sys_prompt = REVIEWER_SYS_PROMPT.format(source_lang=source_lang, target_lang=target_lang)
+    
+    sys_prompt = SystemMessage(
+        content=sys_prompt,
+        agent="reviewer"
+    )
+    
+    doc_profile = generate_doc_summary(doc_source)
+    
+    user_message = HumanMessage(
+        content=REVIEWER_PROMPT.format(doc_profile=doc_profile, segments=segments),
+        agent="reviewer"
+        )
+        
+    
+    # Build message list: system + context + history
+    messages = [sys_prompt, user_message]
+    
+    for chunk in provider_stream("reviewer", messages):
+        content = chunk.content
+        if isinstance(content, str):
+            yield content
+        elif isinstance(content, list) and content:
+            yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
             
 
 def terminology_agent(document, source_lang, target_lang, style_guide, glossary):
