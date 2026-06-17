@@ -50,7 +50,15 @@ claude_haiku_4_5 = ChatOpenAI(
     }
     
 )
-
+claude_sonnet_4_6 = ChatOpenAI(
+    model="anthropic/claude-sonnet-4.6",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 2048,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+)
 grok = ChatOpenAI(
     model="x-ai/grok-4.1-fast",
     base_url="https://openrouter.ai/api/v1",
@@ -75,7 +83,7 @@ gpt_5_nano  = ChatOpenAI(
 )
 
 
-providers = {"translator": [gemini_3_flash_prev,
+providers = {"translator": [claude_sonnet_4_6,
                             deepseek],
                                 # deepseek,
              
@@ -105,7 +113,7 @@ providers = {"translator": [gemini_3_flash_prev,
              "chatbot_grok": [grok],            # grok
              
              "doc_summary": [gemini_2_5_flash_lite],
-             "reviewer": [gemini_3_flash_prev]
+             "reviewer": [claude_haiku_4_5]
 
              }
 
