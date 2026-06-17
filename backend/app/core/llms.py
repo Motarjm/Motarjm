@@ -48,7 +48,16 @@ claude_haiku_4_5 = ChatOpenAI(
     reasoning = {
         "effort": "none",
     }
-    
+)
+
+claude_sonnet_4_6 = ChatOpenAI(
+    model="anthropic/claude-sonnet-4.6",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 2048,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
 )
 claude_sonnet_4_6 = ChatOpenAI(
     model="anthropic/claude-sonnet-4.6",
@@ -94,7 +103,7 @@ providers = {"translator": [claude_sonnet_4_6,
              "advisor": [gemini_3_flash_prev,deepseek],
                           
              
-             "terminology": [gemini_3_flash_prev,
+             "terminology": [claude_haiku_4_5,
                              deepseek],
                 #  deepseek],
              

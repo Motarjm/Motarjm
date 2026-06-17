@@ -10,11 +10,9 @@ def build_graph():
     workflow.add_node(advisor_agent)
     workflow.add_node(increment_iteration)
     workflow.add_node(check_score)
-    workflow.add_node(terminology_agent)
     
-    workflow.add_edge(START, "terminology_agent")
+    workflow.add_edge(START, "translator_agent")
     
-    workflow.add_edge("terminology_agent", "translator_agent")
 
     # workflow.add_edge("translator_agent", "increment_iteration")
     workflow.add_edge("translator_agent", "evaluator_agent")

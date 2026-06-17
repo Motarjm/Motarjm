@@ -113,7 +113,7 @@ const Torgman = () => {
           setProgress(0);
           setTotalBlocks(0);
           setTranslationStartTime(null);
-          setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+          setStatus('‫تمت الترجمة بنجاح!');
         }
       } catch (e) {
         console.error('Failed to load translation data from IndexedDB:', e);
@@ -275,7 +275,7 @@ const Torgman = () => {
     if (isPreparingSample || (isTranslating && !downloadUrl)) return;
 
     setIsPreparingSample(true);
-    setStatus('جاري تجهيز ملف العينة...');
+    setStatus('جارٍ تجهيز ملف العينة...');
     
 
     try {
@@ -311,7 +311,7 @@ const Torgman = () => {
     }
 
     setIsTranslating(true);
-    setStatus('جاري المعالجة...');
+    setStatus('‫قيد المعالجة...');
     setProgress(0);
     setTotalBlocks(0);
     const translationStartTs = Date.now();
@@ -407,7 +407,7 @@ const Torgman = () => {
                 latestTotalBlocks = event.total;
                 setProgress(event.completed);
                 setTotalBlocks(event.total);
-                setStatus(`جاري الترجمة... ${event.completed}/${event.total}`);
+                setStatus(`‫قيد الترجمة... ${event.completed}/${event.total}`);
               } else if (event.type === 'done') {
                 translationPhase = 'finalizing_result';
                 finalData = event;
@@ -509,7 +509,7 @@ const Torgman = () => {
       const translationDuration = Date.now() - translationStartTs;
       trackTranslationCompleted(fileType, selectedFile.size, translationDuration, true);
 
-      setStatus('تمت الترجمة بنجاح! جاهز للتحميل.');
+      setStatus('‫تمت الترجمة بنجاح!');
     } catch (error) {
       console.error("Translation Error:", error);
       const elapsedMs = Date.now() - translationStartTs;
@@ -576,11 +576,11 @@ const Torgman = () => {
   };
 
   const getEstimatedTime = () => {
-    if (!translationStartTime || progress < 1) return 'جاري التقدير...';
+    if (!translationStartTime || progress < 1) return '‫قيد التقدير...';
     const elapsed = (Date.now() - translationStartTime) / 1000; // seconds
     const avgPerBlock = elapsed / progress;
     const remaining = avgPerBlock * (totalBlocks - progress);
-    if (remaining < 60) return `~${Math.ceil(remaining)} ثانية متبقية`;
+    if (remaining < 60) return `نحو ${Math.ceil(remaining)} ثانية متبقية`;
     const mins = Math.floor(remaining / 60);
     return `~${mins} minutes remaining`;
   };
@@ -729,7 +729,7 @@ const Torgman = () => {
               onClick={handleTrySamplePdf}
               disabled={isPreparingSample || (isTranslating && !downloadUrl)}
             >
-              {isPreparingSample ? 'جاري تجهيز ملف العينة...' : 'جرّب ملف‫ PDF'}
+              {isPreparingSample ? 'جارٍ تجهيز ملف العينة...' : 'جرّب ملف‫ PDF'}
             </button>
           </div>
 
@@ -857,7 +857,7 @@ const Torgman = () => {
                 onClick={handleTranslateFile}
                 disabled={!selectedFile || isTranslating}
               >
-                {isTranslating ? 'جاري التحميل...' : 'ترجم المستندات'}
+                {isTranslating ? '‫قيد التحميل...' : 'ترجم المستندات'}
               </button>
             ) : (
               <div className="results-actions">

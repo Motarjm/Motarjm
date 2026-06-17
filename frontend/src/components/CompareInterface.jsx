@@ -699,8 +699,8 @@ const CompareInterface = () => {
           <div className={`document-container ${anyBtOpen ? 'bt-expanded' : ''}`}>
             <div className="comparison-table-header">
               <div className="header-spacer"></div>              
-              <h2 className="column-header">الترجمة الإنجليزية</h2>
-              <h2 className="column-header">النص العربي</h2>
+              <h2 className="column-header">النص الإنجليزي</h2>
+              <h2 className="column-header">الترجمة العربية</h2>
             </div>
 
             {translatedContents && translatedContents.map((page, pageIndex) => (
@@ -813,7 +813,7 @@ const CompareInterface = () => {
                         {openSuggestions[segmentId] && (
                           <div className="suggestions-panel" onClick={(e) => e.stopPropagation()}>
                             {suggestionsLoading[segmentId] ? (
-                              <div className="suggestions-loading">جاري التحميل...</div>
+                              <div className="suggestions-loading">‫قيد التحميل...</div>
                             ) : suggestions[segmentId] === '__ERROR__' ? (
                               <div className="explanation-error">
                                 ⚠️ Error occurred, please try again.
