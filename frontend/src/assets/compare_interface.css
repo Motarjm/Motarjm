@@ -6,9 +6,8 @@
   flex-direction: column;
   width: 100%;
   background: #e8e4db;
-  /* OLD: No specific font scale; NEW: Slightly smaller base for better breathing room */
   font-size: 0.95rem;
-  overflow-x: hidden; /* NEW - Fix horizontal scroll */
+  overflow-x: hidden;
 }
 
 .comparison-container .top-bar {
@@ -126,10 +125,9 @@
   flex: 1;
   overflow-y: auto;
   height: 100%;
-  /* NEW: Background padding to prevent content touching edges */
-  padding: 2rem 0;
-  overflow-x: hidden; /* NEW - Fix horizontal scroll */
-  width: 100%; /* NEW - Fix horizontal scroll */
+  padding: 1.5rem 0;  /* NEW: reduced from 2rem to save vertical space */
+  overflow-x: hidden;
+  width: 100%;
 }
 
 .document-area::-webkit-scrollbar {
@@ -153,93 +151,120 @@
 .document-container {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 0 3rem 5rem 3rem;
-  overflow-x: hidden; /* NEW - Fix horizontal scroll */
-  max-width: 100%; /* NEW - Fix horizontal scroll */
+  padding: 0 1.2rem 3rem 1.2rem;  /* NEW: reduced horizontal padding */
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
-/* Widen the container when any back-translation is open */
 .document-container.bt-expanded {
   max-width: 1900px;
 }
 
-/* OLD: grid-template-columns: 1fr 1fr; gap: 4rem; */
-/* NEW: Added a dedicated column for the ID and aligned headers */
+/* ─── NEW: Simplified two‑column header ─── */
 .comparison-table-header {
   display: grid;
-  grid-template-columns: 60px 1fr 1fr;
-  gap: 1.5rem;
-  margin-bottom: 2rem;
-  padding: 0 1rem;
+  grid-template-columns: 1fr 1fr;  /* CHANGED: was 60px 1fr 1fr */
+  gap: 1.2rem;
+  margin-bottom: 1.5rem;
+  padding: 0 0.5rem;
 }
 
-.header-spacer { width: 50px; }
+.header-spacer { display: none; }  /* NEW: no longer needed */
 
-/* NEW: Row container to force alignment */
-/* Default: 2 main columns + collapsed middle (just the button) */
-/* OLD: grid-template-columns: 60px 1fr auto 1fr; */
-/* NEW: Changed to minmax(0, 1fr) to prevent overflow */
+/* ─── NEW: Two‑column segment row (no more ID or BT columns) ─── */
 .segment-row {
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) auto minmax(0, 1fr); /* CHANGED - was '1fr', now 'minmax(0, 1fr)' */
-  gap: 1.5rem;
-  margin-bottom: 2.5rem;
+  grid-template-columns: 1fr 1fr;  /* CHANGED: was 60px 1fr auto 1fr */
+  gap: 1.2rem;
+  margin-bottom: 1.5rem;
   align-items: start;
-  padding-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
   border-bottom: 1px solid rgba(107, 125, 92, 0.08);
 }
 
-/* When back-translation is open: 3 equal readable columns */
+/* When back-translation is open: still two columns – it just expands inside the Arabic segment */
 .segment-row.bt-open {
-  grid-template-columns: 60px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); /* CHANGED - was '1fr', now 'minmax(0, 1fr)' */
-  margin-top: 3.5rem;
+  grid-template-columns: 1fr 1fr;  /* CHANGED: was 60px 1fr 1fr 1fr */
+  margin-top: 0;  /* CHANGED: was 3.5rem – no extra margin needed anymore */
 }
 
-/* NEW: Style for the numeric ID on the left */
-.segment-id-column {
+/* ─── NEW: Meta bar inside the segment card (holds ID, checkbox, BT button) ─── */
+.segment-meta {
   display: flex;
-  align-items: flex-start; /* Aligned to top of text */
-  padding-top: 1.5rem;
-  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--olive);
   font-family: 'IBM Plex Mono', monospace;
-  font-weight: 500;
-  color: black;
-  opacity: 0.7;
-  font-size: 1rem;
+  border-bottom: 1px dashed rgba(107, 125, 92, 0.15);
+  padding-bottom: 0.3rem;
 }
 
-.segment-id-column input[type="checkbox"] {
+.segment-meta .segment-id {
+  font-weight: 600;
+  color: var(--charcoal);
+  opacity: 0.6;
+}
+
+.segment-meta .meta-checkbox {
   accent-color: var(--terracotta);
-  width: 18px;
-  height: 18px;
-  margin-left: 6px;
-  margin-right: 6px;
+  width: 16px;
+  height: 16px;
   cursor: pointer;
   border-radius: 4px;
   border: 1.5px solid var(--terracotta);
   box-shadow: 0 1px 2px rgba(193, 80, 46, 0.08);
   transition: border-color 0.2s, box-shadow 0.2s;
+  margin: 0 4px;
 }
 
-.segment-id-column input[type="checkbox"]:hover {
+.segment-meta .meta-checkbox:hover {
   border-color: var(--gold);
   box-shadow: 0 0 0 2px rgba(193, 80, 46, 0.12);
 }
 
-.segment-id-column input[type="checkbox"]:checked {
+.segment-meta .meta-checkbox:checked {
   background: var(--terracotta);
   border-color: var(--gold);
 }
 
-.segment-row.active-row .segment-id-column {
+.segment-meta .backtranslation-btn {
+  padding: 2px 8px;
+  font-size: 0.6rem;
+  letter-spacing: 0.3px;
+  border-radius: 6px;
+  white-space: nowrap;
+  background: transparent;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  color: var(--olive);
+  cursor: pointer;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  transition: 0.2s ease;
+}
+
+.segment-meta .backtranslation-btn:hover {
+  background: #fff5f2;
+  border-color: var(--terracotta);
   color: var(--terracotta);
-  opacity: 1;
+}
+
+.segment-meta .backtranslation-btn.active {
+  background: #fff5f2;
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+}
+
+/* ── Remove obsolete ID column styles ── */
+.segment-id-column {
+  display: none;  /* REMOVED from grid – replaced by .segment-meta */
 }
 
 /* Page Group */
 .page-group {
-  margin-bottom: 3rem;
-  padding: 2rem 1.5rem 1rem;
+  margin-bottom: 2rem;
+  padding: 1.2rem 1rem 0.8rem;  /* NEW: reduced padding */
   background: rgba(255, 255, 255, 0.35);
   border-radius: 16px;
   border: 1px solid rgba(107, 125, 92, 0.12);
@@ -250,7 +275,7 @@
   display: flex;
   align-items: center;
   gap: 1.2rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .page-divider-line {
@@ -261,42 +286,42 @@
 
 .page-divider-label {
   font-family: 'Mirza', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1rem;          /* NEW: slightly smaller */
   font-weight: 700;
   color: var(--cream);
   background: linear-gradient(135deg, var(--terracotta), var(--deep-terracotta));
-  padding: 0.35rem 1.4rem;
+  padding: 0.25rem 1.2rem;
   border-radius: 20px;
   white-space: nowrap;
   letter-spacing: 1px;
   box-shadow: 0 2px 8px rgba(193, 80, 46, 0.18);
-  margin-left: 5rem;
+  margin-left: 0;           /* NEW: removed huge left margin */
 }
 
 .segment {
   background: var(--cream);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1rem 1.2rem;     /* NEW: compact but comfortable padding */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid rgba(107, 125, 92, 0.1);
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  min-width: 0; /* NEW - Fix horizontal scroll - allows shrinking */
-  word-wrap: break-word; /* NEW - Fix horizontal scroll */
-  overflow-wrap: break-word; /* NEW - Fix horizontal scroll */
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .arabic-side.segment {
   align-items: flex-start;
 }
 
+/* Remove the old align-self rule for BT button (now in meta) */
 .arabic-side .segment-action-btn {
   align-self: flex-end;
 }
 
-/* NEW: Highlight the whole row when active */
 .segment-row.active-row .segment {
   border-color: var(--gold);
   background: #fff;
@@ -304,44 +329,41 @@
   transform: translateY(-2px);
 }
 
-/* OLD: .segment-number { ... } -> REMOVED */
 .column-header {
   font-family: 'Mirza', sans-serif;
-  font-size: 1.2rem;
+  font-size: 1.1rem;        /* NEW: slightly smaller */
   color: var(--olive);
   text-transform: uppercase;
   letter-spacing: 1px;
   border-bottom: 2px solid var(--gold);
-  padding-bottom: 0.8rem;
+  padding-bottom: 0.6rem;
   text-align: center;
 }
 
 .segment-text {
-  /* OLD: line-height: 2.2; NEW: Slightly tighter for modern feel but still spacious */
-  line-height: 1.8;
+  line-height: 1.7;         /* NEW: tighter */
   color: var(--charcoal);
   outline: none;
   min-height: 1.5em;
-  word-break: break-word; /* NEW - Fix horizontal scroll */
-  white-space: normal; /* NEW - Fix horizontal scroll */
-  overflow-wrap: break-word; /* NEW - Fix horizontal scroll */
+  word-break: break-word;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .arabic-side .segment-text {
   font-family: 'IBM Plex Sans Arabic', sans-serif;
   direction: rtl;
-  /* NEW: Font size adjustment for Arabic visual weight */
-  font-size: 1.1rem;
-  word-break: break-word; /* NEW - Fix horizontal scroll */
-  white-space: normal; /* NEW - Fix horizontal scroll */
+  font-size: 1.05rem;       /* NEW: slightly smaller for balance */
+  word-break: break-word;
+  white-space: normal;
 }
 
 .english-side .segment-text {
   font-family: 'Merriweather', serif;
-  font-size: 1rem;
+  font-size: 0.95rem;       /* NEW: slightly smaller */
   color: #555;
-  word-break: break-word; /* NEW - Fix horizontal scroll */
-  white-space: normal; /* NEW - Fix horizontal scroll */
+  word-break: break-word;
+  white-space: normal;
 }
 
 .segment-text[contenteditable="true"]:focus {
@@ -362,7 +384,6 @@
   flex: 1;
 }
 
-/* Copy button styling */
 .copy-btn {
   display: inline-flex;
   align-items: center;
@@ -409,7 +430,6 @@
   }
 }
 
-/* Shared segment action button style */
 .segment-action-btn {
   display: inline-flex;
   align-items: center;
@@ -449,7 +469,6 @@
   color: var(--terracotta);
 }
 
-/* --- Segment action button row (suggestions + chat) --- */
 .segment-action-row {
   display: flex;
   gap: 6px;
@@ -457,8 +476,6 @@
   width: 100%;
   direction: ltr;
 }
-
-/* --- Suggestions Panel (inline below arabic text) --- */
 
 .suggestions-panel {
   margin-top: 10px;
@@ -479,8 +496,6 @@
   color: #999;
   font-size: 0.85rem;
 }
-
-/* --- Suggestion Cards --- */
 
 .suggestion-card {
   display: flex;
@@ -526,8 +541,8 @@
   color: #555;
   line-height: 1.75;
   text-align: right;
-  word-break: break-word; /* NEW - Fix horizontal scroll */
-  overflow-wrap: break-word; /* NEW - Fix horizontal scroll */
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .suggestion-apply-btn {
@@ -552,8 +567,6 @@
   color: var(--terracotta);
 }
 
-/* --- English Side Inner (text + explanation button) --- */
-
 .english-side-inner {
   display: flex;
   align-items: flex-start;
@@ -563,8 +576,6 @@
 .english-side-inner .segment-text {
   flex: 1;
 }
-
-/* --- Explanation Box (inline below english text) --- */
 
 .explanation-box {
   margin-top: 10px;
@@ -596,8 +607,8 @@
   font-size: 0.9rem;
   color: #444;
   line-height: 1.7;
-  word-break: break-word; /* NEW - Fix horizontal scroll */
-  overflow-wrap: break-word; /* NEW - Fix horizontal scroll */
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .explanation-error {
@@ -607,41 +618,12 @@
   font-style: italic;
 }
 
-/* --- Back-Translation Middle Column --- */
-
-.segment-middle-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  position: relative;
-}
-
-/* When closed: just the button, centered in the column */
-.backtranslation-btn {
-  padding: 4px 10px;
-  font-size: 0.68rem;
-  letter-spacing: 0.3px;
-  border-radius: 6px;
-  white-space: nowrap;
-  margin-top: 0;
-}
-
-/* When open: button floats above, box starts at top aligned with segments */
-.segment-row.bt-open .segment-middle-actions {
-  padding-top: 0;
-}
-
-.segment-row.bt-open .backtranslation-btn {
-  position: absolute;
-  top: -2rem;
-  z-index: 1;
-}
-
+/* ─── Back‑translation box (now lives inside Arabic segment) ─── */
 .backtranslation-box {
+  margin-top: 10px;
   background: var(--cream);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1rem;
   border: 1px solid rgba(107, 125, 92, 0.1);
   box-shadow: 0 2px 4px rgba(0,0,0,0.02);
   width: 100%;
@@ -653,8 +635,8 @@
   font-size: 0.95rem;
   color: #555;
   line-height: 1.8;
-  word-break: break-word; /* NEW - Fix horizontal scroll */
-  overflow-wrap: break-word; /* NEW - Fix horizontal scroll */
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .backtranslation-box .explanation-loading,
@@ -662,16 +644,17 @@
   font-size: 0.85rem;
 }
 
+/* ─── REMOVED: old .segment-middle-actions ─── */
+.segment-middle-actions {
+  display: none;  /* no longer used – everything is inside the segment meta */
+}
+
 /* ============================================================
    MOBILE RESPONSIVE  (≤ 768px)
-   All changes are scoped inside this media query — desktop
-   layout is completely untouched.
    ============================================================ */
-
 
 @media (max-width: 768px) {
 
-  /* ── Top bar ─────────────────────────────────────────────── */
   .comparison-container .top-bar-content {
     padding: 0.45rem 0.8rem;
     min-height: 48px;
@@ -695,14 +678,13 @@
     font-size: 0.78rem;
   }
 
-  /* ── Document area ───────────────────────────────────────── */
   .document-area {
     padding: 1rem 0;
     overflow-y: scroll;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    scrollbar-color: var(--terracotta) #d4cfc3; /* thumb track */
-    overflow-x: hidden; /* NEW - Fix horizontal scroll */
+    scrollbar-color: var(--terracotta) #d4cfc3;
+    overflow-x: hidden;
   }
 
   .document-area::-webkit-scrollbar {
@@ -721,15 +703,13 @@
   .document-container {
     padding: 0 0.75rem 3rem 0.75rem;
     max-width: 100%;
-    overflow-x: hidden; /* NEW - Fix horizontal scroll */
+    overflow-x: hidden;
   }
 
-  /* ── Hide the desktop column headers (useless when stacked) ─ */
   .comparison-table-header {
     display: none;
   }
 
-  /* ── Page group ──────────────────────────────────────────── */
   .page-group {
     padding: 1rem 0.75rem 0.75rem;
     border-radius: 12px;
@@ -737,13 +717,12 @@
   }
 
   .page-divider-label {
-    /* Remove the large desktop left-margin */
     margin-left: 0;
     font-size: 0.95rem;
     padding: 0.3rem 1rem;
   }
 
-  /* ── Segment row: switch from 4-column grid → flex column ── */
+  /* ── Mobile: stack segments vertically ── */
   .segment-row {
     display: flex;
     flex-direction: column;
@@ -752,97 +731,55 @@
     padding-bottom: 1.25rem;
   }
 
-  /* bt-open on mobile: no extra top-margin needed */
   .segment-row.bt-open {
     margin-top: 0;
   }
 
-  /* ── ID / checkbox strip at the top of each pair ─────────── */
-  .segment-id-column {
-    flex-direction: row;
-    padding-top: 0;
-    justify-content: flex-start;
-    align-items: center;
-    font-size: 0.8rem;
-    gap: 0.4rem;
-    order: 0;
-    opacity: 0.6;
+  .segment-meta {
+    font-size: 0.65rem;
   }
 
-  .segment-row.active-row .segment-id-column {
-    opacity: 1;
-  }
-
-  /* ── Segment cards ───────────────────────────────────────── */
   .segment {
-    padding: 1rem;
+    padding: 0.9rem;
     border-radius: 10px;
     width: 100%;
     box-sizing: border-box;
-    min-width: 0; /* NEW - Fix horizontal scroll */
+    min-width: 0;
   }
 
-  /* English on top */
-  .english-side {
-    order: 1;
-  }
-
-  /* Arabic below */
-  .arabic-side {
-    order: 2;
-  }
-
-  /* Middle actions (back-translation) between the two */
-  .segment-middle-actions {
-    order: 3;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: center;
-    width: 100%;
-  }
-
-  /* On desktop this is absolute-positioned above bt-open rows.
-     On mobile: just flow normally in the column. */
-  .segment-row.bt-open .backtranslation-btn {
-    position: static;
-  }
+  .english-side { order: 1; }
+  .arabic-side { order: 2; }
 
   .backtranslation-box {
     width: 100%;
     margin-top: 0.5rem;
   }
 
-  /* ── Text sizes ──────────────────────────────────────────── */
   .arabic-side .segment-text {
     font-size: 1rem;
-    word-break: break-word; /* NEW - Fix horizontal scroll */
-    white-space: normal; /* NEW - Fix horizontal scroll */
+    word-break: break-word;
+    white-space: normal;
   }
 
   .english-side .segment-text {
     font-size: 0.9rem;
-    word-break: break-word; /* NEW - Fix horizontal scroll */
-    white-space: normal; /* NEW - Fix horizontal scroll */
+    word-break: break-word;
+    white-space: normal;
   }
 
-  /* ── Action buttons ──────────────────────────────────────── */
   .segment-action-btn {
     font-size: 0.7rem;
     padding: 4px 8px;
   }
 
-  /* Arabic action row: left-to-right feels natural in a stacked card */
   .segment-action-row {
     justify-content: flex-end;
   }
 
-  /* Suggestions panel full-width */
   .suggestions-panel {
     max-width: 100%;
   }
 
-  /* Explanation box full-width */
   .explanation-box {
     width: 100%;
     box-sizing: border-box;
@@ -868,7 +805,7 @@
 }
 
 /* ============================================================
-   REVISION BANNER – new addition for review suggestions
+   REVISION BANNER – unchanged
    ============================================================ */
 
 .revision-banner {
@@ -963,7 +900,6 @@
   color: white;
 }
 
-/* Mobile adjustments for revision banner */
 @media (max-width: 768px) {
   .revision-banner-content {
     padding: 10px 12px;
@@ -980,18 +916,13 @@
   }
 }
 
-/* ============================================================
-   HIGHLIGHT FOR SEGMENT BEING REVIEWED – added
-   ============================================================ */
-
 .segment-row.reviewing-row {
-  background-color: #fff3cd;        /* light yellow background */
-  border-left: 4px solid #ffc107;   /* gold accent border */
+  background-color: #fff3cd;
+  border-left: 4px solid #ffc107;
   border-radius: 8px;
   transition: background-color 0.3s ease, border-color 0.3s ease;
 }
 
-/* Keep the existing active-row highlight intact when both classes are present */
 .segment-row.reviewing-row.active-row {
   background-color: #fff3cd;
   border-left: 4px solid #ffc107;

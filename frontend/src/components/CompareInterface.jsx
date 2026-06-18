@@ -6,6 +6,7 @@ import FocusChatPanel from './FocusChatPanel';
 import { trackNavigation, trackEvent } from '../analytics';
 import { trackApiError } from '../errorTracking';
 import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
+import GeneralChat from './GeneralChat';
 import {
   createDocument,
   getActiveDocumentId,
@@ -695,6 +696,15 @@ const CompareInterface = () => {
       </div>
       
       <div className="comparison-content-wrapper">
+         {/* Chat comes first in DOM → appears on the right */}
+        <GeneralChat
+          documentId={documentId}
+          translatedContents={translatedContents}
+          sourceLang={sourceLang}
+          targetLang={targetLang}
+          styleGuideQueryValue={getActiveStyleGuideQueryValue()}
+        />
+
         <div className="document-area">
           <div className={`document-container ${anyBtOpen ? 'bt-expanded' : ''}`}>
             <div className="comparison-table-header">

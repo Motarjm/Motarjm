@@ -1,0 +1,214 @@
+/* General Chat – Inline Panel (no toggle) – Resizable */
+
+.general-chat-panel {
+  width: 380px;
+  min-width: 200px;
+  max-width: 70vw;           /* prevents pushing content out entirely */
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--sand, #e8e4db);
+  border-right: 1px solid rgba(107, 125, 92, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;        /* for the resizer handle */
+}
+
+/* ── Resizer handle (left edge of the panel) ── */
+.general-chat-resizer {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.general-chat-resizer:hover,
+.general-chat-resizer.active {
+  background: var(--terracotta, #c1502e);
+  opacity: 0.3;
+}
+
+/* ── Header ── */
+.general-chat-header {
+  padding: 1rem 1.2rem;
+  background: var(--cream, #f7f3eb);
+  border-bottom: 1px solid rgba(107, 125, 92, 0.12);
+  flex-shrink: 0;
+}
+
+.general-chat-title {
+  font-family: 'Mirza', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--charcoal, #2c3e2f);
+  letter-spacing: 0.5px;
+}
+
+/* ── Messages ── */
+.general-chat-messages {
+  flex: 1;
+  padding: 1rem 1.2rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.general-chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.general-chat-messages::-webkit-scrollbar-track {
+  background: #d4cfc3;
+}
+
+.general-chat-messages::-webkit-scrollbar-thumb {
+  background: var(--terracotta, #c1502e);
+  border-radius: 3px;
+}
+
+/* ── Individual message ── */
+.general-chat-message {
+  display: flex;
+  max-width: 92%;
+}
+
+.general-chat-message.user {
+  align-self: flex-end;
+}
+
+.general-chat-message.assistant {
+  align-self: flex-start;
+}
+
+.general-chat-bubble {
+  padding: 0.6rem 0.9rem;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--charcoal, #2c3e2f);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.general-chat-message.user .general-chat-bubble {
+  background: var(--terracotta, #c1502e);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.general-chat-message.assistant .general-chat-bubble {
+  background: #f0ede7;
+  border-bottom-left-radius: 4px;
+}
+
+/* ── Typing indicator ── */
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.4rem 0.8rem;
+  min-height: 28px;
+  background: #f0ede7;
+}
+
+.typing-indicator span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--olive, #6b7d5c);
+  border-radius: 50%;
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30% { transform: translateY(-6px); }
+}
+
+/* ── Input area ── */
+.general-chat-input-area {
+  display: flex;
+  padding: 0.8rem 1.2rem;
+  gap: 0.6rem;
+  border-top: 1px solid rgba(107, 125, 92, 0.1);
+  background: var(--cream, #f7f3eb);
+  flex-shrink: 0;
+  align-items: flex-end;
+}
+
+.general-chat-input {
+  flex: 1;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  border-radius: 20px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--charcoal, #2c3e2f);
+  resize: none;
+  min-height: 36px;
+  max-height: 120px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.general-chat-input:focus {
+  border-color: var(--terracotta, #c1502e);
+}
+
+.general-chat-input:disabled {
+  opacity: 0.6;
+}
+
+.general-chat-send {
+  background: var(--terracotta, #c1502e);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 0.5rem 1.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  white-space: nowrap;
+  height: 36px;
+}
+
+.general-chat-send:hover:not(:disabled) {
+  background: var(--deep-terracotta, #8b3a23);
+}
+
+.general-chat-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Responsive: hide or shrink on smaller screens ── */
+@media (max-width: 1024px) {
+  .general-chat-panel {
+    width: 300px;            /* still comfortable on tablets */
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 768px) {
+  .general-chat-panel {
+    display: none;           /* too crowded on mobile – hides cleanly */
+  }
+}
