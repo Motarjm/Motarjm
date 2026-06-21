@@ -21,7 +21,7 @@ const GeneralChat = ({
   const [messagesLoaded, setMessagesLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [model, setModel] = useState('gemini');
-  const [width, setWidth] = useState(380);
+  const [width, setWidth] = useState(470);
   const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef(null);
 

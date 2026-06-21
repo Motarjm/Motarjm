@@ -1,7 +1,6 @@
 /* General Chat – Inline Panel (no toggle) – Resizable */
 
 .general-chat-panel {
-  width: 380px;
   min-width: 200px;
   max-width: 70vw;
   flex-shrink: 0;
