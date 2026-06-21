@@ -1,0 +1,106 @@
+/* General Chat – Inline Panel (no toggle) – Resizable */
+
+.general-chat-panel {
+  min-width: 200px;
+  max-width: 70vw;
+  flex-shrink: 0;
+  height: 100%;
+  background: var(--sand, #e8e4db);
+  border-left: 1px solid rgba(107, 125, 92, 0.12);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.09);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── Resizer handle ── */
+.general-chat-resizer {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.2s ease;
+}
+
+.general-chat-resizer::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 48px;
+  border-radius: 2px;
+  background: rgba(107, 125, 92, 0.22);
+  pointer-events: none;
+  transition: background 0.2s;
+}
+
+.general-chat-resizer:hover,
+.general-chat-resizer.active {
+  background: rgba(193, 80, 46, 0.06);
+}
+
+.general-chat-resizer:hover::after,
+.general-chat-resizer.active::after {
+  background: var(--terracotta, #c1502e);
+}
+
+/* ── Header ── */
+.general-chat-header {
+  padding: 0.85rem 1.2rem;
+  background: var(--cream, #f7f3eb);
+  border-bottom: 1px solid rgba(107, 125, 92, 0.12);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.general-chat-title {
+  font-family: 'Mirza', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--charcoal, #2c3e2f);
+  letter-spacing: 0.5px;
+}
+
+.general-chat-clear-btn {
+  background: none;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #bbb;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.general-chat-clear-btn:hover {
+  border-color: var(--terracotta, #c1502e);
+  color: var(--terracotta, #c1502e);
+  background: rgba(193, 80, 46, 0.05);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .general-chat-panel {
+    width: 300px;
+    min-width: 160px;
+  }
+}
+
+@media (max-width: 768px) {
+  .general-chat-panel {
+    display: none;
+  }
+}

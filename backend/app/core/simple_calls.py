@@ -6,6 +6,9 @@ from app.core.prompts import *
 from app.core.agents import provider_invoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
 from typing import List, Tuple
 
+#TODO: terminoloy agent takes as arg 'document' with keys 'text' because the document is coming from the backend
+# but in the frontend the document is coming from the frontend with keys 'original_text' and 'translated_text' so we need to unify this
+# this is apparent in terminology agent and stream_reviewer functions
 def generate_explanation(source_text: str, page_context: List):
     """
     Generates explanation for the given source text
@@ -381,4 +384,104 @@ def terminology_agent(document, source_lang, target_lang, style_guide, glossary)
   
   return matched_terms_json
 
+def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
+                           chat_history: List[dict],  doc_context: List[List[dict]], 
+                           style_guide: str = "", review_results: List[dict] = []):
+    """
+    Streams chatbot response tokens for a general document-level chat.
+    
+    Arguments:
+        - doc_context: list of list of dicts of source and translated blocks for the whole document
+        have keys: "original_text" and "translated_text"
+        - source_lang / target_lang: language pair
+        - chat_history: list of {role: "user"|"bot", text: str}
 
+    
+    Yields:
+        - str: text chunks
+    """
+    provider_key = f"general_chatbot_{model}"
+
+    sys_prompt_content = GENERAL_CHATBOT_SYS_PROMPT
+    doc_source = []
+    for page in doc_context:
+        current_page_blocks = []
+        for block in page:            
+            current_page_blocks.append(block["original_text"])
+                
+        doc_source.append(current_page_blocks)
+    
+    # if there is style guide, dont use doc summary
+    if style_guide:
+        sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+
+    else:
+        doc_summary = generate_doc_summary(doc_source)
+        sys_prompt_content += f"\n\n{DOC_SUMMARY_ADD_ON.format(doc_summary=doc_summary)}"
+
+    
+    sys_prompt = SystemMessage(
+        content=sys_prompt_content,
+        agent="general_chatbot"
+    )
+    
+    context = ""
+    # if one page then only differentiate by blocks, if multiple pages then differentiate by pages and blocks
+    if len(doc_context) == 1:
+        for i, block in enumerate(doc_context[0], 1):
+            context += f"<segment id='{i}'>\n"
+            context += f"      <source>{block['original_text']}</source>\n"
+            context += f"      <translation>{block['translated_text']}</translation>\n"
+            context += "</segment>\n"
+    
+    else:
+        for i, page in enumerate(doc_context, 1):
+            context += f"<page n='{i}'>" + "\n"
+            for j, block in enumerate(page, 1):
+                context += f"    <segment id='{j}'>\n"
+                context += f"      <source>{block['original_text']}</source>\n"
+                context += f"      <translation>{block['translated_text']}</translation>\n"
+                context += "    </segment>\n"
+            context += "</page>\n"
+    
+    context_msg = HumanMessage(
+        content=GENERAL_CHATBOT_PROMPT.format(
+            doc_context=context
+        ),
+        agent="general_chatbot"
+    )
+    
+    # Build message list: system + context + history
+    messages = [sys_prompt, context_msg]
+    
+    if review_results:
+        changed = [r for r in review_results if r.get("changed")]
+        review_xml = "<review_results>\n"
+        for r in review_results:
+            review_xml += f'  <segment id="{r["id"]}" changed="{str(r.get("changed", False)).lower()}">\n'
+            review_xml += f'    <source>{r["source"]}</source>\n'
+            review_xml += f'    <original_translation>{r["original_translation"]}</original_translation>\n'
+            review_xml += f'    <revised_translation>{r["revised_translation"]}</revised_translation>\n'
+            if r.get("note"):
+                review_xml += f'    <note>{r["note"]}</note>\n'
+            review_xml += '  </segment>\n'
+        review_xml += "</review_results>"
+        messages.append(HumanMessage(
+            content=f"Here are the review results for this document ({len(changed)} segments changed):\n\n{review_xml}",
+            agent="general_chatbot"
+        ))
+        messages.append(AIMessage(content="I have the review results. I'm ready to explain the changes and discuss them with you."))
+    
+    for msg in chat_history:
+        if msg["role"] == "user":
+            messages.append(HumanMessage(content=msg["text"]))
+        else:
+            messages.append(AIMessage(content=msg["text"]))
+    
+    for chunk in provider_stream(provider_key, messages):
+        content = chunk.content
+        if isinstance(content, str):
+            yield content
+        elif isinstance(content, list) and content:
+            yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+    
