@@ -43,7 +43,9 @@ const CompareInterface = () => {
   const [reviewSuggestions, setReviewSuggestions] = useState({});
   const [reviewLoading, setReviewLoading] = useState(false);
   // NEW: track which segment is currently being processed during review
+  
   const [reviewingSegmentId, setReviewingSegmentId] = useState(null);
+  const [reviewResults, setReviewResults] = useState(null);
 
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -613,22 +615,21 @@ const CompareInterface = () => {
       let buffer = '';
       let fullText = '';
       let scanFrom = 0;
+      const reviewResultsLocal = {};
+
 
       // Called each time a complete segment object is extracted from the stream.
-      const applySegment = (item) => {
+        const applySegment = (item) => {
         const key = item.id;
         if (!key) return;
-        // Highlight the segment we just received
         setReviewingSegmentId(key);
+        const suggestion = item.revised_translation || item.suggestion || '';
+        const note = item.notes || item.note || '';
         setReviewSuggestions(prev => ({
           ...prev,
-          [key]: {
-            suggestion: item.revised_translation || item.suggestion || '',
-            note: item.notes || item.note || '',
-            dismissed: false,
-            applied: false,
-          },
+          [key]: { suggestion, note, dismissed: false, applied: false },
         }));
+        reviewResultsLocal[key] = { suggestion, note };
       };
 
       while (true) {
@@ -659,6 +660,23 @@ const CompareInterface = () => {
       // Final pass — catches any trailing object not followed by a newline.
       extractAndApplySegments(fullText, scanFrom, applySegment);
 
+      const results = translatedContents.flatMap((page, pi) =>
+        page.map((block, bi) => {
+          const key = `${pi}-${bi}`;
+          const r = reviewResultsLocal[key];
+          if (!r) return null;
+          return {
+            id: key,
+            source: block.original_text,
+            original_translation: block.translated_text,
+            revised_translation: r.suggestion,
+            note: r.note,
+            changed: r.suggestion !== block.translated_text,
+          };
+        }).filter(Boolean)
+      );
+      setReviewResults(results);
+
     } catch (error) {
       console.error('Review error:', error);
       alert('Failed to review document. Please check the console or try again.');
@@ -668,6 +686,8 @@ const CompareInterface = () => {
       setReviewingSegmentId(null);
     }
   };
+
+  
 
   return (
     <div className="comparison-container">
@@ -697,12 +717,16 @@ const CompareInterface = () => {
       
       <div className="comparison-content-wrapper">
          {/* Chat comes first in DOM → appears on the right */}
-        <GeneralChat
+          <GeneralChat
           documentId={documentId}
-          translatedContents={translatedContents}
+          translatedContents={translatedContents.map(page => page.map(block => ({
+                                                                        original_text: block.original_text,
+                                                                        translated_text: block.translated_text
+                                                                      })))}
           sourceLang={sourceLang}
           targetLang={targetLang}
           styleGuideQueryValue={getActiveStyleGuideQueryValue()}
+          reviewResults={reviewResults}
         />
 
         <div className="document-area">
@@ -850,7 +874,6 @@ const CompareInterface = () => {
                         {reviewSuggestions[segmentId]?.note && !reviewSuggestions[segmentId].dismissed && !reviewSuggestions[segmentId].applied && (
                           <div className="revision-banner" onClick={(e) => e.stopPropagation()}>
                             <div className="revision-banner-content">
-                              <div className="revision-note">{reviewSuggestions[segmentId].note}</div>
                               <div className="revision-suggestion-text">{reviewSuggestions[segmentId].suggestion}</div>
                               <div className="revision-actions">
                                 <button
@@ -912,7 +935,7 @@ const CompareInterface = () => {
                               setFocusChatSegment({ pageIndex, blockIndex, id: segmentId }); 
                             }}
                           >
-                            💬 Chat
+                            💬 Segment Chat
                           </button>
                         </div>
                       </div>

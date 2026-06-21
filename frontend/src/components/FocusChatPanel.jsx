@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import ChatInterface from './ChatInterface';
 import { diffWords } from 'diff';
 import '../assets/focus_chat.css';
 import { API_URL } from '../apiConfig';
@@ -61,8 +60,8 @@ const FocusChatPanel = ({
   onClose,
   onEditTranslation,
 }) => {
+ 
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini');
   const [isStreaming, setIsStreaming] = useState(false);
   const [ephemeralError, setEphemeralError] = useState(null);
@@ -70,7 +69,6 @@ const FocusChatPanel = ({
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
-  const textareaRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
   const focusStartTimeRef = useRef(Date.now()); // Track session start time
 
@@ -142,47 +140,16 @@ const FocusChatPanel = ({
     return null;
   };
 
-  // Auto-resize textarea when user types (Claude-style)
-  const handleInputChange = (e) => {
-    setInput(e.target.value);
-    
-    // Auto-resize textarea
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      const scrollHeight = textareaRef.current.scrollHeight;
-      // Grow up to a maximum height, then allow scrolling
-      const newHeight = Math.min(scrollHeight, 300); // Max 300px before scrollbar
-      textareaRef.current.style.height = newHeight + 'px';
-      
-      // Add scrollable class only when content exceeds max-height
-      if (scrollHeight > 150) {
-        textareaRef.current.classList.add('scrollable');
-      } else {
-        textareaRef.current.classList.remove('scrollable');
-      }
-    }
-  };
-
-  const handleSend = async () => {
-    if (!historyLoaded || !input.trim() || isStreaming) return;
+  
+    const handleSend = async (text) => {
+    if (!historyLoaded || !text.trim() || isStreaming) return;
 
     setEphemeralError(null);
-    const userMsg = { role: 'user', text: input };
+    const userMsg = { role: 'user', text };
     const updatedMessages = [...messages, userMsg];
     setMessages(updatedMessages);
     chatHistoryRef.current = [...chatHistoryRef.current, userMsg];
-    
-    // Track chat interaction
     trackChatInteraction('user');
-    
-    setInput('');
-    
-    // Reset textarea height to default
-    if (textareaRef.current) {
-      textareaRef.current.style.height = '38px';
-      textareaRef.current.classList.remove('scrollable');
-    }
-    
     setIsStreaming(true);
 
     // Add empty bot message placeholder for streaming
@@ -298,21 +265,7 @@ const FocusChatPanel = ({
     }
   };
 
-  // Auto-resize textarea
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [input]);
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
+  
   // Detect Arabic text and track copy events
   const detectArabicText = (text) => {
     return /[\u0600-\u06FF]/.test(text);
@@ -372,72 +325,31 @@ const FocusChatPanel = ({
             </p>
           </div>
 
-          <div className="focus-chat-messages">
-            {messages.length === 0 && !ephemeralError && (
-              <div className="focus-chat-empty">
-                We Prompt Engineer. You Translate.
-              </div>
-            )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`focus-chat-msg focus-chat-msg-${msg.role}`}>
-                {msg.role === 'bot' ? (
-                  msg.text === '' ? (
-                    <span className="focus-chat-typing">
-                      <span /><span /><span />
-                    </span>
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
-                  )
-                ) : (
-                  msg.text
-                )}
-              </div>
-            ))}
-            {ephemeralError && (
-              <div className="focus-chat-msg focus-chat-msg-error">
-                {ephemeralError}
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+            <ChatInterface
+            messages={messages}
+            onSend={handleSend}
+            isLoading={isStreaming}
+            model={selectedModel}
+            onModelChange={setSelectedModel}
+            showModelSelect={true}
+            placeholder="Ask anything about this segment…"
+            emptyStateText="We Prompt Engineer. You Translate."
+            ephemeralError={ephemeralError}
+            belowMessages={pendingEdit ? (
+              <DiffPreview
+                oldText={pendingEdit.oldText}
+                newText={pendingEdit.newText}
+                onApply={() => {
+                  trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
+                  onEditTranslation(pendingEdit.newText);
+                  setPendingEdit(null);
+                }}
+                onDiscard={() => setPendingEdit(null)}
+              />
+            ) : null}
+            messagesEndRef={messagesEndRef}
+          />
 
-          {pendingEdit && (
-            <DiffPreview
-              oldText={pendingEdit.oldText}
-              newText={pendingEdit.newText}
-              onApply={() => {
-                // Track AI suggestion applied
-                trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
-                onEditTranslation(pendingEdit.newText);
-                setPendingEdit(null);
-              }}
-              onDiscard={() => setPendingEdit(null)}
-            />
-          )}
-
-          <div className="focus-chat-input-row">
-            <select
-              className="focus-chat-model-select"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-            >
-              <option value="gemini">Gemini</option>
-              <option value="grok">Grok</option>
-              <option value="deepseek">DeepSeek</option>
-            </select>
-            <textarea
-              ref={textareaRef}
-              className="focus-chat-input"
-              placeholder="Ask anything about this segment..."
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              rows={1}
-            />
-            <button className="focus-chat-send" onClick={handleSend} disabled={isStreaming}>
-              {isStreaming ? '…' : '↑'}
-            </button>
-          </div>
         </div>
       </div>
     </div>
