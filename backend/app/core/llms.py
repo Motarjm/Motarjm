@@ -122,7 +122,11 @@ providers = {"translator": [claude_sonnet_4_6,
              "chatbot_grok": [grok],            # grok
              
              "doc_summary": [gemini_2_5_flash_lite],
-             "reviewer": [claude_haiku_4_5]
+             "reviewer": [claude_haiku_4_5],
+             
+             "general_chatbot_gemini": [gemini_3_flash_prev],
+             "general_chatbot_deepseek": [deepseek],
+             "general_chatbot_grok": [grok],
 
              }
 
