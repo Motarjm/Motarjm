@@ -827,6 +827,7 @@ const Torgman = () => {
                   type="button"
                   className="compact-remove-btn" 
                   onClick={(e) => {
+                    cancelTranslation();
                     e.stopPropagation();
                     setFileName('');
                     setSelectedFile(null);
@@ -837,6 +838,8 @@ const Torgman = () => {
                       if (glossaryInputRef.current) glossaryInputRef.current.value = '';
 
                   }}
+
+                  
                 >
                   تغيير الملف ✕
                 </button>
@@ -895,73 +898,7 @@ const Torgman = () => {
             onChange={handleGlossaryChange}
             accept=".tbx"
           />
-
-          {/* File Display */}
-          {/* {fileName && (
-            <div className="file-list-container">
-              <div className="file-card">
-                <span className="file-type-icon">📄</span>
-                <div className="file-details">
-                  <div className="file-name">{fileName}</div>
-                  <div className="file-meta">
-                    {selectedFile
-                      ? `${(selectedFile.size / 1024).toFixed(1)} KB • جاهز للترجمة`
-                      : 'ملف محفوظ من الجلسة السابقة'}
-                  </div>
-                </div>
-                {/* ── CHANGED: cancelTranslation() added before state resets ── */}
-                <button 
-                  className="remove-file" 
-                  onClick={() => {
-                    cancelTranslation();
-                    setFileName('');
-                    setSelectedFile(null);
-                    resetTranslationUiState();
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = '';
-                    }
-                  }}
-                >
-                  ✕
-                </button>
-                {/* ──────────────────────────────────────────────────────────── */}
-              </div>
-            </div>
-          )} */}
-
-          {/* {glossaryFileName && (
-            <div className="file-list-container">
-              <div className="file-card">
-                <span className="file-type-icon">📘</span>
-                <div className="file-details">
-                  <div className="file-name">{glossaryFileName}</div>
-                  <div className="file-meta">
-                    {glossaryFile
-                      ? `${(glossaryFile.size / 1024).toFixed(1)} KB • جاهز للاستخدام`
-                      : glossaryFileSize
-                        ? `${(glossaryFileSize / 1024).toFixed(1)} KB • ملف مسرد محفوظ من الجلسة السابقة`
-                        : 'ملف مسرد محفوظ من الجلسة السابقة'}
-                  </div>
-                </div>
-                <button
-                  className="remove-file"
-                  onClick={() => {
-                    setGlossaryFileName('');
-                    setGlossaryFile(null);
-                    setGlossaryFileSize(null);
-                    sessionStorage.removeItem('translation_glossary_name');
-                    sessionStorage.removeItem('translation_glossary_size');
-                    if (glossaryInputRef.current) {
-                      glossaryInputRef.current.value = '';
-                    }
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          )} */}
-
+          
           {/* Action Buttons */}
           <div className="action-area">
             {/* Progress Bar - NEW */}
