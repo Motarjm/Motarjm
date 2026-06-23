@@ -81,6 +81,10 @@ const Torgman = () => {
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
   const translateBtnRef = useRef(); // Added to bring visibility to translate button
+  // ── CHANGED: two new refs for cancellation ─────────────────────────────────
+  const abortControllerRef = useRef(null);   // holds the AbortController for the active fetch
+  const translationIdRef = useRef(null);     // holds a unique ID for the active translation run
+  // ───────────────────────────────────────────────────────────────────────────
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -211,7 +215,21 @@ const Torgman = () => {
     chatKeysToDelete.forEach((key) => sessionStorage.removeItem(key));
   };
 
+  // ── CHANGED: cancelTranslation helper ──────────────────────────────────────
+  // Aborts any in-flight fetch and invalidates the current translation run ID
+  // so that stale async callbacks cannot update state after cancellation.
+  // Call this before every user action that discards the current translation.
+  const cancelTranslation = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    translationIdRef.current = null;
+  };
+  // ───────────────────────────────────────────────────────────────────────────
+
   const resetTranslationUiState = () => {
+    // ── CHANGED: abort any in-flight request before resetting UI ───────────
+    cancelTranslation();
+    // ───────────────────────────────────────────────────────────────────────
     setDownloadUrl('');
     setTranslatedContents(null);
     setFileContent(null);
@@ -316,6 +334,21 @@ const Torgman = () => {
       return;
     }
 
+    // ── CHANGED: create a unique ID for this run and an AbortController ────
+    // If the user cancels mid-translation, translationIdRef.current is set to
+    // null (in cancelTranslation). Every async checkpoint below compares its
+    // captured thisId against translationIdRef.current; a mismatch means the
+    // run was superseded and we return early without touching state.
+    const thisId = crypto.randomUUID();
+    translationIdRef.current = thisId;
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    // Convenience: returns true when this run has been cancelled or replaced.
+    const isCancelled = () => translationIdRef.current !== thisId;
+    // ───────────────────────────────────────────────────────────────────────
+
     setIsTranslating(true);
     setStatus('‫قيد المعالجة...');
     setProgress(0);
@@ -373,6 +406,9 @@ const Torgman = () => {
         {
           method: 'POST',
           body: formData,
+          // ── CHANGED: pass abort signal so the fetch is cancelled instantly ─
+          signal: controller.signal,
+          // ───────────────────────────────────────────────────────────────────
         }
       );
 
@@ -402,6 +438,9 @@ const Torgman = () => {
 
       const processLines = (lines) => {
         for (const line of lines) {
+          // ── CHANGED: stop processing lines if this run was cancelled ───────
+          if (isCancelled()) return;
+          // ───────────────────────────────────────────────────────────────────
           const trimmed = line.trim();
           if (trimmed.startsWith('data: ')) {
             const jsonStr = trimmed.slice(6);
@@ -440,6 +479,9 @@ const Torgman = () => {
       };
 
       while (true) {
+        // ── CHANGED: bail out of the read loop if this run was cancelled ─────
+        if (isCancelled()) break;
+        // ───────────────────────────────────────────────────────────────────
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -449,9 +491,15 @@ const Torgman = () => {
       }
 
       // Process any remaining data left in the buffer after stream ends
-      if (buffer.trim()) {
+      // ── CHANGED: skip if cancelled — we don't want to process a stale buffer
+      if (!isCancelled() && buffer.trim()) {
         processLines(buffer.split('\n\n'));
       }
+      // ───────────────────────────────────────────────────────────────────────
+
+      // ── CHANGED: if cancelled at this point, return before touching any state
+      if (isCancelled()) return;
+      // ───────────────────────────────────────────────────────────────────────
 
       if (!finalData) {
         translationPhase = 'missing_final_event';
@@ -496,6 +544,10 @@ const Torgman = () => {
       // Hard reset policy: each new upload replaces all previously persisted IndexedDB data.
       await clearAllPersistence();
 
+      // ── CHANGED: check again after the async clearAllPersistence call ──────
+      if (isCancelled()) return;
+      // ───────────────────────────────────────────────────────────────────────
+
       const persistedDocumentId = await createDocument({
         translatedContents: finalData.translated_contents,
         originalFile: newFileContent,
@@ -506,6 +558,11 @@ const Torgman = () => {
         glossaryFileName: glossaryFileName,
         glossaryFileSize: glossaryFileSize,
       });
+
+      // ── CHANGED: final guard before writing results to UI ──────────────────
+      if (isCancelled()) return;
+      // ───────────────────────────────────────────────────────────────────────
+
       setActiveDocumentId(persistedDocumentId);
 
       // Remove old sessionStorage artifacts so restore behavior is deterministic.
@@ -517,6 +574,11 @@ const Torgman = () => {
 
       setStatus('‫تمت الترجمة بنجاح!');
     } catch (error) {
+      // ── CHANGED: AbortError means the user cancelled — not a real error ────
+      // Don't show an error message or update any state; just return cleanly.
+      if (error.name === 'AbortError') return;
+      // ───────────────────────────────────────────────────────────────────────
+
       console.error("Translation Error:", error);
       const elapsedMs = Date.now() - translationStartTs;
       const errorMessageLower = String(error?.message || '').toLowerCase();
@@ -577,7 +639,12 @@ const Torgman = () => {
       
       setStatus('حدث خطأ أثناء الاتصال بالخادم');
     } finally {
-      setIsTranslating(false);
+      // ── CHANGED: only clear the translating flag if this run wasn't cancelled
+      // If it was cancelled, resetTranslationUiState already called setIsTranslating(false).
+      if (!isCancelled()) {
+        setIsTranslating(false);
+      }
+      // ───────────────────────────────────────────────────────────────────────
     }
   };
 
@@ -842,9 +909,11 @@ const Torgman = () => {
                       : 'ملف محفوظ من الجلسة السابقة'}
                   </div>
                 </div>
+                {/* ── CHANGED: cancelTranslation() added before state resets ── */}
                 <button 
                   className="remove-file" 
                   onClick={() => {
+                    cancelTranslation();
                     setFileName('');
                     setSelectedFile(null);
                     resetTranslationUiState();
@@ -855,6 +924,7 @@ const Torgman = () => {
                 >
                   ✕
                 </button>
+                {/* ──────────────────────────────────────────────────────────── */}
               </div>
             </div>
           )} */}
