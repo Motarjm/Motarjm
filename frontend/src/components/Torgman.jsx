@@ -80,12 +80,18 @@ const Torgman = () => {
   const [isPreparingSample, setIsPreparingSample] = useState(false);
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
+  const translateBtnRef = useRef(); // Added to bring visibility to translate button
   // ── CHANGED: two new refs for cancellation ─────────────────────────────────
   const abortControllerRef = useRef(null);   // holds the AbortController for the active fetch
   const translationIdRef = useRef(null);     // holds a unique ID for the active translation run
   // ───────────────────────────────────────────────────────────────────────────
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (fileName && translateBtnRef.current) {
+      translateBtnRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [fileName]);
   // Load latest translated document from IndexedDB on component mount
   useEffect(() => {
     let cancelled = false;
@@ -731,7 +737,7 @@ const Torgman = () => {
         <div className="card">
         
           {/* Style Guide Toggle Button */}
-           <div className="style-guide-toggle">
+           {/* <div className="style-guide-toggle">
             <button
               className={`btn-toggle-guide ${isStyleGuideOpen ? 'active' : ''} ${hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'has-data' : ''}`}
               onClick={() => setIsStyleGuideOpen(!isStyleGuideOpen)}
@@ -739,7 +745,7 @@ const Torgman = () => {
               <span className="icon">⚙️</span>
               {hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'Using Style Guide ✓' : 'Add Style Guide (Optional)'}
             </button>
-          </div>
+          </div> */}
 
           {/* Style Guide Panel - Conditionally Rendered */}
           {
@@ -800,34 +806,88 @@ const Torgman = () => {
             </button>
           </div>
 
-          {/* Upload Area */}
-          <div
-            className="upload-area"
-            onClick={() => fileInputRef.current.click()}
+            {/* Combined Upload & File Information Component */}
+          <div 
+            className={`upload-area ${fileName ? 'has-file' : ''}`}
+            onClick={() => !fileName && fileInputRef.current.click()}
           >
-            <div className="upload-icon">📤</div>
-            <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
-            <div className="upload-hint">PDF, XLIFF, DOCX ‫(الحد الأقصى ‫10MB)</div>
+            {!fileName ? (
+              <>
+                <div className="upload-icon">📤</div>
+                <div className="upload-text">اسحب وأفلت ملفاتك هنا</div>
+                <div className="upload-hint">PDF, XLIFF, DOCX ‫(الحد الأقصى ‫10MB)</div>
+              </>
+            ) : (
+              <div className="compact-file-info">
+                <div className="file-meta-side">
+                  <span className="file-icon-badge">📄</span>
+                  <span className="compact-filename">{fileName}</span>
+                </div>
+                <button 
+                  type="button"
+                  className="compact-remove-btn" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFileName('');
+                    setSelectedFile(null);
+                    setGlossaryFileName('');
+                    setGlossaryFile(null);
+                    resetTranslationUiState();
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                      if (glossaryInputRef.current) glossaryInputRef.current.value = '';
 
-
+                  }}
+                >
+                  تغيير الملف ✕
+                </button>
+              </div>
+            )}
           </div>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            style={{ display: 'none' }} 
+            <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
             onChange={handleFileChange}
             accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff,.docx"
           />
 
           <div className="glossary-upload">
-            <button
-              type="button"
-              className="glossary-upload-btn"
-              onClick={() => glossaryInputRef.current.click()}
-            >
-              أضف ملف مصطلحات (TBX)
-            </button>
-          </div>
+                {!glossaryFileName ? (
+                  <button
+                    type="button"
+                    className="glossary-upload-btn"
+                    onClick={() => glossaryInputRef.current.click()}
+                  >
+                    أضف ملف مصطلحات (TBX)
+                  </button>
+                ) : (
+                  <div className="glossary-chip">
+                    <span className="glossary-chip-icon">📘</span>
+                    <span className="glossary-chip-name" title={glossaryFileName}>
+                      {glossaryFileName}
+                    </span>
+                    
+                    <button
+                      type="button"
+                      className="glossary-chip-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGlossaryFileName('');
+                        setGlossaryFile(null);
+                        setGlossaryFileSize(null);
+                        sessionStorage.removeItem('translation_glossary_name');
+                        sessionStorage.removeItem('translation_glossary_size');
+                        if (glossaryInputRef.current) {
+                          glossaryInputRef.current.value = '';
+                        }
+                      }}
+                      aria-label="إزالة ملف المصطلحات"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
           <input
             type="file"
             ref={glossaryInputRef}
@@ -837,7 +897,7 @@ const Torgman = () => {
           />
 
           {/* File Display */}
-          {fileName && (
+          {/* {fileName && (
             <div className="file-list-container">
               <div className="file-card">
                 <span className="file-type-icon">📄</span>
@@ -867,9 +927,9 @@ const Torgman = () => {
                 {/* ──────────────────────────────────────────────────────────── */}
               </div>
             </div>
-          )}
+          )} */}
 
-          {glossaryFileName && (
+          {/* {glossaryFileName && (
             <div className="file-list-container">
               <div className="file-card">
                 <span className="file-type-icon">📘</span>
@@ -900,7 +960,7 @@ const Torgman = () => {
                 </button>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Action Buttons */}
           <div className="action-area">
