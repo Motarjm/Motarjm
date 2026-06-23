@@ -369,6 +369,7 @@
   display: flex;
   justify-content: center;
   margin: -0.5rem 0 1.4rem;
+  
 }
 
 .sample-file-btn {
@@ -403,7 +404,7 @@
 .upload-area {
   border: 2px dashed rgba(107, 125, 92, 0.3);
   border-radius: 2px;
-  padding: 2.21rem 1.36rem;
+  padding: 1rem 1.36rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -417,8 +418,8 @@
 }
 
 .upload-icon {
-  font-size: 2.38rem;
-  margin-bottom: 0.94rem;
+  font-size: 1.6rem;
+  margin-bottom: 0.4rem;
   opacity: 0.7;
   transition: all 0.3s ease;
 }
@@ -805,12 +806,12 @@
   }
 
   .upload-area {
-    padding: 1.53rem 0.77rem;
+    padding: 0.7rem 0.77rem;
   }
 
   .upload-icon {
-    font-size: 1.87rem;
-    margin-bottom: 0.6rem;
+    font-size: 1.4rem;
+    margin-bottom: 0.3rem;
   }
 
   .upload-text {
@@ -901,6 +902,16 @@
     width: 100%;
     justify-content: center;
   }
+
+  .compact-file-info {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  .compact-remove-btn {
+    align-self: flex-end;
+    padding: 2px 0;
+  }
 }
 
 @media (max-width: 360px) {
@@ -924,4 +935,117 @@
   .wn-timeline-text {
     font-size: 0.82rem;
   }
+}
+
+/* Compact Embedded File Details UI */
+.upload-area.has-file {
+  cursor: default;
+  border: 1px solid var(--terracotta);
+  background: rgba(193, 80, 46, 0.03);
+  padding: 0.8rem 1.2rem;
+  transform: none !important;
+}
+
+.compact-file-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  direction: rtl;
+  width: 100%;
+}
+
+.file-meta-side {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.file-icon-badge {
+  font-size: 1.2rem;
+}
+
+.compact-filename {
+  font-weight: 600;
+  color: var(--charcoal);
+  font-size: 0.9rem;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-glossary-badge {
+  font-size: 0.75rem;
+  background: rgba(107, 125, 92, 0.12);
+  color: var(--olive);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+
+.compact-remove-btn {
+  background: none;
+  border: none;
+  color: var(--terracotta);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.compact-remove-btn:hover {
+  background: rgba(193, 80, 46, 0.08);
+}
+
+/* Visibility Pulse for action attraction */
+@keyframes buttonPulse {
+  0% { box-shadow: 0 0 0 0 rgba(193, 80, 46, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(193, 80, 46, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(193, 80, 46, 0); }
+}
+
+.translate-btn.ready-pulse {
+  animation: buttonPulse 2s infinite;
+}
+
+
+.glossary-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f0f9f5;
+  border: 1px solid #b7e0c6;
+  border-radius: 20px;
+  font-size: 14px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.glossary-chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  font-weight: 500;
+}
+
+.glossary-chip-size {
+  color: #555;
+  font-size: 12px;
+}
+
+.glossary-chip-remove {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+
+.glossary-chip-remove:hover {
+  color: #d32f2f;
 }
