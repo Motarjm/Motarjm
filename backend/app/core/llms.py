@@ -1,6 +1,7 @@
-from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
+from langchain.agents import create_agent
+from app.core.tools import search_tool
+from langchain.agents.middleware import ToolCallLimitMiddleware
 
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
@@ -91,8 +92,26 @@ gpt_5_nano  = ChatOpenAI(
     }
 )
 
+limiter = ToolCallLimitMiddleware(
+    run_limit=3,          # max 3 tool calls per agent.invoke()
+    exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
+)
 
-providers = {"translator": [claude_sonnet_4_6,
+
+agent_gemini_3_flash_prev = create_agent(gemini_3_flash_prev,
+                                         [search_tool],
+                                         middleware = [limiter])
+agent_deepseek = create_agent(deepseek, 
+                              [search_tool],
+                              middleware = [limiter])
+
+agent_grok = create_agent(grok, 
+                          [search_tool],
+                          middleware = [limiter])
+
+
+
+providers = {"translator": [gemini_3_flash_prev,
                             deepseek],
                                 # deepseek,
              
@@ -120,6 +139,7 @@ providers = {"translator": [claude_sonnet_4_6,
              "chatbot_deepseek": [deepseek],    # deepseek
              "chatbot_gemini": [gemini_3_flash_prev],  # gemini
              "chatbot_grok": [grok],            # grok
+             "chatbot_claude": [claude_haiku_4_5],  # claude
              
              "doc_summary": [gemini_2_5_flash_lite],
              "reviewer": [claude_haiku_4_5],
@@ -127,6 +147,7 @@ providers = {"translator": [claude_sonnet_4_6,
              "general_chatbot_gemini": [gemini_3_flash_prev],
              "general_chatbot_deepseek": [deepseek],
              "general_chatbot_grok": [grok],
+             "general_chatbot_claude": [claude_haiku_4_5]
 
              }
 

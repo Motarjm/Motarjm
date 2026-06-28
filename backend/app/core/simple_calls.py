@@ -479,6 +479,13 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
             messages.append(AIMessage(content=msg["text"]))
     
     for chunk in provider_stream(provider_key, messages):
+        # if chunk.get("model"):
+        #     messages = chunk["model"]["messages"]
+        #   # Find the last AI message without tool calls
+        # for msg in reversed(messages):
+        #     if isinstance(msg, AIMessage) and not msg.tool_calls:
+        #         message = msg.content
+        #         yield message[0].get("text", "") if isinstance(message[0], dict) else str(message[0])
         content = chunk.content
         if isinstance(content, str):
             yield content
