@@ -62,7 +62,7 @@ const FocusChatPanel = ({
 }) => {
  
   const [messages, setMessages] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('gemini');
+  const [selectedModel, setSelectedModel] = useState('claude');
   const [isStreaming, setIsStreaming] = useState(false);
   const [ephemeralError, setEphemeralError] = useState(null);
   const [pendingEdit, setPendingEdit] = useState(null);

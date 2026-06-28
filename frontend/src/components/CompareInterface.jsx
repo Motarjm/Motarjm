@@ -687,6 +687,17 @@ const CompareInterface = () => {
     }
   };
 
+  const handleSegmentEdit = (pageIndex, blockIndex, newText) => {
+    handleArabicEdit(pageIndex, blockIndex, newText);
+    
+    const key = `${pageIndex}-${blockIndex}`;
+    const row = document.getElementById(`row-${key}`);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('highlight-flash');
+      setTimeout(() => row.classList.remove('highlight-flash'), 2000);
+    }
+  };
   
 
   return (
@@ -700,13 +711,6 @@ const CompareInterface = () => {
             </button> */}
             <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
               Generate XLIFF
-            </button>
-             <button
-              className="sidebar-btn"
-              onClick={handleReviewDocument}
-              disabled={reviewLoading}
-            >
-              {reviewLoading ? '...Reviewing' : 'Review Document'}
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
@@ -727,6 +731,9 @@ const CompareInterface = () => {
           targetLang={targetLang}
           styleGuideQueryValue={getActiveStyleGuideQueryValue()}
           reviewResults={reviewResults}
+          onSegmentEdit={handleSegmentEdit}
+          onReviewDocument={handleReviewDocument}
+          reviewLoading={reviewLoading}
         />
 
         <div className="document-area">
@@ -756,16 +763,16 @@ const CompareInterface = () => {
                       onClick={() => handleSegmentClick(pageIndex, blockIndex)}
                     >
                       <div className="segment-id-column">
-                        {segmentCounter}
+                        <span className="seg-num">{segmentCounter}</span>
                         <input
                           type="checkbox"
-                          title="Clear"
+                          className="seg-checkbox"
+                          title="Mark as reviewed"
                           checked={!!checkedBlocks[segmentId]}
                           onChange={e => {
                             e.stopPropagation();
                             handleCheckboxChange(pageIndex, blockIndex);
                           }}
-                          style={{ marginRight: 8, marginLeft: 8 }}
                         />
                       </div>
 

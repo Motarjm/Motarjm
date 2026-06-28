@@ -130,6 +130,7 @@ const ChatInterface = ({
             value={model}
             onChange={(e) => onModelChange(e.target.value)}
           >
+            <option value="claude">Claude Haiku</option>
             <option value="gemini">Gemini</option>
             <option value="grok">Grok</option>
             <option value="deepseek">DeepSeek</option>
