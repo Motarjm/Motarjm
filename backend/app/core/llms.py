@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
-from langchain.agents import create_agent
-from app.core.tools import search_tool
-from langchain.agents.middleware import ToolCallLimitMiddleware
+# from langchain.agents import create_agent
+# from app.core.tools import search_tool
+# from langchain.agents.middleware import ToolCallLimitMiddleware
 
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
@@ -30,8 +30,8 @@ gemini_2_5_flash_lite = ChatOpenAI(
     
 )
 
-gemini_3_flash_prev = ChatOpenAI(
-    model="google/gemini-3-flash-preview",
+gemini_3_1_flash_lite = ChatOpenAI(
+    model="google/gemini-3.1-flash-lite",
     base_url="https://openrouter.ai/api/v1",
     max_tokens = 2048,
     temperature=0.01,
@@ -92,26 +92,26 @@ gpt_5_nano  = ChatOpenAI(
     }
 )
 
-limiter = ToolCallLimitMiddleware(
-    run_limit=3,          # max 3 tool calls per agent.invoke()
-    exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
-)
+# limiter = ToolCallLimitMiddleware(
+#     run_limit=3,          # max 3 tool calls per agent.invoke()
+#     exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
+# )
 
 
-agent_gemini_3_flash_prev = create_agent(gemini_3_flash_prev,
-                                         [search_tool],
-                                         middleware = [limiter])
-agent_deepseek = create_agent(deepseek, 
-                              [search_tool],
-                              middleware = [limiter])
+# agent_gemini_3_flash_prev = create_agent(gemini_3_flash_prev,
+#                                          [search_tool],
+#                                          middleware = [limiter])
+# agent_deepseek = create_agent(deepseek, 
+#                               [search_tool],
+#                               middleware = [limiter])
 
-agent_grok = create_agent(grok, 
-                          [search_tool],
-                          middleware = [limiter])
+# agent_grok = create_agent(grok, 
+#                           [search_tool],
+#                           middleware = [limiter])
 
 
 
-providers = {"translator": [gemini_3_flash_prev,
+providers = {"translator": [gemini_3_1_flash_lite,
                             deepseek],
                                 # deepseek,
              
@@ -119,7 +119,7 @@ providers = {"translator": [gemini_3_flash_prev,
                         
                  
              
-             "advisor": [gemini_3_flash_prev,deepseek],
+             "advisor": [gemini_3_1_flash_lite,deepseek],
                           
              
              "terminology": [claude_haiku_4_5,
@@ -137,14 +137,14 @@ providers = {"translator": [gemini_3_flash_prev,
 
              # chatbot — keyed by frontend model name
              "chatbot_deepseek": [deepseek],    # deepseek
-             "chatbot_gemini": [gemini_3_flash_prev],  # gemini
+             "chatbot_gemini": [gemini_3_1_flash_lite],  # gemini
              "chatbot_grok": [grok],            # grok
              "chatbot_claude": [claude_haiku_4_5],  # claude
              
              "doc_summary": [gemini_2_5_flash_lite],
              "reviewer": [claude_haiku_4_5],
              
-             "general_chatbot_gemini": [gemini_3_flash_prev],
+             "general_chatbot_gemini": [gemini_3_1_flash_lite],
              "general_chatbot_deepseek": [deepseek],
              "general_chatbot_grok": [grok],
              "general_chatbot_claude": [claude_haiku_4_5]
