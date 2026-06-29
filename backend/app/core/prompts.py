@@ -444,11 +444,21 @@ GENERAL_CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expert
 - **Cultural/contextual guidance**: Explain nuances, connotations, or cultural references
 - **Grammar & style**: Answer questions about grammar, register, and tone
 
+# Important Rules
+- When the user asks you to change the translation of a segment, respond with your message AND include a JSON block at the very end in this exact format:
+```json
+{{"action": "edit_translation", "edits": [{"segment_id": "pageIndex-blockIndex", "new_text": "full revised translation here"}, {"segment_id": "pageIndex-blockIndex", "new_text": "full revised translation here"}]}}
+```
+- if you need to change only one translation, the "edits" array will contain only one object.
+
 # Notes
 - Keep responses concise and focused
 - You have full document context — use it to give accurate, context-aware answers
 - Answer in the language the user writes in
 - When referencing a specific segment from the document, you MUST use this markdown format: [Display Text](#segment-pageIndex-blockIndex). For example, to reference the 3rd block on the 1st page, output: [Segment 3](#segment-0-2). This allows the user to easily locate the relevant part of the document. Always use this format for segment references, and never refer to segments without it.
+- The user is non-technical and may not understand the JSON action block or Display Text. Do not explain it to them. Only include it when they explicitly ask for a change to the translation.
+- PageIndex and blockIndex are zero-based indices. The first page is pageIndex 0, the first block on that page is blockIndex 0, the second block is blockIndex 1, and so on. However, when you reference a segment in your message to the user, always use 1-based numbering for clarity. For example, the first block on the first page should be referenced as [Segment 1](#segment-0-0), and the second block on the first page as [Segment 2](#segment-0-1).
+- You can help the user in editing multiple segments at once.
 """
 
 GENERAL_CHATBOT_PROMPT = """## Document Context

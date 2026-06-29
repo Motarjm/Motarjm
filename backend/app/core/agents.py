@@ -35,6 +35,11 @@ def provider_invoke(role, prompt, max_retries=2):
   """
   provider_list = providers.get(role, [])
   
+  # if the llm is an agent, i must provide list of prompts as a dict
+  # if role in ["general_chatbot_gemini", "general_chatbot_deepseek", "general_chatbot_grok"]:
+  #   prompt = {"messages": prompt}
+  
+  
   if not provider_list:
     raise ValueError(f"No providers found for role: {role}")
   
@@ -89,6 +94,10 @@ def provider_stream(role, prompt, max_retries=2):
     - Exception: if all providers fail
   """
   provider_list = providers.get(role, [])
+  
+  # if the llm is an agent, i must provide list of prompts as a dict
+  # if role in ["general_chatbot_gemini", "general_chatbot_deepseek", "general_chatbot_grok"]:
+  #   prompt = {"messages": prompt}
   
   if not provider_list:
     raise ValueError(f"No providers found for role: {role}")

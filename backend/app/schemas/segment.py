@@ -34,5 +34,5 @@ class ChatRequest(BaseModel):
     target_lang: str
     page_context: List[str] = []
     chat_history: List[ChatMessage] = []
-    model: Literal["deepseek", "gemini", "grok"] = "gemini"
+    model: Literal["deepseek", "gemini", "grok", "claude"] = "claude"
     doc_context: List[List[str]] = []
