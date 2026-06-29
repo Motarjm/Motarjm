@@ -111,7 +111,7 @@ gpt_5_nano  = ChatOpenAI(
 
 
 
-providers = {"translator": [gemini_3_1_flash_lite,
+providers = {"translator": [claude_sonnet_4_6,
                             deepseek],
                                 # deepseek,
              
