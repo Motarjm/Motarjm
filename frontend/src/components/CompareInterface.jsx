@@ -46,6 +46,8 @@ const CompareInterface = () => {
   
   const [reviewingSegmentId, setReviewingSegmentId] = useState(null);
   const [reviewResults, setReviewResults] = useState(null);
+  const [chatSuggestions, setChatSuggestions] = useState({});
+
 
   // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
   // const API_URL = 'http://localhost:8000';
@@ -122,6 +124,8 @@ const CompareInterface = () => {
         setExplanations(documentRecord.explanations || {});
         // NEW: load persisted review suggestions
         setReviewSuggestions(documentRecord.reviewSuggestions || {});
+        // load chat suggestions
+        setChatSuggestions(documentRecord.chatSuggestions || {});
       } catch (e) {
         console.error('Failed to hydrate compare document from IndexedDB:', e);
       } finally {
@@ -180,6 +184,13 @@ const CompareInterface = () => {
       console.error('Failed to persist review suggestions:', e);
     });
   }, [reviewSuggestions, documentId, isHydrated]);
+
+  useEffect(() => {
+   if (!isHydrated || !documentId) return;
+   saveDocumentState(documentId, { chatSuggestions }).catch((e) => {
+     console.error('Failed to persist chat suggestions:', e);
+   });
+ }, [chatSuggestions, documentId, isHydrated]);
 
   const handleSegmentClick = (pageIndex, blockIndex) => {
     setActiveSegment(`${pageIndex}-${blockIndex}`);
@@ -687,6 +698,25 @@ const CompareInterface = () => {
     }
   };
 
+  const handleSegmentEdit = (pageIndex, blockIndex, newText) => {
+    handleArabicEdit(pageIndex, blockIndex, newText);
+    
+    const key = `${pageIndex}-${blockIndex}`;
+    const row = document.getElementById(`row-${key}`);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('highlight-flash');
+      setTimeout(() => row.classList.remove('highlight-flash'), 2000);
+    }
+  };
+
+ const handleChatSuggestion = (segmentId, suggestion, note = '') => {
+   setChatSuggestions(prev => ({
+     ...prev,
+     [segmentId]: { suggestion, note, dismissed: false, applied: false }
+   }));
+ };
+
   
 
   return (
@@ -700,13 +730,6 @@ const CompareInterface = () => {
             </button> */}
             <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
               Generate XLIFF
-            </button>
-             <button
-              className="sidebar-btn"
-              onClick={handleReviewDocument}
-              disabled={reviewLoading}
-            >
-              {reviewLoading ? '...Reviewing' : 'Review Document'}
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
@@ -727,6 +750,10 @@ const CompareInterface = () => {
           targetLang={targetLang}
           styleGuideQueryValue={getActiveStyleGuideQueryValue()}
           reviewResults={reviewResults}
+          onSegmentEdit={handleSegmentEdit}
+          onChatSuggestion={handleChatSuggestion}
+          onReviewDocument={handleReviewDocument}
+          reviewLoading={reviewLoading}
         />
 
         <div className="document-area">
@@ -756,16 +783,16 @@ const CompareInterface = () => {
                       onClick={() => handleSegmentClick(pageIndex, blockIndex)}
                     >
                       <div className="segment-id-column">
-                        {segmentCounter}
+                        <span className="seg-num">{segmentCounter}</span>
                         <input
                           type="checkbox"
-                          title="Clear"
+                          className="seg-checkbox"
+                          title="Mark as reviewed"
                           checked={!!checkedBlocks[segmentId]}
                           onChange={e => {
                             e.stopPropagation();
                             handleCheckboxChange(pageIndex, blockIndex);
                           }}
-                          style={{ marginRight: 8, marginLeft: 8 }}
                         />
                       </div>
 
@@ -915,6 +942,41 @@ const CompareInterface = () => {
                             </div>
                           </div>
                         )}
+                        {/* Chat suggestion banner */}
+                       {chatSuggestions[segmentId] && !chatSuggestions[segmentId].dismissed && !chatSuggestions[segmentId].applied && (
+                         <div className="revision-banner" onClick={(e) => e.stopPropagation()}>
+                           <div className="revision-banner-content">
+                             <div className="revision-suggestion-text">{chatSuggestions[segmentId].suggestion}</div>
+                             <div className="revision-actions">
+                               <button
+                                 className="revision-apply-btn"
+                                 onClick={() => {
+                                  handleArabicEdit(pageIndex, blockIndex, chatSuggestions[segmentId].suggestion);
+                                   setChatSuggestions(prev => ({
+                                     ...prev,
+                                     [segmentId]: { ...prev[segmentId], applied: true }
+                                   }));
+                                 }}
+                               >
+                                 ✓ Apply
+                               </button>
+                               <button
+                                 className="revision-dismiss-btn"
+                                 onClick={() => {
+                                   setChatSuggestions(prev => ({
+                                     ...prev,
+                                     [segmentId]: { ...prev[segmentId], dismissed: true }
+                                   }));
+                                 }}
+                               >
+                                 ✗ Dismiss
+                               </button>
+                             </div>
+                           </div>
+                         </div>
+                       )}
+
+
                         <div className="segment-action-row">
                           <button
                             className={`segment-action-btn suggestions-btn ${openSuggestions[segmentId] ? 'active' : ''}`}

@@ -16,6 +16,9 @@ import json
 import tempfile
 import re
 from docx import Document
+from docx.text.paragraph import Paragraph
+from docx.table import Table
+
 
 
 ABBREVIATIONS = {
@@ -107,19 +110,118 @@ def extract_text_from_pdf(pdf_bytes: bytes)  -> list[list[dict]]:
     return extract_text_pymupdf(pdf_bytes)
  
 
-
+def iter_unique_cells_table(table):
+    """Yield each cell in a table only once, handling both horizontal and vertical merges."""
+    seen_tc = set()
+    for row in table.rows:
+        for cell in row.cells:
+            tc = cell._tc
+            if tc in seen_tc:
+                continue
+            seen_tc.add(tc)
+            yield cell
+#TODO: This function should be more sophiscated to handle first page and even page headers/footers
+# also there is duplication
 def get_docx_blocks(docx_bytes: bytes) -> list[list[dict]]:
     doc = Document(docx_bytes)
     blocks = []
-    # i cant detect pages for now, so i will put all in one page
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if not text:
-            continue  # skip empty paragraphs and tables and images
-        
-        blocks.append({
-            "text": text,
-            "bbox": []  # No bounding box for DOCX paragraphs
-        })
-        
+
+    # HEADER
+    if len(doc.sections) > 0 and doc.sections[0].header:
+        for element in doc.sections[0].header._element:
+            # Check if the element is a Paragraph (tag ends with 'p')
+            if element.tag.endswith('p'):
+                # Convert the XML element back to a python-docx Paragraph object
+                paragraph = Paragraph(element, doc)
+                text = paragraph.text.strip()
+                if text:
+                    sentences = split_sentences(text)
+                    # group 3 sentences, instead of single sentences cuz of AI translation
+                    for i in range(0, len(sentences), 3):
+                        group = sentences[i:i + 3]
+                        group = " ".join(group)
+                        
+                        blocks.append({
+                        "text": group,
+                        "bbox": []  # No bounding box for DOCX paragraphs
+                        })
+
+            # Check if the element is a Table (tag ends with 'tbl')
+            elif element.tag.endswith('tbl'):
+                # Convert the XML element back to a python-docx Table object
+                table = Table(element, doc)
+                for cell in iter_unique_cells_table(table):
+                    text = cell.text.strip()
+                    if text:
+                        blocks.append({
+                            "text": text,
+                            "bbox": []  # No bounding box for DOCX paragraphs
+                        })
+                    
+                    
+    
+    # Iterate through the child elements of the document body
+    for element in doc.element.body:
+        # Check if the element is a Paragraph (tag ends with 'p')
+        if element.tag.endswith('p'):
+            # Convert the XML element back to a python-docx Paragraph object
+            paragraph = Paragraph(element, doc)
+            text = paragraph.text.strip()
+            if text:
+                sentences = split_sentences(text)
+                # group 3 sentences, instead of single sentences cuz of AI translation
+                for i in range(0, len(sentences), 3):
+                    group = sentences[i:i + 3]
+                    group = " ".join(group)
+                    
+                    blocks.append({
+                    "text": group,
+                    "bbox": []  # No bounding box for DOCX paragraphs
+                    })
+
+        # Check if the element is a Table (tag ends with 'tbl')
+        elif element.tag.endswith('tbl'):
+            # Convert the XML element back to a python-docx Table object
+            table = Table(element, doc)
+            for cell in iter_unique_cells_table(table):
+                text = cell.text.strip()
+                if text:
+                    blocks.append({
+                        "text": text,
+                        "bbox": []  # No bounding box for DOCX paragraphs
+                    })
+                    
+                    
+    # FOOTER
+    if len(doc.sections) > 0 and doc.sections[0].footer:
+        for element in doc.sections[0].footer._element:
+            # Check if the element is a Paragraph (tag ends with 'p')
+            if element.tag.endswith('p'):
+                # Convert the XML element back to a python-docx Paragraph object
+                paragraph = Paragraph(element, doc)
+                text = paragraph.text.strip()
+                if text:
+                    sentences = split_sentences(text)
+                    # group 3 sentences, instead of single sentences cuz of AI translation
+                    for i in range(0, len(sentences), 3):
+                        group = sentences[i:i + 3]
+                        group = " ".join(group)
+                        
+                        blocks.append({
+                        "text": group,
+                        "bbox": []  # No bounding box for DOCX paragraphs
+                        })
+
+            # Check if the element is a Table (tag ends with 'tbl')
+            elif element.tag.endswith('tbl'):
+                # Convert the XML element back to a python-docx Table object
+                table = Table(element, doc)
+                for cell in iter_unique_cells_table(table):
+                    text = cell.text.strip()
+                    if text:
+                        blocks.append({
+                            "text": text,
+                            "bbox": []  # No bounding box for DOCX paragraphs
+                        })
+    
     return blocks

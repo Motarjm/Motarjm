@@ -18,5 +18,5 @@ class GeneralChatRequest(BaseModel):
     chat_history: List[ChatMessage] = [],
     style_guide: str = ""
     review_results: Optional[List[dict]] = []
-    model: Literal["deepseek", "gemini", "grok"] = "gemini"
+    model: Literal["deepseek", "gemini", "grok", "claude"] = "claude"
     
