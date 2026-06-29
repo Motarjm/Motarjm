@@ -17,6 +17,7 @@ const GeneralChat = ({
   styleGuideQueryValue,
   reviewResults,
   onSegmentEdit,
+  onChatSuggestion,
   onReviewDocument,
   reviewLoading,
 }) => {
@@ -168,22 +169,22 @@ const GeneralChat = ({
         if (action.action === 'edit_translation') {
           const edits = Array.isArray(action.edits) ? action.edits : [action];
           
-          // Track which segments were edited
-          const editedSegments = [];
+          // Collect segment IDs for which suggestions were added
+         const suggestedSegments = [];
           
           edits.forEach(({ segment_id, new_text }) => {
-            const [pageIndex, blockIndex] = segment_id.split('-').map(Number);
-            if (onSegmentEdit) {
-              onSegmentEdit(pageIndex, blockIndex, new_text);
-              editedSegments.push(segment_id);
+            if (onChatSuggestion) {
+             onChatSuggestion(segment_id, new_text, 'Chat suggestion');
+             suggestedSegments.push(segment_id);
             }
-          });
+          }); 
           
           // Remove JSON from displayed message
           const cleanText = fullText.replace(/```json\s*{.*?}\s*```/s, '').trim();
           
-          // Build markdown links for each edited segment
-          const segmentLinks = editedSegments.map((id, index) => {
+         // Build markdown links for each suggested segment
+         const segmentLinks = suggestedSegments.map((id, index) => {
+
             const [page, block] = id.split('-');
             // Calculate the display number (segment counter)
             let segmentNumber = 0;
@@ -197,9 +198,9 @@ const GeneralChat = ({
             return `[Segment ${segmentNumber}](#segment-${id})`;
           });
           
-          // Create the confirmation message
+         // Create the confirmation message: suggestions added for review
           const segmentList = segmentLinks.join(', ');
-          const confirmationText = `\n\n✅ Updated ${edits.length} segment(s): ${segmentList}`;
+          const confirmationText = `\n\n📝 Added ${edits.length} suggestion(s) for review: ${segmentList}`;
           
           setMessages(prev => {
             const newMessages = [...prev];
