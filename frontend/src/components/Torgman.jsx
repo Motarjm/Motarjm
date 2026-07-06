@@ -319,8 +319,9 @@ const Torgman = () => {
               const event = JSON.parse(jsonStr);
               if (event.type === 'progress') {
                 translationPhase = 'translating_blocks';
-                if (event.completed === 1 && !etaStartTimeRef.current) {
+                if (event.completed === 2 && !etaStartTimeRef.current) {
                   etaStartTimeRef.current = Date.now();
+                  void setActiveTranslationJob({ ...meta, etaStartTime: etaStartTimeRef.current });
                 }
                 latestProgressCompleted = event.completed;
                 latestTotalBlocks = event.total;
@@ -517,6 +518,7 @@ const Torgman = () => {
           activeController = new AbortController();
           abortControllerRef.current = activeController;
           translationIdRef.current = savedJob.thisId;
+          etaStartTimeRef.current = savedJob.etaStartTime || null;
 
           setSelectedFile(null);
           setFileName(savedJob.fileName || '');
