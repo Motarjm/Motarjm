@@ -1,5 +1,5 @@
 // Torgman.jsx
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
@@ -14,9 +14,12 @@ import {
 import { trackNetworkError } from '../errorTracking';
 import {
   clearAllPersistence,
+  clearActiveTranslationJob,
   createDocument,
+  getActiveTranslationJob,
   getActiveDocumentId,
   loadDocument,
+  setActiveTranslationJob,
 } from '../utils/indexedDbPersistence';
 
 // day month year ->  ٢٠٢٦/١/١٦
@@ -71,16 +74,15 @@ const Torgman = () => {
   const [targetLang, setTargetLang] = useState('Arabic');
   const [progress, setProgress] = useState(0); // NEW
   const [totalBlocks, setTotalBlocks] = useState(0); // NEW
-  const [translationStartTime, setTranslationStartTime] = useState(null);
   const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
   const [styleGuideData, setStyleGuideData] = useState({});
   const [isStyleGuideActive, setIsStyleGuideActive] = useState(false);
   const [activeDocumentId, setActiveDocumentId] = useState(null);
-  const [isWhatsNewOpen, setIsWhatsNewOpen] = useState(true);
   const [isPreparingSample, setIsPreparingSample] = useState(false);
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
   const translateBtnRef = useRef(); // Added to bring visibility to translate button
+  const etaStartTimeRef = useRef(null);
   // ── CHANGED: two new refs for cancellation ─────────────────────────────────
   const abortControllerRef = useRef(null);   // holds the AbortController for the active fetch
   const translationIdRef = useRef(null);     // holds a unique ID for the active translation run
@@ -92,59 +94,6 @@ const Torgman = () => {
       translateBtnRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [fileName]);
-  // Load latest translated document from IndexedDB on component mount
-  useEffect(() => {
-    let cancelled = false;
-
-    const hydrateLatestDocument = async () => {
-      let hasDbGlossary = false;
-      try {
-        const documentId = await getActiveDocumentId();
-        if (!documentId) return;
-
-        const savedDocument = await loadDocument(documentId);
-        if (!savedDocument || !savedDocument.translatedContents) return;
-
-        hasDbGlossary = Boolean(savedDocument.glossaryFileName);
-
-        if (!cancelled) {
-          setSelectedFile(null);
-          setActiveDocumentId(documentId);
-          setTranslatedContents(savedDocument.translatedContents);
-          setFileContent(savedDocument.originalFile || null);
-          setSourceLang(savedDocument.sourceLang || 'English');
-          setTargetLang(savedDocument.targetLang || 'Arabic');
-          setFileName(savedDocument.fileName || '');
-          setGlossaryFileName(savedDocument.glossaryFileName || '');
-          setGlossaryFileSize(savedDocument.glossaryFileSize || null);
-          setDownloadUrl('indexeddb');
-          setIsTranslating(false);
-          setIsPreparingSample(false);
-          setProgress(0);
-          setTotalBlocks(0);
-          setTranslationStartTime(null);
-          setStatus('‫تمت الترجمة بنجاح!');
-        }
-      } catch (e) {
-        console.error('Failed to load translation data from IndexedDB:', e);
-      }
-
-      if (!cancelled && !hasDbGlossary) {
-        const savedGlossaryName = sessionStorage.getItem('translation_glossary_name') || '';
-        const savedGlossarySize = sessionStorage.getItem('translation_glossary_size');
-        if (savedGlossaryName) {
-          setGlossaryFileName(savedGlossaryName);
-          setGlossaryFileSize(savedGlossarySize ? Number(savedGlossarySize) : null);
-        }
-      }
-    };
-
-    hydrateLatestDocument();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Load style guide from session storage on component mount
   useEffect(() => {
@@ -166,9 +115,7 @@ const Torgman = () => {
       setIsStyleGuideActive(JSON.parse(savedStyleGuideActive));
     }
   }, []);
-  // const API_URL = 'https://cosmoid-francis-barbarously.ngrok-free.dev';
-  // const API_URL = 'http://localhost:8000';
-
+  
   const Sourcelanguages = [
     { code: 'en', name: 'English', englishName: 'English' },
   ];
@@ -223,6 +170,7 @@ const Torgman = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     translationIdRef.current = null;
+    void clearActiveTranslationJob();
   };
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -230,6 +178,7 @@ const Torgman = () => {
     // ── CHANGED: abort any in-flight request before resetting UI ───────────
     cancelTranslation();
     // ───────────────────────────────────────────────────────────────────────
+    etaStartTimeRef.current = null;
     setDownloadUrl('');
     setTranslatedContents(null);
     setFileContent(null);
@@ -239,7 +188,6 @@ const Torgman = () => {
     setIsPreparingSample(false);
     setProgress(0);
     setTotalBlocks(0);
-    setTranslationStartTime(null);
   };
 
   const applySelectedFile = (file) => {
@@ -322,6 +270,315 @@ const Torgman = () => {
     }
   };
 
+  // ── NEW: watchJobStream ──────────────────────────────────────────────────
+  // Opens/reopens the SSE viewer for an already-running backend job and
+  // consumes it to completion. Used both right after starting a translation
+  // and when reattaching to an in-flight job after a page refresh — the two
+  // cases are identical from this point on, since the job itself lives on
+  // the backend independent of any particular browser connection.
+  //
+  // `meta` shape: { jobId, fileType, fileName, fileSize, sourceLang, targetLang,
+  //                 glossaryFileName, glossaryFileSize, translationStartTs, thisId }
+  const watchJobStream = useCallback(async (meta, controller) => {
+    const { jobId, fileType, fileName: metaFileName, fileSize, sourceLang: metaSourceLang,
+            targetLang: metaTargetLang, glossaryFileName: metaGlossaryFileName,
+            glossaryFileSize: metaGlossaryFileSize, translationStartTs, thisId } = meta;
+
+    const isCancelled = () => translationIdRef.current !== thisId;
+
+    let translationPhase = 'reading_stream';
+    let sseParseErrorTracked = false;
+    let latestProgressCompleted = 0;
+    let latestTotalBlocks = 0;
+    const getProgressPercent = () => {
+      if (!latestTotalBlocks || latestTotalBlocks <= 0) return 0;
+      return Math.min(100, Math.max(0, Math.round((latestProgressCompleted / latestTotalBlocks) * 100)));
+    };
+
+    try {
+      const response = await fetch(
+        `${API_URL}/translation/stream/${jobId}`,
+        { signal: controller.signal }
+      );
+      if (!response.ok) {
+        throw new Error('تعذر فتح تدفق متابعة الترجمة');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalData = null;
+
+      const processLines = (lines) => {
+        for (const line of lines) {
+          if (isCancelled()) return;
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            const jsonStr = trimmed.slice(6);
+            try {
+              const event = JSON.parse(jsonStr);
+              if (event.type === 'progress') {
+                translationPhase = 'translating_blocks';
+                if (event.completed === 1 && !etaStartTimeRef.current) {
+                  etaStartTimeRef.current = Date.now();
+                }
+                latestProgressCompleted = event.completed;
+                latestTotalBlocks = event.total;
+                setProgress(event.completed);
+                setTotalBlocks(event.total);
+                setStatus(`‫قيد الترجمة... ${event.completed}/${event.total}`);
+              } else if (event.type === 'done') {
+                translationPhase = 'finalizing_result';
+                finalData = event;
+              } else if (event.type === 'error') {
+                translationPhase = 'backend_job_error';
+                throw new Error(event.detail || 'فشلت عملية الترجمة على الخادم');
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE event:', e);
+              if (!sseParseErrorTracked) {
+                sseParseErrorTracked = true;
+                trackTranslationError(e, {
+                  file_name: metaFileName,
+                  file_size: fileSize,
+                  source_lang: metaSourceLang,
+                  target_lang: metaTargetLang,
+                  endpoint: `/translation/stream/${jobId}`,
+                  translation_phase: 'sse_parse',
+                  elapsed_ms: Date.now() - translationStartTs,
+                  progress_percent: getProgressPercent(),
+                  sse_line_preview: trimmed.substring(0, 300),
+                });
+              }
+            }
+          }
+        }
+      };
+
+      while (true) {
+        if (isCancelled()) break;
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop();
+        processLines(lines);
+      }
+
+      if (!isCancelled() && buffer.trim()) {
+        processLines(buffer.split('\n\n'));
+      }
+
+      if (isCancelled()) return;
+
+      if (!finalData) {
+        translationPhase = 'missing_final_event';
+        throw new Error('لم يتم استلام نتيجة الترجمة');
+      }
+
+      // Handle file-specific logic
+      let newFileContent = null;
+
+      if (fileType === 'pdf') {
+        translationPhase = 'building_pdf_output';
+        // PDF response includes base64 encoded translated PDF, plus the
+        // original PDF's base64 (the backend already has the bytes — no
+        // need to re-read a local File, which also wouldn't exist after
+        // a refresh anyway).
+        const blob = new Blob(
+          [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
+          { type: 'application/pdf' }
+        );
+        const url = URL.createObjectURL(blob);
+        setTranslatedContents(finalData.translated_contents);
+        newFileContent = finalData.original_pdf_base64 || null;
+        setFileContent(newFileContent);
+        setDownloadUrl(url);
+      } else if (fileType === 'xliff' || fileType == "docx") {
+        translationPhase = 'building_xliff_output';
+        const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
+        const url = URL.createObjectURL(blob);
+        setTranslatedContents(finalData.translated_contents);
+        newFileContent = finalData.xliff; // Store XLIFF content
+        setFileContent(finalData.xliff);
+        setDownloadUrl(url);
+      }
+
+      // Hard reset policy: each new upload replaces all previously persisted IndexedDB data.
+      await clearAllPersistence();
+
+      if (isCancelled()) return;
+
+      const persistedDocumentId = await createDocument({
+        translatedContents: finalData.translated_contents,
+        originalFile: newFileContent,
+        sourceLang: metaSourceLang,
+        targetLang: metaTargetLang,
+        fileType: fileType,
+        fileName: metaFileName,
+        glossaryFileName: metaGlossaryFileName,
+        glossaryFileSize: metaGlossaryFileSize,
+      });
+
+      if (isCancelled()) return;
+
+      setActiveDocumentId(persistedDocumentId);
+
+      // Remove old sessionStorage artifacts so restore behavior is deterministic.
+      clearLegacySessionStorage();
+
+      // Track translation completion
+      const translationDuration = Date.now() - translationStartTs;
+      trackTranslationCompleted(fileType, fileSize, translationDuration, true);
+
+      void clearActiveTranslationJob();
+      setStatus('‫تمت الترجمة بنجاح!');
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+
+      console.error("Translation Error:", error);
+      void clearActiveTranslationJob();
+      const elapsedMs = Date.now() - translationStartTs;
+      const errorMessageLower = String(error?.message || '').toLowerCase();
+      const isTimeoutError = errorMessageLower.includes('request timeout');
+      const isStreamNetworkError = error instanceof TypeError && (
+        errorMessageLower.includes('network error') ||
+        errorMessageLower.includes('failed to fetch') ||
+        errorMessageLower.includes('load failed')
+      );
+
+      if (isTimeoutError) {
+        trackNetworkError(error, {
+          errorType: 'timeout',
+          endpoint: `/translation/stream/${jobId}`,
+          timeout: 30000,
+          context: {
+            file_name: metaFileName,
+            file_size: fileSize,
+            source_lang: metaSourceLang,
+            target_lang: metaTargetLang,
+            translation_phase: translationPhase,
+            elapsed_ms: elapsedMs,
+            progress_percent: getProgressPercent(),
+          }
+        });
+      } else if (isStreamNetworkError) {
+        trackNetworkError(error, {
+          errorType: 'stream_interrupted',
+          endpoint: `/translation/stream/${jobId}`,
+          timeout: 30000,
+          context: {
+            file_name: metaFileName,
+            file_size: fileSize,
+            source_lang: metaSourceLang,
+            target_lang: metaTargetLang,
+            translation_phase: translationPhase,
+            elapsed_ms: elapsedMs,
+            progress_percent: getProgressPercent(),
+            browser_stream_error_message: error?.message || null,
+          },
+        });
+      } else {
+        trackTranslationError(error, {
+          file_name: metaFileName,
+          file_size: fileSize,
+          source_lang: metaSourceLang,
+          target_lang: metaTargetLang,
+          endpoint: `/translation/stream/${jobId}`,
+          translation_phase: translationPhase,
+          elapsed_ms: elapsedMs,
+          progress_percent: getProgressPercent(),
+          http_status: error.status,
+          status_text: error.statusText,
+          error_message: error.message,
+        });
+      }
+
+      setStatus('حدث خطأ أثناء الاتصال بالخادم');
+    } finally {
+      if (!isCancelled()) {
+        setIsTranslating(false);
+      }
+    }
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Restore an in-flight translation first; otherwise hydrate the last
+  // completed document from IndexedDB.
+  useEffect(() => {
+    let cancelled = false;
+    let activeController = null;
+
+    const restoreLatestState = async () => {
+      try {
+        const savedJob = await getActiveTranslationJob();
+
+        if (!cancelled && savedJob?.jobId) {
+          activeController = new AbortController();
+          abortControllerRef.current = activeController;
+          translationIdRef.current = savedJob.thisId;
+
+          setSelectedFile(null);
+          setFileName(savedJob.fileName || '');
+          setSourceLang(savedJob.sourceLang || 'English');
+          setTargetLang(savedJob.targetLang || 'Arabic');
+          setGlossaryFileName(savedJob.glossaryFileName || '');
+          setGlossaryFileSize(savedJob.glossaryFileSize || null);
+          setIsTranslating(true);
+          setIsPreparingSample(false);
+          setProgress(0);
+          setTotalBlocks(0);
+          setStatus('‫قيد الترجمة...');
+
+          await watchJobStream(savedJob, activeController);
+          return;
+        }
+
+        const documentId = await getActiveDocumentId();
+        if (!documentId) return;
+
+        const savedDocument = await loadDocument(documentId);
+        if (!savedDocument || !savedDocument.translatedContents) return;
+
+        if (!cancelled) {
+          setSelectedFile(null);
+          setActiveDocumentId(documentId);
+          setTranslatedContents(savedDocument.translatedContents);
+          setFileContent(savedDocument.originalFile || null);
+          setSourceLang(savedDocument.sourceLang || 'English');
+          setTargetLang(savedDocument.targetLang || 'Arabic');
+          setFileName(savedDocument.fileName || '');
+          setGlossaryFileName(savedDocument.glossaryFileName || '');
+          setGlossaryFileSize(savedDocument.glossaryFileSize || null);
+          setDownloadUrl('indexeddb');
+          setIsTranslating(false);
+          setIsPreparingSample(false);
+          setProgress(0);
+          setTotalBlocks(0);
+          setStatus('‫تمت الترجمة بنجاح!');
+        }
+
+        if (!cancelled && !savedDocument.glossaryFileName) {
+          const savedGlossaryName = sessionStorage.getItem('translation_glossary_name') || '';
+          const savedGlossarySize = sessionStorage.getItem('translation_glossary_size');
+          if (savedGlossaryName) {
+            setGlossaryFileName(savedGlossaryName);
+            setGlossaryFileSize(savedGlossarySize ? Number(savedGlossarySize) : null);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to restore translation data from IndexedDB:', e);
+      }
+    };
+
+    restoreLatestState();
+
+    return () => {
+      cancelled = true;
+      activeController?.abort();
+    };
+  }, [watchJobStream]);
+
   const handleTranslateFile = async () => {
     if (!selectedFile) {
       alert('الرجاء اختيار ملف أولاً');
@@ -344,25 +601,13 @@ const Torgman = () => {
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
-
-    // Convenience: returns true when this run has been cancelled or replaced.
-    const isCancelled = () => translationIdRef.current !== thisId;
     // ───────────────────────────────────────────────────────────────────────
 
     setIsTranslating(true);
-    setStatus('‫قيد المعالجة...');
     setProgress(0);
     setTotalBlocks(0);
+    etaStartTimeRef.current = null;
     const translationStartTs = Date.now();
-    setTranslationStartTime(translationStartTs);
-    let translationPhase = 'preparing_request';
-    let sseParseErrorTracked = false;
-    let latestProgressCompleted = 0;
-    let latestTotalBlocks = 0;
-    const getProgressPercent = () => {
-      if (!latestTotalBlocks || latestTotalBlocks <= 0) return 0;
-      return Math.min(100, Math.max(0, Math.round((latestProgressCompleted / latestTotalBlocks) * 100)));
-    };
 
     try {
       const formData = new FormData();
@@ -389,8 +634,7 @@ const Torgman = () => {
         const styleGuideXML = formatStyleGuideToXML(styleGuideData);
         const encodedStyleGuide = encodeURIComponent(styleGuideXML);
         queryParams += `&style_guide=${encodedStyleGuide}`;
-        
-        // Log style guide being sent
+
         console.log('%c=== SENDING STYLE GUIDE TO BACKEND ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
         console.log('XML:', styleGuideXML);
         console.log('URL-encoded param:', `style_guide=${encodedStyleGuide}`);
@@ -400,262 +644,82 @@ const Torgman = () => {
 
       // Track translation start
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
-      translationPhase = 'uploading_file';
-      const response = await fetch(
+
+      // ── CHANGED: this now just starts the backend job and returns a job_id
+      // immediately. The actual translation runs independently of this fetch.
+      const startResponse = await fetch(
         `${API_URL}${endpoint}?${queryParams}`,
         {
           method: 'POST',
           body: formData,
-          // ── CHANGED: pass abort signal so the fetch is cancelled instantly ─
           signal: controller.signal,
-          // ───────────────────────────────────────────────────────────────────
         }
       );
 
-      if (!response.ok) {
-        // Try to get detailed error from backend
+      if (!startResponse.ok) {
         let errorDetail = 'فشلت عملية الترجمة على الخادم';
         try {
-          const errorData = await response.json();
+          const errorData = await startResponse.json();
           errorDetail = errorData.detail || errorData.message || errorDetail;
         } catch {
-          // If response is not JSON, just use status text
-          errorDetail = `${response.status} ${response.statusText}`;
+          errorDetail = `${startResponse.status} ${startResponse.statusText}`;
         }
         const error = new Error(errorDetail);
-        error.status = response.status;
-        error.statusText = response.statusText;
+        error.status = startResponse.status;
+        error.statusText = startResponse.statusText;
         error.phase = 'http_response_error';
         throw error;
       }
 
-      // Read the SSE stream
-      translationPhase = 'reading_stream';
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalData = null;
+      const { job_id } = await startResponse.json();
 
-      const processLines = (lines) => {
-        for (const line of lines) {
-          // ── CHANGED: stop processing lines if this run was cancelled ───────
-          if (isCancelled()) return;
-          // ───────────────────────────────────────────────────────────────────
-          const trimmed = line.trim();
-          if (trimmed.startsWith('data: ')) {
-            const jsonStr = trimmed.slice(6);
-            try {
-              const event = JSON.parse(jsonStr);
-              if (event.type === 'progress') {
-                translationPhase = 'translating_blocks';
-                latestProgressCompleted = event.completed;
-                latestTotalBlocks = event.total;
-                setProgress(event.completed);
-                setTotalBlocks(event.total);
-                setStatus(`‫قيد الترجمة... ${event.completed}/${event.total}`);
-              } else if (event.type === 'done') {
-                translationPhase = 'finalizing_result';
-                finalData = event;
-              }
-            } catch (e) {
-              console.error('Failed to parse SSE event:', e);
-              if (!sseParseErrorTracked) {
-                sseParseErrorTracked = true;
-                trackTranslationError(e, {
-                  file_name: selectedFile?.name,
-                  file_size: selectedFile?.size,
-                  source_lang: sourceLang,
-                  target_lang: targetLang,
-                  endpoint: endpoint,
-                  translation_phase: 'sse_parse',
-                  elapsed_ms: Date.now() - translationStartTs,
-                  progress_percent: getProgressPercent(),
-                  sse_line_preview: trimmed.substring(0, 300),
-                });
-              }
-            }
-          }
-        }
+      const meta = {
+        jobId: job_id,
+        fileType,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        sourceLang,
+        targetLang,
+        glossaryFileName,
+        glossaryFileSize,
+        translationStartTs,
+        thisId,
       };
-
-      while (true) {
-        // ── CHANGED: bail out of the read loop if this run was cancelled ─────
-        if (isCancelled()) break;
-        // ───────────────────────────────────────────────────────────────────
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop();
-        processLines(lines);
-      }
-
-      // Process any remaining data left in the buffer after stream ends
-      // ── CHANGED: skip if cancelled — we don't want to process a stale buffer
-      if (!isCancelled() && buffer.trim()) {
-        processLines(buffer.split('\n\n'));
-      }
+      // Persist so a refresh/close can find and reattach to this job later.
+      await setActiveTranslationJob(meta);
       // ───────────────────────────────────────────────────────────────────────
 
-      // ── CHANGED: if cancelled at this point, return before touching any state
-      if (isCancelled()) return;
-      // ───────────────────────────────────────────────────────────────────────
-
-      if (!finalData) {
-        translationPhase = 'missing_final_event';
-        throw new Error('لم يتم استلام نتيجة الترجمة');
-      }
-
-      // Handle file-specific logic
-      let newFileContent = null;
-      
-      if (fileType === 'pdf') {
-        translationPhase = 'building_pdf_output';
-        // PDF response includes base64 encoded PDF
-        const blob = new Blob(
-          [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
-          { type: 'application/pdf' }
-        );
-        const url = URL.createObjectURL(blob);
-        setTranslatedContents(finalData.translated_contents);
-        const base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const base64String = reader.result.split(',')[1];
-            resolve(base64String);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(selectedFile);
-        });
-        newFileContent = base64;
-        setFileContent(base64);
-        setDownloadUrl(url);
-      } else if (fileType === 'xliff' || fileType == "docx") {
-        translationPhase = 'building_xliff_output';
-        // XLIFF response includes XLIFF XML string
-        const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
-        const url = URL.createObjectURL(blob);
-        setTranslatedContents(finalData.translated_contents);
-        newFileContent = finalData.xliff; // Store XLIFF content
-        setFileContent(finalData.xliff);
-        setDownloadUrl(url);
-      }
-
-      // Hard reset policy: each new upload replaces all previously persisted IndexedDB data.
-      await clearAllPersistence();
-
-      // ── CHANGED: check again after the async clearAllPersistence call ──────
-      if (isCancelled()) return;
-      // ───────────────────────────────────────────────────────────────────────
-
-      const persistedDocumentId = await createDocument({
-        translatedContents: finalData.translated_contents,
-        originalFile: newFileContent,
-        sourceLang: sourceLang,
-        targetLang: targetLang,
-        fileType: fileType,
-        fileName: fileName,
-        glossaryFileName: glossaryFileName,
-        glossaryFileSize: glossaryFileSize,
-      });
-
-      // ── CHANGED: final guard before writing results to UI ──────────────────
-      if (isCancelled()) return;
-      // ───────────────────────────────────────────────────────────────────────
-
-      setActiveDocumentId(persistedDocumentId);
-
-      // Remove old sessionStorage artifacts so restore behavior is deterministic.
-      clearLegacySessionStorage();
-
-      // Track translation completion
-      const translationDuration = Date.now() - translationStartTs;
-      trackTranslationCompleted(fileType, selectedFile.size, translationDuration, true);
-
-      setStatus('‫تمت الترجمة بنجاح!');
+      await watchJobStream(meta, controller);
     } catch (error) {
-      // ── CHANGED: AbortError means the user cancelled — not a real error ────
-      // Don't show an error message or update any state; just return cleanly.
       if (error.name === 'AbortError') return;
-      // ───────────────────────────────────────────────────────────────────────
 
       console.error("Translation Error:", error);
-      const elapsedMs = Date.now() - translationStartTs;
-      const errorMessageLower = String(error?.message || '').toLowerCase();
-      const isTimeoutError = errorMessageLower.includes('request timeout');
-      const isStreamNetworkError = error instanceof TypeError && (
-        errorMessageLower.includes('network error') ||
-        errorMessageLower.includes('failed to fetch') ||
-        errorMessageLower.includes('load failed')
-      );
-      
-      // Track the error to PostHog
-      if (isTimeoutError) {
-        trackNetworkError(error, {
-          errorType: 'timeout',
-          endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
-          timeout: 30000,
-          context: {
-            file_name: selectedFile?.name,
-            file_size: selectedFile?.size,
-            source_lang: sourceLang,
-            target_lang: targetLang,
-            translation_phase: translationPhase,
-            elapsed_ms: elapsedMs,
-            progress_percent: getProgressPercent(),
-          }
-        });
-      } else if (isStreamNetworkError) {
-        trackNetworkError(error, {
-          errorType: 'stream_interrupted',
-          endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
-          timeout: 30000,
-          context: {
-            file_name: selectedFile?.name,
-            file_size: selectedFile?.size,
-            source_lang: sourceLang,
-            target_lang: targetLang,
-            translation_phase: translationPhase,
-            elapsed_ms: elapsedMs,
-            progress_percent: getProgressPercent(),
-            browser_stream_error_message: error?.message || null,
-          },
-        });
-      } else {
-        trackTranslationError(error, {
-          file_name: selectedFile?.name,
-          file_size: selectedFile?.size,
-          source_lang: sourceLang,
-          target_lang: targetLang,
-          endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
-          translation_phase: translationPhase,
-          elapsed_ms: elapsedMs,
-          progress_percent: getProgressPercent(),
-          http_status: error.status,
-          status_text: error.statusText,
-          error_message: error.message,
-        });
-      }
-      
+      trackTranslationError(error, {
+        file_name: selectedFile?.name,
+        file_size: selectedFile?.size,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        endpoint: fileType === 'pdf' ? '/translation/pdf' : '/translation/xliff',
+        translation_phase: 'starting_job',
+        http_status: error.status,
+        status_text: error.statusText,
+        error_message: error.message,
+      });
+      void clearActiveTranslationJob();
       setStatus('حدث خطأ أثناء الاتصال بالخادم');
-    } finally {
-      // ── CHANGED: only clear the translating flag if this run wasn't cancelled
-      // If it was cancelled, resetTranslationUiState already called setIsTranslating(false).
-      if (!isCancelled()) {
-        setIsTranslating(false);
-      }
-      // ───────────────────────────────────────────────────────────────────────
+      setIsTranslating(false);
     }
   };
 
   const getEstimatedTime = () => {
-    if (!translationStartTime || progress < 1) return '‫قيد التقدير...';
-    const elapsed = (Date.now() - translationStartTime) / 1000; // seconds
-    const avgPerBlock = elapsed / progress;
+    if (!etaStartTimeRef.current || progress < 2) return '‫قيد التقدير...';
+    const elapsed = (Date.now() - etaStartTimeRef.current) / 1000; // seconds
+    const avgPerBlock = elapsed / (progress - 1);
     const remaining = avgPerBlock * (totalBlocks - progress);
     if (remaining < 60) return `نحو ${Math.ceil(remaining)} ثانية متبقية`;
     const mins = Math.floor(remaining / 60);
-    return `~${mins} minutes remaining`;
+    // return `~${mins} minutes remaining`;
+    return `نحو ${mins} دقائق متبقية`;
   };
 
   const handleStyleGuideConfirm = (data) => {
@@ -826,7 +890,14 @@ const Torgman = () => {
                 <button 
                   type="button"
                   className="compact-remove-btn" 
-                  onClick={(e) => {
+                    onClick={async (e) => {
+                    // ── NEW: only this button actually stops the backend job ──
+                      const saved = await getActiveTranslationJob();
+                      if (saved?.jobId) {
+                        fetch(`${API_URL}/translation/cancel/${saved.jobId}`, { method: 'POST' });
+                    }
+                      await clearActiveTranslationJob();
+                    // ─────────────────────────────────────────────────────────
                     cancelTranslation();
                     e.stopPropagation();
                     setFileName('');

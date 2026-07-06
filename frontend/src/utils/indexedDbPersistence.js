@@ -6,6 +6,7 @@ const DOCUMENTS_STORE = 'documents';
 const CHATS_STORE = 'chats';
 const META_STORE = 'meta';
 const ACTIVE_DOCUMENT_KEY = 'activeDocumentId';
+const ACTIVE_TRANSLATION_JOB_KEY = 'activeTranslationJob';
 
 // Generates a unique ID for persisted document records.
 // Use it when creating a new translation session/document entry.
@@ -102,6 +103,31 @@ export const getActiveDocumentId = async () => {
   const db = await getDb();
   const item = await db.get(META_STORE, ACTIVE_DOCUMENT_KEY);
   return item?.value || null;
+};
+
+// Stores the currently running translation job metadata.
+// Use this to resume an in-flight translation after refresh or reconnect.
+export const setActiveTranslationJob = async (jobMeta) => {
+  const db = await getDb();
+  await db.put(META_STORE, {
+    key: ACTIVE_TRANSLATION_JOB_KEY,
+    value: jobMeta,
+    updatedAt: nowIso(),
+  });
+};
+
+// Reads the currently running translation job metadata, if any.
+// Use it before hydrating completed documents so reattachment wins.
+export const getActiveTranslationJob = async () => {
+  const db = await getDb();
+  const item = await db.get(META_STORE, ACTIVE_TRANSLATION_JOB_KEY);
+  return item?.value || null;
+};
+
+// Clears the active translation job pointer once the job is done or discarded.
+export const clearActiveTranslationJob = async () => {
+  const db = await getDb();
+  await db.delete(META_STORE, ACTIVE_TRANSLATION_JOB_KEY);
 };
 
 // Saves chat UI/history for a specific document segment.
