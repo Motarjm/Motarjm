@@ -831,6 +831,15 @@
   .edit-btn {
     max-width: 100%;
   }
+  .language-selector .lang-group:first-child {
+    order: 3; /* target language → last */
+  }
+  .language-selector .lang-group:last-child {
+    order: 1; /* source language → first */
+  }
+  .language-selector .arrow-icon {
+    order: 2; /* arrow between them */
+  }
 }
 
 @media (max-width: 480px) {
@@ -912,6 +921,15 @@
     align-self: flex-end;
     padding: 2px 0;
   }
+  .language-selector .lang-group:first-child {
+    order: 3; /* target language → last */
+  }
+  .language-selector .lang-group:last-child {
+    order: 1; /* source language → first */
+  }
+  .language-selector .arrow-icon {
+    order: 2; /* arrow between them */
+  }
 }
 
 @media (max-width: 360px) {
@@ -934,6 +952,15 @@
   .whats-new-subtitle,
   .wn-timeline-text {
     font-size: 0.82rem;
+  }
+  .language-selector .lang-group:first-child {
+    order: 3; /* target language → last */
+  }
+  .language-selector .lang-group:last-child {
+    order: 1; /* source language → first */
+  }
+  .language-selector .arrow-icon {
+    order: 2; /* arrow between them */
   }
 }
 
