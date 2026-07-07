@@ -59,9 +59,6 @@ async def translate_pdf_file(
         glossary_dict = glossary_dict or {}
         store_glossary(glossary_dict)
         
-    if is_image_based(pdf_bytes):
-        raise HTTPException(status_code=400, detail="Image-based PDFs are not supported for translation. Please provide a text-based PDF.")
-    
     # Clear cached document summary for new document
     clear_doc_summary_cache()
 
