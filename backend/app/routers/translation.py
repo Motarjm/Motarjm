@@ -174,9 +174,6 @@ async def translate_pdf_file(
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
         glossary_dict = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
-    if is_image_based(pdf_bytes):
-        raise HTTPException(status_code=400, detail="Image-based PDFs are not supported for translation. Please provide a text-based PDF.")
-
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()

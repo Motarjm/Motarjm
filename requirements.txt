@@ -112,7 +112,7 @@ pycryptodome==3.23.0
 pydantic==2.12.5
 pydantic_core==2.41.5
 pydyf==0.12.1
-PyMuPDF==1.26.6
+PyMuPDF==1.28.0
 pyparsing==3.2.5
 pypdfium2==5.1.0
 pyphen==0.17.2
