@@ -146,7 +146,7 @@ def yolo_predict(image, device="cpu"):
     )
 
     # Annotate and save the result
-    result[0].save(filename=f"result.jpg")
+    # result[0].save(filename=f"result.jpg")
 
     # annotated_frame = result[0].plot(pil=True, line_width=5, font_size=20)
     # cv2.imwrite("result.jpg", annotated_frame)
