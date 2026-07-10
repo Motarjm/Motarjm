@@ -83,6 +83,11 @@ const Torgman = () => {
   const glossaryInputRef = useRef();
   const translateBtnRef = useRef(); // Added to bring visibility to translate button
   const etaStartTimeRef = useRef(null);
+  // Segment count at the moment we started the ETA clock (see progress handler
+  // below). Needed because "segments completed since we started timing" is
+  // NOT the same as "total completed count" — the old code confused the two,
+  // which made the ETA read ~0s the instant the clock started.
+  const etaBaselineCompletedRef = useRef(null);
   // ── CHANGED: two new refs for cancellation ─────────────────────────────────
   const abortControllerRef = useRef(null);   // holds the AbortController for the active fetch
   const translationIdRef = useRef(null);     // holds a unique ID for the active translation run
@@ -179,6 +184,7 @@ const Torgman = () => {
     cancelTranslation();
     // ───────────────────────────────────────────────────────────────────────
     etaStartTimeRef.current = null;
+    etaBaselineCompletedRef.current = null;
     setDownloadUrl('');
     setTranslatedContents(null);
     setFileContent(null);
@@ -321,13 +327,23 @@ const Torgman = () => {
                 translationPhase = 'translating_blocks';
                 if (event.completed === 2 && !etaStartTimeRef.current) {
                   etaStartTimeRef.current = Date.now();
-                  void setActiveTranslationJob({ ...meta, etaStartTime: etaStartTimeRef.current });
+                  etaBaselineCompletedRef.current = event.completed;
+                  void setActiveTranslationJob({
+                    ...meta,
+                    etaStartTime: etaStartTimeRef.current,
+                    etaBaselineCompleted: event.completed,
+                  });
                 }
                 latestProgressCompleted = event.completed;
                 latestTotalBlocks = event.total;
                 setProgress(event.completed);
                 setTotalBlocks(event.total);
-                setStatus(`‫قيد الترجمة... ${event.completed}/${event.total}`);
+                // NOTE: no counts here — the progress bar (progress-text) already
+                // shows "x/y (z%)". Duplicating the same numbers in the status
+                // line below the button was the source of the "counts showing up
+                // in two places" confusion. Keep a plain phase label only; it's
+                // hidden while the progress bar is visible anyway (see render).
+                setStatus('‫قيد الترجمة...');
               } else if (event.type === 'done') {
                 translationPhase = 'finalizing_result';
                 finalData = event;
@@ -519,6 +535,7 @@ const Torgman = () => {
           abortControllerRef.current = activeController;
           translationIdRef.current = savedJob.thisId;
           etaStartTimeRef.current = savedJob.etaStartTime || null;
+          etaBaselineCompletedRef.current = savedJob.etaBaselineCompleted || null;
 
           setSelectedFile(null);
           setFileName(savedJob.fileName || '');
@@ -608,7 +625,14 @@ const Torgman = () => {
     setIsTranslating(true);
     setProgress(0);
     setTotalBlocks(0);
+    // ── FIX: clear any leftover status (e.g. a previous run's error message)
+    // so it doesn't linger on screen through the new run. Without this, an
+    // old "حدث خطأ..." message stayed visible until the first 'progress' SSE
+    // event arrived (which could be several seconds, or never, if the new
+    // run also failed before producing progress).
+
     etaStartTimeRef.current = null;
+    etaBaselineCompletedRef.current = null;
     const translationStartTs = Date.now();
 
     try {
@@ -714,9 +738,19 @@ const Torgman = () => {
   };
 
   const getEstimatedTime = () => {
-    if (!etaStartTimeRef.current || progress < 2) return '‫قيد التقدير...';
+    const baselineCompleted = etaBaselineCompletedRef.current;
+    if (!etaStartTimeRef.current || baselineCompleted == null) return '‫قيد التقدير...';
+
+    // How many segments have finished SINCE the clock started (not since the
+    // job started — segment 1 is excluded on purpose because it's bundled
+    // with document extraction time and would skew the average).
+    const completedSinceBaseline = progress - baselineCompleted;
+    // Need at least one full timed segment before an average means anything;
+    // otherwise we're dividing by ~0 elapsed time and getting a bogus ~0s ETA.
+    if (completedSinceBaseline < 1) return '‫قيد التقدير...';
+
     const elapsed = (Date.now() - etaStartTimeRef.current) / 1000; // seconds
-    const avgPerBlock = elapsed / (progress - 1);
+    const avgPerBlock = elapsed / completedSinceBaseline;
     const remaining = avgPerBlock * (totalBlocks - progress);
     if (remaining < 60) return `نحو ${Math.ceil(remaining)} ثانية متبقية`;
     const mins = Math.floor(remaining / 60);
@@ -997,7 +1031,9 @@ const Torgman = () => {
                 onClick={handleTranslateFile}
                 disabled={!selectedFile || isTranslating}
               >
-                {isTranslating ? '‫قيد التحميل...' : 'ترجم المستندات'}
+                {isTranslating
+                  ? (totalBlocks > 0 ? '‫قيد الترجمة...' : '‫قيد التحميل...')
+                  : 'ترجم المستندات'}
               </button>
             ) : (
               <div className="results-actions">
@@ -1030,7 +1066,12 @@ const Torgman = () => {
                 </button>
               </div>
             )}
-            {status && <p className="status-msg">{status}</p>}
+            {/* FIX: don't show the status line while the progress bar is already
+                displaying the same phase/counts — showing both at once was the
+                redundant "segments up and down" clutter in the screenshot. */}
+            {status && !(isTranslating && totalBlocks > 0) && (
+              <p className="status-msg">{status}</p>
+            )}
           </div>
         </div>
 
