@@ -344,6 +344,8 @@ def translate_file_content_docx_streaming(
         translated_content.append({
             "original_text": segment["text"],
             "translated_text": translated_text,
+            "type": segment.get("type", "Text"),
+            "info": segment.get("info", {}),
         })
 
         completed_segments += 1
