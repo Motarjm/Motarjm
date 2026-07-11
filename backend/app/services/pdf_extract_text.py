@@ -15,9 +15,6 @@ from itertools import groupby
 import json
 import tempfile
 import re
-from docx import Document
-from docx.text.paragraph import Paragraph
-from docx.table import Table
 
 _yolo_models: Dict[str, YOLO] = {}
 _ocr_models: Dict[str, PaddleOCR] = {}
@@ -125,7 +122,7 @@ def pdf_to_images(pdf_bytes: bytes):
             yield np.array(img)
 
 
-def yolo_predict(image, device="cpu"):
+def yolo_predict(image,c, device="cpu"):
     """
     Returns the result of doclayout-yolo
     The output is a tuple of:
@@ -179,7 +176,7 @@ def yolo_predict(image, device="cpu"):
         box_list.append((bbox[0], bbox[1], bbox[2], bbox[3], score, name_idx))
 
     # Sort by y0 (top) then x0 (left) → reading order
-    box_list.sort(key=lambda x: (x[1], x[0]))
+    # box_list.sort(key=lambda x: (x[1], x[0]))
 
     return result[0].names, box_list
 
@@ -202,7 +199,7 @@ def ocr_predict(image, device="cpu"):
 
     return result[0]['rec_texts'], list([list(x) for x in result[0]["rec_boxes"]])
 
-def ocr_in_yolo_ioa(ocr_box, yolo_box):
+def ocr_in_yolo_ioa(ocr_box, yolo_box, threshold=0.5):
     """
     Check if either ocr_box is inside yolo box or yolo box is inside ocr_box, threshold is 0.5, meaning at least 50% of the smaller box should be inside the bigger box
 
@@ -222,7 +219,7 @@ def ocr_in_yolo_ioa(ocr_box, yolo_box):
     yolo_area = (yolo_box[2] - yolo_box[0]) * (yolo_box[3] - yolo_box[1])
     minimum_area = min(ocr_area, yolo_area)
 
-    if inter / minimum_area >= 0.5:
+    if inter / minimum_area >= threshold:
       return True
     
     return False
@@ -244,9 +241,36 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
     
     page = doc[c]
     ocr_result_texts, ocr_result_boxes= ocr_predict(image)
-    yolo_result_names, yolo_result_data = yolo_predict(image)
+    yolo_result_names, yolo_result_data = yolo_predict(image, c)
 
     ocr_text = []
+    tables = page.find_tables()
+    # check if there are tables
+    if tables.tables:
+        for num, table in enumerate(tables.tables):
+            data = table.extract()
+            bbox = table.bbox
+            rows = len(data)
+            cols = max(len(r) for r in data)
+            for i, row in enumerate(data):
+                for j, cell in enumerate(row):
+                    if cell.strip():
+                        ocr_text.append(
+                            {
+                                "text": cell,
+                                "bbox": bbox,
+                                "type": "Table",
+                                # goal of 'num' is to identify which table this cell belongs to
+                                "info": {
+                                    "num": num,
+                                    "row": i,
+                                    "col": j,
+                                    "rows": rows,
+                                    "cols": cols
+                                }
+                                
+                            }
+                        )
 
     for block_num in range(len(yolo_result_data)):
         # look for the classification label of this block, is it plain text or figure and so on
@@ -255,7 +279,8 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
         block_bbox = yolo_result_data[block_num][:4]
 
         # we only need to extract text from those blocks
-        # i removed table
+        # the only category that is out is picture
+        # tables are extracted from pymupdf
         if yolo_result_names[name_idx] not in [ 'Caption',
                                             'Footnote',
                                             'Formula',
@@ -263,10 +288,19 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
                                             'Page-footer',
                                             'Section-header',
                                             'Text',
-                                            'Title',"Table"]:
+                                            'Title']:
 
             continue
-
+        
+        # if there are tables, check if the bounding boxes of those tables
+        # overlap with the current block
+        # if so, continue because i already extracted its text
+        for block in ocr_text:
+            if block["type"] == "Table":
+                table_bbox = block["bbox"]
+                if ocr_in_yolo_ioa(table_bbox, block_bbox, threshold=0.7):
+                    continue
+        
         # try to get text
         block_text = page.get_text("text", clip=block_bbox)
         # image based content
@@ -280,7 +314,8 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
         ocr_text.append(
           {
               "text": block_text,
-              "bbox": block_bbox
+              "bbox": block_bbox,
+              "type": yolo_result_names[name_idx]
           }
         )
 
@@ -312,48 +347,10 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
     # cv2.waitKey(0)
     # cv2.destroyWindow("Output")
     
+    
+    ocr_text = sorted(ocr_text, key=lambda b: (round(b["bbox"][1], 0), b["bbox"][0]))
     return ocr_text
 
-ABBREVIATIONS = {
-    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "vs", "etc",
-    "e.g", "i.e", "approx", "dept", "est", "fig", "govt",
-    "inc", "ltd", "no", "p", "pp", "vol", "jan", "feb",
-    "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
-}
-
-def split_sentences(text: str) -> list[str]:
-    # Step 1: Protect false periods with a placeholder
-    text = protect_false_periods(text)
-
-    # Step 2: Split on real sentence-ending periods
-    # Real period = followed by space + uppercase, or end of string
-    pattern = r'(?<=[.!?])\s+(?=[A-Z])'
-    sentences = re.split(pattern, text)
-
-    # Step 3: Restore placeholders
-    sentences = [s.replace("<<<DOT>>>", ".") for s in sentences]
-
-    return [s.strip() for s in sentences if s.strip()]
-
-
-def protect_false_periods(text: str) -> str:
-    # 1. Protect ellipsis
-    text = re.sub(r'\.{2,}', lambda m: "<<<DOT>>>" * m.group().count('.'), text)
-
-    # 2. Protect decimals and numbers: 3.14, $4.99, 1,200.50
-    text = re.sub(r'(\d)\.(\d)', r'\1<<<DOT>>>\2', text)
-
-    # 3. Protect known abbreviations (case-insensitive)
-    abbrev_pattern = r'\b(' + '|'.join(re.escape(a) for a in ABBREVIATIONS) + r')\.(?=\s)'
-    text = re.sub(abbrev_pattern, lambda m: m.group(0).replace('.', '<<<DOT>>>'), text, flags=re.IGNORECASE)
-
-    # 4. Protect single uppercase initials: J. K. Rowling
-    text = re.sub(r'\b([A-Z])\.(?=\s[A-Z])', r'\1<<<DOT>>>', text)
-
-    # 5. Protect URLs and file extensions
-    text = re.sub(r'(\w)\.(com|org|net|pdf|txt|py|js|html|csv|json)\b', r'\1<<<DOT>>>\2', text)
-
-    return text    
     
 def extract_text_from_pdf(pdf_bytes: bytes):
     """
@@ -380,123 +377,3 @@ def extract_text_from_pdf(pdf_bytes: bytes):
         c += 1
     
     return all_content
-
-
-
-def iter_unique_cells_table(table):
-    """Yield each cell in a table only once, handling both horizontal and vertical merges."""
-    seen_tc = set()
-    for row in table.rows:
-        for cell in row.cells:
-            tc = cell._tc
-            if tc in seen_tc:
-                continue
-            seen_tc.add(tc)
-            yield cell
-            
-            
-#TODO: This function should be more sophiscated to handle first page and even page headers/footers
-# also there is duplication
-def get_docx_blocks(docx_bytes: bytes) -> list[list[dict]]:
-    doc = Document(docx_bytes)
-    blocks = []
-
-    # HEADER
-    if len(doc.sections) > 0 and doc.sections[0].header:
-        for element in doc.sections[0].header._element:
-            # Check if the element is a Paragraph (tag ends with 'p')
-            if element.tag.endswith('p'):
-                # Convert the XML element back to a python-docx Paragraph object
-                paragraph = Paragraph(element, doc)
-                text = paragraph.text.strip()
-                if text:
-                    sentences = split_sentences(text)
-                    # group 3 sentences, instead of single sentences cuz of AI translation
-                    for i in range(0, len(sentences), 3):
-                        group = sentences[i:i + 3]
-                        group = " ".join(group)
-                        
-                        blocks.append({
-                        "text": group,
-                        "bbox": []  # No bounding box for DOCX paragraphs
-                        })
-
-            # Check if the element is a Table (tag ends with 'tbl')
-            elif element.tag.endswith('tbl'):
-                # Convert the XML element back to a python-docx Table object
-                table = Table(element, doc)
-                for cell in iter_unique_cells_table(table):
-                    text = cell.text.strip()
-                    if text:
-                        blocks.append({
-                            "text": text,
-                            "bbox": []  # No bounding box for DOCX paragraphs
-                        })
-                    
-                    
-    
-    # Iterate through the child elements of the document body
-    for element in doc.element.body:
-        # Check if the element is a Paragraph (tag ends with 'p')
-        if element.tag.endswith('p'):
-            # Convert the XML element back to a python-docx Paragraph object
-            paragraph = Paragraph(element, doc)
-            text = paragraph.text.strip()
-            if text:
-                sentences = split_sentences(text)
-                # group 3 sentences, instead of single sentences cuz of AI translation
-                for i in range(0, len(sentences), 3):
-                    group = sentences[i:i + 3]
-                    group = " ".join(group)
-                    
-                    blocks.append({
-                    "text": group,
-                    "bbox": []  # No bounding box for DOCX paragraphs
-                    })
-
-        # Check if the element is a Table (tag ends with 'tbl')
-        elif element.tag.endswith('tbl'):
-            # Convert the XML element back to a python-docx Table object
-            table = Table(element, doc)
-            for cell in iter_unique_cells_table(table):
-                text = cell.text.strip()
-                if text:
-                    blocks.append({
-                        "text": text,
-                        "bbox": []  # No bounding box for DOCX paragraphs
-                    })
-                    
-                    
-    # FOOTER
-    if len(doc.sections) > 0 and doc.sections[0].footer:
-        for element in doc.sections[0].footer._element:
-            # Check if the element is a Paragraph (tag ends with 'p')
-            if element.tag.endswith('p'):
-                # Convert the XML element back to a python-docx Paragraph object
-                paragraph = Paragraph(element, doc)
-                text = paragraph.text.strip()
-                if text:
-                    sentences = split_sentences(text)
-                    # group 3 sentences, instead of single sentences cuz of AI translation
-                    for i in range(0, len(sentences), 3):
-                        group = sentences[i:i + 3]
-                        group = " ".join(group)
-                        
-                        blocks.append({
-                        "text": group,
-                        "bbox": []  # No bounding box for DOCX paragraphs
-                        })
-
-            # Check if the element is a Table (tag ends with 'tbl')
-            elif element.tag.endswith('tbl'):
-                # Convert the XML element back to a python-docx Table object
-                table = Table(element, doc)
-                for cell in iter_unique_cells_table(table):
-                    text = cell.text.strip()
-                    if text:
-                        blocks.append({
-                            "text": text,
-                            "bbox": []  # No bounding box for DOCX paragraphs
-                        })
-    
-    return blocks

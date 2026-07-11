@@ -1,7 +1,8 @@
 import requests
 from typing import Dict, Generator, List, Optional
 import pymupdf
-from app.services.extract_text import extract_text_from_pdf, get_docx_blocks
+from app.services.pdf_extract_text import extract_text_from_pdf
+from app.services.docx_service import get_docx_blocks
 from app.services.xliff_service import extract_text_from_xliff
 from app.core.graph_models import State
 from app.core.workflow import graph
@@ -220,13 +221,14 @@ def translate_file_content_pdf_streaming(
                 "original_text": block["text"],
                 "translated_text": translated_text,
                 "bbox": block["bbox"],
+                "type": block.get("type", "Text"),
+                "info": block.get("info", {}),
             })
 
             completed_blocks += 1
             yield {"type": "progress", "completed": completed_blocks, "total": total_blocks}
 
         translated_content.append(translated_blocks)
-
     yield {"type": "done", "translated_contents": translated_content}
 
 def translate_file_content_xliff_streaming(
