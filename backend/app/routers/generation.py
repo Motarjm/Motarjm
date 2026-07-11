@@ -3,11 +3,10 @@ import base64
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
-
 from app.services.pdf_service import build_translated_pdf
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
-
-from app.schemas.translation import GenerateEditedPDFRequest, GenerateXliffRequest
+from app.services.docx_service import build_docx
+from app.schemas.generation import GenerateDocxRequest, GenerateEditedPDFRequest, GenerateXliffRequest
 
 router = APIRouter(prefix="/generation", tags=["Generation"])
 
@@ -66,6 +65,33 @@ async def generate_xliff(request: GenerateXliffRequest):
     return StreamingResponse(
         BytesIO(xliff_bytes),
         media_type="application/xml",
+            headers={
+            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+        
+    )
+
+
+@router.post("/docx")
+async def generate_docx(request: GenerateDocxRequest):
+    """
+    Generates a DOCX file from translated contents.
+    DOCX is a standard format for word processing documents.
+    
+    """
+    # Convert Pydantic models to plain dicts for the XLIFF builder
+    translated_contents = [
+        [block.model_dump() for block in page]
+        for page in request.translated_contents
+    ]
+        
+    docx_bytes = build_docx(translated_contents)
+
+    return StreamingResponse(
+        BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             headers={
             "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
             "Cache-Control": "no-cache",

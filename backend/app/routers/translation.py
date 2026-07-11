@@ -8,7 +8,6 @@ from app.services.translation_service import translate_file_content_pdf_streamin
 from app.services.glossary_service import parse_tbx_basic, store_glossary
 from app.services.pdf_service import build_translated_pdf_base64
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
-from app.schemas.translation import GenerateEditedPDFRequest
 from app.core.simple_calls import clear_doc_summary_cache
 from app.state.job_store import job_store
 
