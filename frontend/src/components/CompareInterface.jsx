@@ -332,6 +332,64 @@ const CompareInterface = () => {
     }
   };
 
+  const handleGenerateDocx = async () => {
+    try {
+      const requestBody = {
+        translated_contents: translatedContents.map(page =>
+          page.map(block => ({
+            original_text: block.original_text,
+            translated_text: block.translated_text,
+            type: block.type || null,
+            info: block.info || null,
+          }))
+        ),
+      };
+
+      const response = await fetch(`${API_URL}/generation/docx`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) throw new Error('فشل إنشاء ملف Word');
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      if (originalFileName) {
+        const baseName = originalFileName.replace(/\.[^/.]+$/, '');
+        a.download = `${baseName}_translated.docx`;
+      } else {
+        a.download = 'translation_translated.docx';
+      }
+
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      trackEvent('docx_generated', {
+        total_segments: totalSegments,
+        checked_segments: checkedCount,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        file_type_original: fileType,
+      });
+
+    } catch (error) {
+      console.error('Error generating DOCX:', error);
+      alert('حدث خطأ أثناء إنشاء ملف Word');
+      trackApiError(error, {
+        endpoint: '/generation/docx',
+        method: 'POST',
+        action: 'Generating DOCX file',
+        context: { total_segments: totalSegments, source_lang: sourceLang, target_lang: targetLang, file_type_original: fileType }
+      });
+    }
+  };
+
   // Generate per-segment back-translation
   const handleFetchBackTranslation = async (pageIndex, blockIndex) => {
     const key = `${pageIndex}-${blockIndex}`;
@@ -730,6 +788,9 @@ const CompareInterface = () => {
             </button> */}
             <button className="sidebar-btn" onClick={handleGenerateXLIFF}>
               Generate XLIFF
+            </button>
+            <button className="sidebar-btn" onClick={handleGenerateDocx}>
+              Generate DOCX
             </button>
             <span className="progress-badge">
               ✓ {checkedCount} / {totalSegments}
