@@ -630,7 +630,7 @@ const Torgman = () => {
     // old "حدث خطأ..." message stayed visible until the first 'progress' SSE
     // event arrived (which could be several seconds, or never, if the new
     // run also failed before producing progress).
-
+    setStatus('');
     etaStartTimeRef.current = null;
     etaBaselineCompletedRef.current = null;
     const translationStartTs = Date.now();
