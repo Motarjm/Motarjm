@@ -123,47 +123,50 @@
 
 .document-area {
   flex: 1;
-  overflow-y: auto;
   height: 100%;
-  padding: 1.5rem 0;  /* NEW: reduced from 2rem to save vertical space */
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.document-container {
+  flex: 1;
+  overflow-y: auto;
   overflow-x: hidden;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 1.5rem 1.2rem 3rem 1.2rem;  /* NEW: was split between document-area/document-container */
   width: 100%;
 }
 
-.document-area::-webkit-scrollbar {
+.document-container::-webkit-scrollbar {
   width: 10px;
 }
 
-.document-area::-webkit-scrollbar-track {
+.document-container::-webkit-scrollbar-track {
   background: #d4cfc3;
 }
 
-.document-area::-webkit-scrollbar-thumb {
+.document-container::-webkit-scrollbar-thumb {
   background: var(--terracotta);
   border-radius: 5px;
 }
 
-.document-area::-webkit-scrollbar-thumb:hover {
+.document-container::-webkit-scrollbar-thumb:hover {
   background: var(--deep-terracotta);
 }
 
-
-.document-container {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 0 1.2rem 3rem 1.2rem;  /* NEW: reduced horizontal padding */
-  overflow-x: hidden;
-  max-width: 100%;
-}
 
 .document-container.bt-expanded {
   max-width: 1900px;
 }
 
 /* ─── Three‑column header: narrow gutter + two content columns ─── */
+/* Replace existing .comparison-table-header */
 .comparison-table-header {
   display: grid;
-  grid-template-columns: 44px 1fr 1fr;
+  grid-template-columns: 44px 1fr 32px 1fr;
   gap: 1.2rem;
   margin-bottom: 1.5rem;
   padding: 0 0.5rem;
@@ -174,7 +177,7 @@
 /* ─── Three‑column segment row: 44px gutter + two content columns ─── */
 .segment-row {
   display: grid;
-  grid-template-columns: 44px 1fr 1fr;
+  grid-template-columns: 44px 1fr 32px 1fr;
   gap: 1.2rem;
   margin-bottom: 1.5rem;
   align-items: start;
@@ -184,7 +187,7 @@
 
 /* When back-translation is open: gutter stays, content expands naturally */
 .segment-row.bt-open {
-  grid-template-columns: 44px 1fr 1fr;
+  grid-template-columns: 44px 1fr 32px 1fr;
   margin-top: 0;
 }
 
@@ -442,6 +445,15 @@
   animation: checkmark-pulse 0.4s ease-out;
 }
 
+.copy-source-btn {
+  color: var(--terracotta);
+}
+
+.copy-source-btn:hover {
+  background: #fff5f2;
+  border-color: var(--terracotta);
+}
+
 @keyframes checkmark-pulse {
   0% {
     transform: scale(1) rotate(0deg);
@@ -633,6 +645,8 @@
   line-height: 1.7;
   word-break: break-word;
   overflow-wrap: break-word;
+  direction: ltr;
+  text-align: left;
 }
 
 .explanation-error {
@@ -670,7 +684,9 @@
 
 /* ─── REMOVED: old .segment-middle-actions ─── */
 .segment-middle-actions {
-  display: none;  /* no longer used – everything is inside the segment meta */
+  display: flex;
+  justify-content: center;
+  padding-top: 0.8rem;
 }
 
 /* ============================================================
@@ -703,31 +719,30 @@
   }
 
   .document-area {
-    padding: 1rem 0;
-    overflow-y: scroll;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--terracotta) #d4cfc3;
-    overflow-x: hidden;
-  }
-
-  .document-area::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  .document-area::-webkit-scrollbar-track {
-    background: #d4cfc3;
-  }
-
-  .document-area::-webkit-scrollbar-thumb {
-    background: #c1502e;
-    border-radius: 8px;
+    padding: 0;
   }
 
   .document-container {
-    padding: 0 0.75rem 3rem 0.75rem;
+    padding: 1rem 0.75rem 3rem 0.75rem;
     max-width: 100%;
+    overflow-y: scroll;
     overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--terracotta) #d4cfc3;
+  }
+
+  .document-container::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .document-container::-webkit-scrollbar-track {
+    background: #d4cfc3;
+  }
+
+  .document-container::-webkit-scrollbar-thumb {
+    background: #c1502e;
+    border-radius: 8px;
   }
 
   .comparison-table-header {
@@ -965,3 +980,363 @@
   border-left: 4px solid #ffc107;
 }
 
+
+/* ─── Confirmed segment: color change on the whole card ─── */
+.segment-card-wrapper.segment-confirmed {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.04);
+  box-shadow: inset 4px 0 0 #1e3a8a; /* Clean, dark blue accent bar */
+}
+
+/* Ensure the inner row doesn't block the background with white */
+.segment-card-wrapper.segment-confirmed .segment-row {
+  background: transparent;
+}
+
+.segment-card-wrapper.segment-confirmed .seg-checkbox {
+  accent-color: #1e3a8a;
+}
+
+/* ─── QA badge ─── */
+.qa-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(211, 47, 47, 0.12);
+  color: #c62828;
+  font-size: 0.62rem;
+  cursor: help;
+  line-height: 1;
+  border: 1px solid rgba(211, 47, 47, 0.35);
+}
+
+/* ─── Split-segment button ─── */
+.split-btn {
+  background: var(--cream);
+}
+
+/* ─── Bottom status bar ─── */
+.bottom-status-bar {
+  width: 100%;
+  flex-shrink: 0;
+  background: var(--cream);
+  border-top: 1px solid rgba(107, 125, 92, 0.18);
+  box-shadow: 0 -4px 12px rgba(45, 45, 45, 0.06);
+  direction: rtl;
+  z-index: 15;
+}
+
+.status-bar-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.55rem 2rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  box-sizing: border-box;
+}
+
+.status-progress-track {
+  flex: 1;
+  max-width: 260px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(107, 125, 92, 0.15);
+  overflow: hidden;
+}
+
+.status-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--terracotta), var(--gold));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.status-item {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--olive);
+  white-space: nowrap;
+}
+
+.status-percent {
+  color: var(--terracotta);
+  min-width: 2.5em;
+}
+
+.shortcuts-wrapper {
+  position: relative;
+  margin-right: auto;
+}
+
+.shortcuts-hint {
+  cursor: pointer;
+  opacity: 0.75;
+  border: 1px dashed rgba(107, 125, 92, 0.3);
+  border-radius: 999px;
+  padding: 2px 10px;
+  background: transparent;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.shortcuts-hint:hover {
+  opacity: 1;
+  background: rgba(107, 125, 92, 0.08);
+}
+
+.shortcuts-popover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  background: var(--cream);
+  border: 1px solid rgba(107, 125, 92, 0.25);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(45, 45, 45, 0.15);
+  padding: 0.75rem 0.9rem;
+  min-width: 260px;
+  z-index: 30;
+  direction: rtl;
+}
+
+.shortcuts-popover-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--charcoal);
+  padding: 4px 0;
+  white-space: nowrap;
+}
+
+.shortcuts-popover-row + .shortcuts-popover-row {
+  border-top: 1px dashed rgba(107, 125, 92, 0.15);
+}
+
+.shortcuts-popover-row span {
+  margin-right: 8px;
+  color: var(--olive);
+  white-space: normal;
+}
+
+.shortcuts-popover-row kbd {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  background: rgba(107, 125, 92, 0.1);
+  border: 1px solid rgba(107, 125, 92, 0.25);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--charcoal);
+}
+
+@media (max-width: 768px) {
+  .status-bar-inner {
+    padding: 0.5rem 1rem;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .status-progress-track {
+    max-width: 100%;
+    flex-basis: 100%;
+    order: -1;
+  }
+  .shortcuts-wrapper {
+    margin-right: 0;
+  }
+  .shortcuts-popover {
+    left: auto;
+    right: 0;
+    min-width: 220px;
+  }
+}
+/* ============================================================
+   NEW CAT TOOL CARD INTERFACE (Matecat Style)
+   ============================================================ */
+
+/* The outer wrapper for each segment */
+.segment-card-wrapper {
+  margin-bottom: 1rem;
+  background: var(--cream);
+  border: 1px solid rgba(107, 125, 92, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+/* Override the old segment-row margins since the wrapper handles it now */
+.segment-card-wrapper .segment-row {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Strip the individual inner segment borders so it looks unified */
+.segment-card-wrapper .segment {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding-bottom: 1.5rem;
+}
+
+/* Active Segment Card Styling */
+.segment-card-wrapper.active-card {
+  border-color: var(--gold);
+  box-shadow: 0 8px 24px rgba(107, 125, 92, 0.12);
+  transform: translateY(-2px);
+}
+
+.segment-card-wrapper.active-card .segment-row {
+  background: #fff;
+}
+
+/* ─── Detail Panel & Tabs (Shows below active segment) ─── */
+
+.segment-detail-panel {
+  background: #fbfaf8;
+  border-top: 1px solid rgba(107, 125, 92, 0.15);
+  display: flex;
+  flex-direction: column;
+  animation: explanationFadeIn 0.2s ease;
+}
+
+.detail-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgb(39 40 38 / 9%);
+  padding: 0 1.5rem;
+  border-bottom: 1px solid rgba(107, 125, 92, 0.1);
+  direction: rtl;
+}
+
+.detail-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.8rem 1.25rem;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.detail-tab-btn:hover {
+  color: var(--terracotta);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.detail-tab-btn.active {
+  color: var(--terracotta);
+  background: #fbfaf8;
+  border-radius: 8px 8px 0 0;
+}
+
+/* Active tab indicator line */
+.detail-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--terracotta);
+}
+
+.detail-tab-content {
+  padding: 1.5rem;
+  min-height: 140px;
+  direction: rtl;
+}
+
+.tab-empty-state {
+  color: #999;
+  font-size: 0.95rem;
+  text-align: center;
+  padding: 2.5rem 0;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+/* Adapt existing explanation/suggestion elements to the new tab container */
+.detail-tab-content .explanation-text {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(107, 125, 92, 0.1);
+}
+
+.detail-tab-content .suggestion-card {
+  background: #fff;
+  border: 1px solid rgba(107, 125, 92, 0.1);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  padding: 1rem;
+}
+
+.detail-tab-content .suggestion-card:last-child {
+  margin-bottom: 0;
+}
+
+
+/* ─── Split segment button ─── */
+.split-segment-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  padding: 2px;
+  margin-top: 4px;
+}
+
+.split-segment-btn:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+/* --- Review Navigation Arrows --- */
+.review-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(244, 185, 66, 0.15);
+  border: 1px solid #f4b942;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  margin-right: auto;
+  margin-left: 1rem;
+}
+
+.review-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b87c2e;
+}
+
+.review-nav-btn {
+  background: #fff;
+  border: 1px solid rgba(184, 124, 46, 0.4);
+  color: #b87c2e;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.review-nav-btn:hover {
+  background: #f4b942;
+  color: #fff;
+  border-color: #f4b942;
+}

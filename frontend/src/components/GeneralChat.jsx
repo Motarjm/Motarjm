@@ -6,7 +6,7 @@ import { trackEvent } from '../analytics';
 
 const WELCOME_MESSAGE = {
   role: 'bot',
-  text: '👋 Hello! You can ask me about terminology, style, whole document, or specific segments.',
+  text: '👋 Hello! You can ask me about terminology, style, whole document, or specific segments and I can apply changes automatically.',
 };
 
 const GeneralChat = ({
@@ -20,6 +20,10 @@ const GeneralChat = ({
   onChatSuggestion,
   onReviewDocument,
   reviewLoading,
+  pendingReviewCount, // NEW
+  onBatchApply,       // NEW
+  onBatchDismiss,     // NEW
+  onNavigateSuggestion // NEW
 }) => {
   const [messages, setMessages] = useState([]);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
@@ -352,6 +356,33 @@ const GeneralChat = ({
           </div>
         )}
       </div>
+      
+      {/* NEW: Batch Actions Banner */}
+      {pendingReviewCount > 0 && (
+        <div className="batch-action-banner">
+          <div className="batch-banner-text">
+            <strong>{pendingReviewCount}</strong> pending suggestion(s)
+          </div>
+          <div className="batch-banner-actions">
+            <button
+              className="batch-nav-btn"
+              onClick={() => onNavigateSuggestion && onNavigateSuggestion('prev')}
+              title="Previous suggestion"
+            >
+              ↑
+            </button>
+            <button
+              className="batch-nav-btn"
+              onClick={() => onNavigateSuggestion && onNavigateSuggestion('next')}
+              title="Next suggestion"
+            >
+              ↓
+            </button>
+            <button className="batch-btn apply" onClick={onBatchApply}>Apply All</button>
+            <button className="batch-btn dismiss" onClick={onBatchDismiss}>Dismiss All</button>
+          </div>
+        </div>
+      )}
 
       <ChatInterface
         messages={messages}
