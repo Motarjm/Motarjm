@@ -1,4 +1,5 @@
 import json
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -16,37 +17,51 @@ from app.services.segment_service import (
     stream_chat_response,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/segment", tags=["Segment"])
 
 
 @router.post("/explanation")
 async def explanation(request: ExplanationRequest):
-    result = get_explanation(request.block, request.page_blocks)
-    return {"explanation": result}
+    try:
+        result = get_explanation(request.block, request.page_blocks)
+        return {"explanation": result}
+    except Exception:
+        logger.exception("failed to get segment explanation")
+        raise
 
 
 @router.post("/suggestions")
 async def suggestions(request: SuggestionsRequest, style_guide: str = Query(None)):
-    result = get_suggestions(
-        request.source_text,
-        request.sourceLang,
-        request.translation,
-        request.targetLang,
-        request.page_blocks,
-        style_guide or "",
-    )
-    return [{"text": text, "model": model} for model, text in result.items()]
+    try:
+        result = get_suggestions(
+            request.source_text,
+            request.sourceLang,
+            request.translation,
+            request.targetLang,
+            request.page_blocks,
+            style_guide or "",
+        )
+        return [{"text": text, "model": model} for model, text in result.items()]
+    except Exception:
+        logger.exception("failed to get segment suggestions")
+        raise
 
 
 @router.post("/backtranslation")
 async def backtranslation(request: BacktranslationRequest):
-    result = get_backtranslation(
-        request.target_text,
-        request.source_lang,
-        request.target_lang,
-        request.page_blocks,
-    )
-    return {"backtranslation": result}
+    try:
+        result = get_backtranslation(
+            request.target_text,
+            request.source_lang,
+            request.target_lang,
+            request.page_blocks,
+        )
+        return {"backtranslation": result}
+    except Exception:
+        logger.exception("failed to get backtranslation")
+        raise
 
 
 @router.post("/chat")
@@ -69,6 +84,7 @@ async def chat(request: ChatRequest, style_guide: str = Query(None)):
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         except Exception as e:
+            logger.exception("segment chat stream failed")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
