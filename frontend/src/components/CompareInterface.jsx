@@ -86,8 +86,6 @@ const CompareInterface = () => {
   const [reviewResults, setReviewResults] = useState(null);
   const [chatSuggestions, setChatSuggestions] = useState({});
   const [showShortcuts, setShowShortcuts] = useState(false);
-  // NEW: which tab is showing in the segment detail panel (matches | termbase | explain | suggestions)
-  const [activeTab, setActiveTab] = useState('matches');
   // --- NEW: Pending Reviews Tracking & Navigation ---
   const [currentReviewIndex, setCurrentReviewIndex] = useState(-1);
 
@@ -274,17 +272,9 @@ const CompareInterface = () => {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, [showShortcuts]);
 
-  // Lazily fetch explanation / suggestions when the corresponding tab is opened for a segment
-  useEffect(() => {
-    if (!activeSegment || !translatedContents) return;
-    const [pi, bi] = activeSegment.split('-').map(Number);
-    if (activeTab === 'explain') {
-      ensureExplanation(pi, bi);
-    } else if (activeTab === 'suggestions') {
-      ensureSuggestions(pi, bi, true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSegment, activeTab]);
+  // NOTE: explanation/suggestions are now lazily fetched by GeneralChat.jsx
+  // itself (via onEnsureExplanation/onEnsureSuggestions) when the person
+  // opens the corresponding Segment-scope sub-tab in the right-hand panel.
 
   const pendingReviewIds = useMemo(() => {
     const ids = [];
@@ -1175,6 +1165,43 @@ const CompareInterface = () => {
             const [pi, bi] = activeSegment.split('-').map(Number);
             return translatedContents[pi]?.[bi]?.original_text || '';
           })()}
+          // ── Segment-scope props for the two-tier panel (Document / Segment) ──
+          activeSegmentId={activeSegment}
+          activeSegmentBlock={(() => {
+            if (!activeSegment || !translatedContents) return null;
+            const [pi, bi] = activeSegment.split('-').map(Number);
+            return translatedContents[pi]?.[bi] || null;
+          })()}
+          pageContext={(() => {
+            if (!activeSegment || !translatedContents) return [];
+            const [pi] = activeSegment.split('-').map(Number);
+            return (translatedContents[pi] || []).map(b => b.original_text);
+          })()}
+          docContext={translatedContents.map(page => page.map(block => block.original_text))}
+          onEditActiveSegment={(newText) => {
+            if (!activeSegment) return;
+            const [pi, bi] = activeSegment.split('-').map(Number);
+            handleArabicEdit(pi, bi, newText);
+          }}
+          explanations={explanations}
+          explanationLoading={explanationLoading}
+          onEnsureExplanation={(forceRetry) => {
+            if (!activeSegment) return;
+            const [pi, bi] = activeSegment.split('-').map(Number);
+            ensureExplanation(pi, bi, forceRetry);
+          }}
+          suggestions={suggestions}
+          suggestionsLoading={suggestionsLoading}
+          onEnsureSuggestions={(forceRetry) => {
+            if (!activeSegment) return;
+            const [pi, bi] = activeSegment.split('-').map(Number);
+            ensureSuggestions(pi, bi, forceRetry);
+          }}
+          onApplySuggestion={(text) => {
+            if (!activeSegment) return;
+            const [pi, bi] = activeSegment.split('-').map(Number);
+            handleApplySuggestion(pi, bi, text);
+          }}
         />
 
         <div className="document-area">
@@ -1400,104 +1427,8 @@ const CompareInterface = () => {
                         </div>
                       </div>
 
-                      {/* Matecat-style detail panel: only rendered for the currently active segment */}
-                      {isActive && (
-                        <div className="segment-detail-panel" onClick={(e) => e.stopPropagation()}>
-                          <div className="detail-tabs">
-                            {/* <button
-                              className={`detail-tab-btn ${activeTab === 'matches' ? 'active' : ''}`}
-                              onClick={() => setActiveTab(activeTab === 'matches' ? null : 'matches')}
-                            >
-                              مطابقات الترجمة
-                            </button>
-                            <button
-                              className={`detail-tab-btn ${activeTab === 'termbase' ? 'active' : ''}`}
-                              onClick={() => setActiveTab(activeTab === 'termbase' ? null : 'termbase')}
-                            >
-                              قاعدة المصطلحات
-                            </button> */}
-                            <button
-                              className={`detail-tab-btn ${activeTab === 'explain' ? 'active' : ''}`}
-                              onClick={() => setActiveTab(activeTab === 'explain' ? null : 'explain')}
-                            >
-                              📖 شرح
-                            </button>
-                            <button
-                              className={`detail-tab-btn ${activeTab === 'suggestions' ? 'active' : ''}`}
-                              onClick={() => setActiveTab(activeTab === 'suggestions' ? null : 'suggestions')}
-                            >
-                              💡 اقتراحات
-                            </button>
-                            {/* <button
-                              className="detail-tab-btn segment-chat-btn"
-                              onClick={() => setFocusChatSegment({ pageIndex, blockIndex, id: segmentId })}
-                              title="فتح محادثة مخصصة لهذه الجملة بجانب محادثة المستند"
-                            >
-                              💬 محادثة الجملة
-                            </button> */}
-                          </div>
-
-                          {activeTab && (
-                            <div className="detail-tab-content">
-                              {activeTab === 'matches' && (
-                                <div className="tab-empty-state">لا توجد مطابقات من ذاكرة الترجمة لهذه الجملة بعد.</div>
-                              )}
-
-                              {activeTab === 'termbase' && (
-                                <div className="tab-empty-state">لم يتم العثور على مصطلحات من قاعدة المصطلحات لهذه الجملة.</div>
-                              )}
-
-                              {activeTab === 'explain' && (
-                                explanationLoading[segmentId] ? (
-                                  <div className="explanation-loading">جاري تحميل الشرح...</div>
-                                ) : explanations[segmentId] === '__ERROR__' ? (
-                                  <div className="explanation-error">
-                                    ⚠️ حدث خطأ أثناء التحميل.
-                                    <button className="retry-btn" onClick={() => ensureExplanation(pageIndex, blockIndex, true)}>إعادة المحاولة</button>
-                                  </div>
-                                ) : explanations[segmentId] ? (
-                                  <div
-                                    className="explanation-text"
-                                    dangerouslySetInnerHTML={{
-                                      __html: explanations[segmentId]?.replace(/\n/g, '<br />'),
-                                    }}
-                                  ></div>
-                                ) : (
-                                  <div className="tab-empty-state">لا يوجد شرح متاح بعد.</div>
-                                )
-                              )}
-
-                              {activeTab === 'suggestions' && (
-                                suggestionsLoading[segmentId] ? (
-                                  <div className="suggestions-loading">جاري تحميل الاقتراحات...</div>
-                                ) : suggestions[segmentId] === '__ERROR__' ? (
-                                  <div className="explanation-error">
-                                    ⚠️ حدث خطأ أثناء التحميل.
-                                    <button className="retry-btn" onClick={() => ensureSuggestions(pageIndex, blockIndex, true)}>إعادة المحاولة</button>
-                                  </div>
-                                ) : suggestions[segmentId]?.length ? (
-                                  suggestions[segmentId].map((s, i) => (
-                                    <div className="suggestion-card" key={i}>
-                                      <div className="suggestion-card-meta">
-                                        <span className="suggestion-model-label">{s.model}</span>
-                                      </div>
-                                      <div className="suggestion-card-text">{s.text}</div>
-                                      <button
-                                        className="suggestion-apply-btn"
-                                        onClick={() => handleApplySuggestion(pageIndex, blockIndex, s.text)}
-                                      >
-                                        ✓
-                                      </button>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="tab-empty-state">لا توجد اقتراحات بعد.</div>
-                                )
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {/* Suggestions / Explain / Chat / TM / Termbase for the active segment now live
+                          in the right-hand panel's "Segment" scope — see GeneralChat.jsx. */}
                     </div>
                   );
                 })}

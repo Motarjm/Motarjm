@@ -124,6 +124,25 @@
   background: #faf8f5;
 }
 
+/* ── Embedded variant (segment chat living inside the right-hand panel's
+   Segment tab, rather than the fullscreen overlay) — layout only, all
+   chat behavior above is unchanged. ── */
+.focus-embedded-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.focus-chat.focus-chat-embedded {
+  width: 100%;
+  flex: 1;
+  border-left: none;
+  background: transparent;
+  min-height: 0;
+}
+
 /* Chat header: context note */
 .focus-chat-header {
   padding: 0.6rem 1.2rem;
@@ -692,4 +711,25 @@
     font-size: 0.74rem;
     padding: 0.28rem 0.6rem;
   }
+}
+
+.focus-chat-clear-btn {
+  background: none;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #bbb;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.focus-chat-clear-btn:hover {
+  border-color: var(--terracotta, #c1502e);
+  color: var(--terracotta, #c1502e);
+  background: rgba(193, 80, 46, 0.05);
 }
