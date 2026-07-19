@@ -5,6 +5,7 @@ import { API_URL } from '../apiConfig';
 import { trackEvent } from '../analytics';
 import TermbaseTab from './TermbaseTab';
 import TranslationMemoryTab from './TranslationMemoryTab';
+import FocusChatPanel from './FocusChatPanel';
 import { findMatchesClient } from '../utils/glossaryMatch';
 
 const WELCOME_MESSAGE = {
@@ -30,6 +31,20 @@ const GeneralChat = ({
   glossary,
   activeSegmentSource,
   tmId,
+  // ── Segment-scope props (all optional — panel degrades gracefully
+  // to an empty state if no segment is active) ──
+  activeSegmentId,        // "pageIndex-blockIndex" of the currently active segment, or null
+  activeSegmentBlock,     // { original_text, translated_text } for that segment
+  pageContext,            // array of source texts for the active segment's page (segment chat)
+  docContext,             // full document source texts (segment chat)
+  onEditActiveSegment,    // (newText) => void — applies an edit to the active segment
+  explanations,
+  explanationLoading,
+  onEnsureExplanation,    // (forceRetry) => void
+  suggestions,
+  suggestionsLoading,
+  onEnsureSuggestions,    // (forceRetry) => void
+  onApplySuggestion,      // (text) => void
 }) => {
   const [messages, setMessages] = useState([]);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
@@ -37,7 +52,10 @@ const GeneralChat = ({
   const [model, setModel] = useState('claude');
   const [width, setWidth] = useState(470);
   const [isResizing, setIsResizing] = useState(false);
-  const [panelTab, setPanelTab] = useState('chat');
+  // ── Two-tier scope: which top-level context the panel is showing ──
+  const [scope, setScope] = useState('document'); // 'document' | 'segment'
+  // ── Sub-tab within Segment scope ──
+  const [segmentTab, setSegmentTab] = useState('suggestions');
 
   const [tmSegmentMatches, setTmSegmentMatches] = useState([]);
   const [tmLoading, setTmLoading] = useState(false);
@@ -47,6 +65,30 @@ const GeneralChat = ({
   const [replaceTerm, setReplaceTerm] = useState('');
 
   const messagesEndRef = useRef(null);
+
+  // Human-friendly segment number ("Segment #6") for the scope toggle label
+  const activeSegmentNumber = useMemo(() => {
+    if (!activeSegmentId || !translatedContents) return null;
+    const [pageStr, blockStr] = activeSegmentId.split('-');
+    const page = parseInt(pageStr, 10);
+    const block = parseInt(blockStr, 10);
+    let num = 0;
+    for (let p = 0; p < page; p++) {
+      if (translatedContents[p]) num += translatedContents[p].length;
+    }
+    return num + block + 1;
+  }, [activeSegmentId, translatedContents]);
+
+  // Lazily fetch explanation / suggestions when their sub-tab is opened
+  useEffect(() => {
+    if (scope !== 'segment' || !activeSegmentId) return;
+    if (segmentTab === 'explain' && onEnsureExplanation) {
+      onEnsureExplanation(false);
+    } else if (segmentTab === 'suggestions' && onEnsureSuggestions) {
+      onEnsureSuggestions(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope, segmentTab, activeSegmentId]);
 
   // ─── badge counts ───
   const termbaseCount = useMemo(() => {
@@ -277,6 +319,8 @@ const GeneralChat = ({
     setReplaceTerm('');
   };
 
+  const segmentHasContext = !!activeSegmentId;
+
   return (
     <div className="general-chat-panel" style={{ width: `${width}px` }}>
       <div
@@ -286,47 +330,37 @@ const GeneralChat = ({
       />
 
       <div className="general-chat-header">
-        <div className="chat-panel-tabs">
+        {/* ── Top-level scope switch: Document vs Segment ── */}
+        <div className="scope-tabs">
           <button
-            className={`panel-tab-btn ${panelTab === 'chat' ? 'active' : ''}`}
-            onClick={() => setPanelTab('chat')}
+            className={`scope-tab-btn ${scope === 'document' ? 'active' : ''}`}
+            onClick={() => setScope('document')}
           >
-            Document Chat
+            Document
           </button>
-          {glossary && Object.keys(glossary).length > 0 && (
-            <button
-              className={`panel-tab-btn ${panelTab === 'termbase' ? 'active' : ''}`}
-              onClick={() => setPanelTab('termbase')}
-            >
-              Glossary
-              {termbaseCount > 0 && (
-                <span className="termbase-badge">{termbaseCount}</span>
-              )}
-            </button>
-          )}
-          {tmId && (
-            <button
-              className={`panel-tab-btn ${panelTab === 'tm' ? 'active' : ''}`}
-              onClick={() => setPanelTab('tm')}
-            >
-              TM
-              {tmCount > 0 && (
-                <span className="termbase-badge">{tmCount}</span>
-              )}
-            </button>
-          )}
+          <button
+            className={`scope-tab-btn scope-tab-segment ${scope === 'segment' ? 'active' : ''} ${!segmentHasContext ? 'disabled' : ''}`}
+            onClick={() => segmentHasContext && setScope('segment')}
+            disabled={!segmentHasContext}
+            title={segmentHasContext ? `Segment #${activeSegmentNumber}` : 'Click a segment to see its context'}
+          >
+            {segmentHasContext ? `Segment #${activeSegmentNumber}` : 'Segment'}
+          </button>
         </div>
-        <button className="general-chat-clear-btn" onClick={handleClear} title="Clear conversation">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-            <path d="M10 11v6M14 11v6" />
-            <path d="M9 6V4h6v2" />
-          </svg>
-        </button>
+        {scope === 'document' && (
+          <button className="general-chat-clear-btn" onClick={handleClear} title="Clear conversation">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4h6v2" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {panelTab === 'chat' && (
+      {/* ═══════════════ Document scope ═══════════════ */}
+      {scope === 'document' && (
         <>
           <div className="quick-actions-strip">
             <div className="quick-actions-chips">
@@ -439,24 +473,168 @@ const GeneralChat = ({
         </>
       )}
 
-      {panelTab === 'termbase' && (
-        <div key="termbase" className="termbase-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <TermbaseTab
-            glossary={glossary}
-            activeSegmentSource={activeSegmentSource}
-          />
-        </div>
-      )}
+      {/* ═══════════════ Segment scope ═══════════════ */}
+      {scope === 'segment' && (
+        <>
+          <div className="segment-subtabs">
+            <button
+              className={`segment-subtab-btn ${segmentTab === 'suggestions' ? 'active' : ''}`}
+              onClick={() => setSegmentTab('suggestions')}
+            >
+              💡 Suggestions
+            </button>
+            <button
+              className={`segment-subtab-btn ${segmentTab === 'explain' ? 'active' : ''}`}
+              onClick={() => setSegmentTab('explain')}
+            >
+              📖 Explain
+            </button>
+            <button
+              className={`segment-subtab-btn ${segmentTab === 'chat' ? 'active' : ''}`}
+              onClick={() => setSegmentTab('chat')}
+            >
+              💬 Chat
+            </button>
+            <button
+              className={`segment-subtab-btn ${segmentTab === 'tm' ? 'active' : ''}`}
+              onClick={() => setSegmentTab('tm')}
+            >
+              TM
+              {tmCount > 0 && <span className="termbase-badge">{tmCount}</span>}
+            </button>
+            <button
+              className={`segment-subtab-btn ${segmentTab === 'termbase' ? 'active' : ''}`}
+              onClick={() => setSegmentTab('termbase')}
+            >
+              Termbase
+              {termbaseCount > 0 && <span className="termbase-badge">{termbaseCount}</span>}
+            </button>
+          </div>
 
-      {panelTab === 'tm' && tmId && (
-        <div key="tm" className="tm-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          <TranslationMemoryTab
-            tmId={tmId}
-            activeSegmentSource={activeSegmentSource}
-            segmentMatches={tmSegmentMatches}
-            loadingSegment={tmLoading}
-          />
-        </div>
+          {!segmentHasContext ? (
+            <div className="segment-tab-content">
+              <div className="tab-empty-state">
+                Click a segment in the document to see suggestions, an explanation, a focused chat, translation memory and termbase matches for it.
+              </div>
+            </div>
+          ) : (
+            <>
+              {segmentTab === 'suggestions' && (
+                <div className="segment-tab-content">
+                  {/* ── Regenerate button ── */}
+                  <div className="suggestions-header" style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', borderBottom: '1px solid #e5e7eb' }}>
+                    <button
+                      className="regenerate-btn"
+                      onClick={() => onEnsureSuggestions && onEnsureSuggestions(true)}
+                      disabled={suggestionsLoading?.[activeSegmentId] || !activeSegmentId}
+                      title="Regenerate suggestions"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </svg>
+                      Regenerate
+                    </button>
+                  </div>
+                  {suggestionsLoading?.[activeSegmentId] ? (
+                    <div className="suggestions-loading">Loading suggestions…</div>
+                  ) : suggestions?.[activeSegmentId] === '__ERROR__' ? (
+                    <div className="explanation-error">
+                      ⚠️ Something went wrong.
+                      <button className="retry-btn" onClick={() => onEnsureSuggestions && onEnsureSuggestions(true)}>Retry</button>
+                    </div>
+                  ) : suggestions?.[activeSegmentId]?.length ? (
+                    suggestions[activeSegmentId].map((s, i) => (
+                      <div className="suggestion-card" key={i}>
+                        <div className="suggestion-card-meta">
+                          <span className="suggestion-model-label">{s.model}</span>
+                        </div>
+                        <div className="suggestion-card-text">{s.text}</div>
+                        <button
+                          className="suggestion-apply-btn"
+                          onClick={() => onApplySuggestion && onApplySuggestion(s.text)}
+                        >
+                          ✓
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="tab-empty-state">No suggestions yet.</div>
+                  )}
+                </div>
+              )}
+
+              {segmentTab === 'explain' && (
+                <div className="segment-tab-content">
+                  {explanationLoading?.[activeSegmentId] ? (
+                    <div className="explanation-loading">Loading explanation…</div>
+                  ) : explanations?.[activeSegmentId] === '__ERROR__' ? (
+                    <div className="explanation-error">
+                      ⚠️ Something went wrong.
+                      <button className="retry-btn" onClick={() => onEnsureExplanation && onEnsureExplanation(true)}>Retry</button>
+                    </div>
+                  ) : explanations?.[activeSegmentId] ? (
+                    <div
+                      className="explanation-text"
+                      dangerouslySetInnerHTML={{
+                        __html: explanations[activeSegmentId]?.replace(/\n/g, '<br />'),
+                      }}
+                    />
+                  ) : (
+                    <div className="tab-empty-state">No explanation available yet.</div>
+                  )}
+                </div>
+              )}
+
+              {segmentTab === 'chat' && (
+                <FocusChatPanel
+                  embedded
+                  documentId={documentId}
+                  segment={activeSegmentBlock}
+                  segmentId={activeSegmentId}
+                  pageContext={pageContext}
+                  docContext={docContext}
+                  sourceLang={sourceLang}
+                  targetLang={targetLang}
+                  styleGuideQueryValue={styleGuideQueryValue}
+                  onEditTranslation={onEditActiveSegment}
+                />
+              )}
+
+              {segmentTab === 'tm' && (
+                <div key="tm" className="tm-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                  {tmId ? (
+                    <TranslationMemoryTab
+                      tmId={tmId}
+                      activeSegmentSource={activeSegmentSource}
+                      segmentMatches={tmSegmentMatches}
+                      loadingSegment={tmLoading}
+                    />
+                  ) : (
+                    <div className="segment-tab-content">
+                      <div className="tab-empty-state">No translation memory attached to this document.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {segmentTab === 'termbase' && (
+                <div key="termbase" className="termbase-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+                  {glossary && Object.keys(glossary).length > 0 ? (
+                    <TermbaseTab
+                      glossary={glossary}
+                      activeSegmentSource={activeSegmentSource}
+                    />
+                  ) : (
+                    <div className="segment-tab-content">
+                      <div className="tab-empty-state">No glossary attached to this document.</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
 
     </div>

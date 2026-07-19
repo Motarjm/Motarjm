@@ -59,6 +59,11 @@ const FocusChatPanel = ({
   styleGuideQueryValue = '',
   onClose,
   onEditTranslation,
+  // When true, renders just the chat column (no fullscreen overlay, no
+  // topbar, no source/translation side texts) so it can be dropped inside
+  // another panel — e.g. the Segment tab of the right-hand panel. All
+  // streaming / persistence / diff logic below is untouched either way.
+  embedded = false,
 }) => {
  
   const [messages, setMessages] = useState([]);
@@ -140,7 +145,17 @@ const FocusChatPanel = ({
     return null;
   };
 
-  
+
+  const handleClear = () => {
+    setMessages([]);
+    chatHistoryRef.current = [];
+    if (documentId && segmentId) {
+      saveSegmentChat(documentId, segmentId, { messages: [], chatHistory: [] }).catch((e) => {
+        console.error('Failed to clear chat history in IndexedDB:', e);
+      });
+    }
+  };
+
     const handleSend = async (text) => {
     if (!historyLoaded || !text.trim() || isStreaming) return;
 
@@ -288,6 +303,66 @@ const FocusChatPanel = ({
     return () => document.removeEventListener('copy', handleCopy);
   }, [pendingEdit]);
 
+  // The chat column itself — identical markup/logic whether embedded or in
+  // the fullscreen overlay. Only the wrapper around it changes below.
+  const chatColumn = (
+  <div className={`focus-chat ${embedded ? 'focus-chat-embedded' : ''}`}>
+    {/* Context note + clear button */}
+    <div className="focus-chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px' }}>
+      <p className="focus-chat-context-note" style={{ margin: 0 }}>
+        ℹ️ The bot has full document context — no need to provide extra background.
+      </p>
+      
+      {/* ── NEW: Clear chat button (matches GeneralChat style) ── */}
+      <button
+        className="focus-chat-clear-btn"
+        onClick={handleClear}
+        title="Clear conversation"  
+        onMouseEnter={(e) => e.currentTarget.style.color = '#ef4444'}
+        onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4h6v2" />
+        </svg>
+      </button>
+    </div>
+
+    <ChatInterface
+      messages={messages}
+      onSend={handleSend}
+      isLoading={isStreaming}
+      model={selectedModel}
+      onModelChange={setSelectedModel}
+      showModelSelect={true}
+      placeholder="Ask anything about this segment…"
+      emptyStateText="We Prompt Engineer. You Translate."
+      ephemeralError={ephemeralError}
+      belowMessages={pendingEdit ? (
+        <DiffPreview
+          oldText={pendingEdit.oldText}
+          newText={pendingEdit.newText}
+          onApply={() => {
+            trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
+            onEditTranslation(pendingEdit.newText);
+            setPendingEdit(null);
+          }}
+          onDiscard={() => setPendingEdit(null)}
+        />
+      ) : null}
+      messagesEndRef={messagesEndRef}
+    />
+  </div>
+);
+
+  if (embedded) {
+    // Dropped inline into a tab panel — no overlay, no topbar, no
+    // source/translation side texts (those already live in the main grid).
+    return <div className="focus-embedded-wrapper">{chatColumn}</div>;
+  }
+
   return (
     <div className="focus-overlay">
       {/* Top bar */}
@@ -317,40 +392,7 @@ const FocusChatPanel = ({
         </div>
 
         {/* Right: chat */}
-        <div className="focus-chat">
-          {/* Context note */}
-          <div className="focus-chat-header">
-            <p className="focus-chat-context-note">
-              ℹ️ The bot has full document context — no need to provide extra background.
-            </p>
-          </div>
-
-            <ChatInterface
-            messages={messages}
-            onSend={handleSend}
-            isLoading={isStreaming}
-            model={selectedModel}
-            onModelChange={setSelectedModel}
-            showModelSelect={true}
-            placeholder="Ask anything about this segment…"
-            emptyStateText="We Prompt Engineer. You Translate."
-            ephemeralError={ephemeralError}
-            belowMessages={pendingEdit ? (
-              <DiffPreview
-                oldText={pendingEdit.oldText}
-                newText={pendingEdit.newText}
-                onApply={() => {
-                  trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
-                  onEditTranslation(pendingEdit.newText);
-                  setPendingEdit(null);
-                }}
-                onDiscard={() => setPendingEdit(null)}
-              />
-            ) : null}
-            messagesEndRef={messagesEndRef}
-          />
-
-        </div>
+        {chatColumn}
       </div>
     </div>
   );
