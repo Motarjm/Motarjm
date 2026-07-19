@@ -22,13 +22,8 @@ import {
   setActiveTranslationJob,
 } from '../utils/indexedDbPersistence';
 
-// day month year ->  ٢٠٢٦/١/١٦
-// day is read from the right
-// tags: new improved fixed
-// new -> جديد | improved -> تحسين | fixed -> إصلاح 
 const WHATS_NEW_ITEMS = [
   {
-    
     date: '٢٠٢٦/٥/٢١',
     tag: 'جديد',
     tagType: 'new',
@@ -52,12 +47,10 @@ const WHATS_NEW_ITEMS = [
     tagType: 'improved',
     text: 'عملك يُحفظ تلقائيًا. أغلق الصفحة و أكمل لاحقًا',
   },
-  
 ];
 
 const SAMPLE_PDF_NAME = 'tax.pdf';
 const SAMPLE_PDF_URL = `${import.meta.env.BASE_URL}static/${SAMPLE_PDF_NAME}`;
-
 
 const Torgman = () => {
   const [selectedFile, setSelectedFile] = useState(null);
@@ -65,6 +58,7 @@ const Torgman = () => {
   const [glossaryFile, setGlossaryFile] = useState(null);
   const [glossaryFileName, setGlossaryFileName] = useState('');
   const [glossaryFileSize, setGlossaryFileSize] = useState(null);
+  const [glossaryId, setGlossaryId] = useState(null);
   const [status, setStatus] = useState('');
   const [downloadUrl, setDownloadUrl] = useState(''); 
   const [translatedContents, setTranslatedContents] = useState(null);
@@ -72,8 +66,8 @@ const Torgman = () => {
   const [isTranslating, setIsTranslating] = useState(false);
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
-  const [progress, setProgress] = useState(0); // NEW
-  const [totalBlocks, setTotalBlocks] = useState(0); // NEW
+  const [progress, setProgress] = useState(0);
+  const [totalBlocks, setTotalBlocks] = useState(0);
   const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
   const [styleGuideData, setStyleGuideData] = useState({});
   const [isStyleGuideActive, setIsStyleGuideActive] = useState(false);
@@ -81,17 +75,11 @@ const Torgman = () => {
   const [isPreparingSample, setIsPreparingSample] = useState(false);
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
-  const translateBtnRef = useRef(); // Added to bring visibility to translate button
+  const translateBtnRef = useRef();
   const etaStartTimeRef = useRef(null);
-  // Segment count at the moment we started the ETA clock (see progress handler
-  // below). Needed because "segments completed since we started timing" is
-  // NOT the same as "total completed count" — the old code confused the two,
-  // which made the ETA read ~0s the instant the clock started.
   const etaBaselineCompletedRef = useRef(null);
-  // ── CHANGED: two new refs for cancellation ─────────────────────────────────
-  const abortControllerRef = useRef(null);   // holds the AbortController for the active fetch
-  const translationIdRef = useRef(null);     // holds a unique ID for the active translation run
-  // ───────────────────────────────────────────────────────────────────────────
+  const abortControllerRef = useRef(null);
+  const translationIdRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -100,7 +88,6 @@ const Torgman = () => {
     }
   }, [fileName]);
 
-  // Load style guide from session storage on component mount
   useEffect(() => {
     const savedStyleGuide = sessionStorage.getItem('translation_style_guide');
     const savedStyleGuideActive = sessionStorage.getItem('translation_style_guide_active');
@@ -131,8 +118,6 @@ const Torgman = () => {
     { code: 'ar_sa', name: 'العربية السعودية', englishName: 'Saudi Arabic' },
   ];
 
-
-
   const getFileType = (fileName) => {
     const ext = fileName.toLowerCase().split('.').pop();
     if (ext === 'pdf') return 'pdf';
@@ -143,7 +128,6 @@ const Torgman = () => {
 
   const isTbxFile = (name) => name?.toLowerCase().endsWith('.tbx');
 
-  // Cleanup legacy sessionStorage keys from the pre-IndexedDB flow.
   const clearLegacySessionStorage = () => {
     const keysToDelete = [
       'translationData',
@@ -167,22 +151,15 @@ const Torgman = () => {
     chatKeysToDelete.forEach((key) => sessionStorage.removeItem(key));
   };
 
-  // ── CHANGED: cancelTranslation helper ──────────────────────────────────────
-  // Aborts any in-flight fetch and invalidates the current translation run ID
-  // so that stale async callbacks cannot update state after cancellation.
-  // Call this before every user action that discards the current translation.
   const cancelTranslation = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     translationIdRef.current = null;
     void clearActiveTranslationJob();
   };
-  // ───────────────────────────────────────────────────────────────────────────
 
   const resetTranslationUiState = () => {
-    // ── CHANGED: abort any in-flight request before resetting UI ───────────
     cancelTranslation();
-    // ───────────────────────────────────────────────────────────────────────
     etaStartTimeRef.current = null;
     etaBaselineCompletedRef.current = null;
     setDownloadUrl('');
@@ -190,6 +167,7 @@ const Torgman = () => {
     setFileContent(null);
     setStatus('');
     setActiveDocumentId(null);
+    setGlossaryId(null);
     setIsTranslating(false);
     setIsPreparingSample(false);
     setProgress(0);
@@ -255,7 +233,6 @@ const Torgman = () => {
     setIsPreparingSample(true);
     setStatus('جارٍ تجهيز ملف العينة...');
     
-
     try {
       const response = await fetch(SAMPLE_PDF_URL);
       if (!response.ok) {
@@ -276,19 +253,11 @@ const Torgman = () => {
     }
   };
 
-  // ── NEW: watchJobStream ──────────────────────────────────────────────────
-  // Opens/reopens the SSE viewer for an already-running backend job and
-  // consumes it to completion. Used both right after starting a translation
-  // and when reattaching to an in-flight job after a page refresh — the two
-  // cases are identical from this point on, since the job itself lives on
-  // the backend independent of any particular browser connection.
-  //
-  // `meta` shape: { jobId, fileType, fileName, fileSize, sourceLang, targetLang,
-  //                 glossaryFileName, glossaryFileSize, translationStartTs, thisId }
   const watchJobStream = useCallback(async (meta, controller) => {
     const { jobId, fileType, fileName: metaFileName, fileSize, sourceLang: metaSourceLang,
             targetLang: metaTargetLang, glossaryFileName: metaGlossaryFileName,
-            glossaryFileSize: metaGlossaryFileSize, translationStartTs, thisId } = meta;
+            glossaryFileSize: metaGlossaryFileSize, glossaryId: metaGlossaryId,
+            translationStartTs, thisId } = meta;
 
     const isCancelled = () => translationIdRef.current !== thisId;
 
@@ -314,6 +283,7 @@ const Torgman = () => {
       const decoder = new TextDecoder();
       let buffer = '';
       let finalData = null;
+      let backendErrorDetail = null;  // ← CHANGED: track backend error messages
 
       const processLines = (lines) => {
         for (const line of lines) {
@@ -338,18 +308,13 @@ const Torgman = () => {
                 latestTotalBlocks = event.total;
                 setProgress(event.completed);
                 setTotalBlocks(event.total);
-                // NOTE: no counts here — the progress bar (progress-text) already
-                // shows "x/y (z%)". Duplicating the same numbers in the status
-                // line below the button was the source of the "counts showing up
-                // in two places" confusion. Keep a plain phase label only; it's
-                // hidden while the progress bar is visible anyway (see render).
                 setStatus('‫قيد الترجمة...');
               } else if (event.type === 'done') {
                 translationPhase = 'finalizing_result';
                 finalData = event;
               } else if (event.type === 'error') {
                 translationPhase = 'backend_job_error';
-                throw new Error(event.detail || 'فشلت عملية الترجمة على الخادم');
+                backendErrorDetail = event.detail || 'فشلت عملية الترجمة على الخادم';  // ← CHANGED: capture instead of throw
               }
             } catch (e) {
               console.error('Failed to parse SSE event:', e);
@@ -390,18 +355,16 @@ const Torgman = () => {
 
       if (!finalData) {
         translationPhase = 'missing_final_event';
-        throw new Error('لم يتم استلام نتيجة الترجمة');
+        const errorMessage = backendErrorDetail  // ← CHANGED: use captured backend error
+          ? `Translation failed: ${backendErrorDetail}`
+          : 'لم يتم استلام نتيجة الترجمة';
+        throw new Error(errorMessage);
       }
 
-      // Handle file-specific logic
       let newFileContent = null;
 
       if (fileType === 'pdf') {
         translationPhase = 'building_pdf_output';
-        // PDF response includes base64 encoded translated PDF, plus the
-        // original PDF's base64 (the backend already has the bytes — no
-        // need to re-read a local File, which also wouldn't exist after
-        // a refresh anyway).
         const blob = new Blob(
           [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
           { type: 'application/pdf' }
@@ -416,15 +379,17 @@ const Torgman = () => {
         const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
         const url = URL.createObjectURL(blob);
         setTranslatedContents(finalData.translated_contents);
-        newFileContent = finalData.xliff; // Store XLIFF content
+        newFileContent = finalData.xliff;
         setFileContent(finalData.xliff);
         setDownloadUrl(url);
       }
 
-      // Hard reset policy: each new upload replaces all previously persisted IndexedDB data.
       await clearAllPersistence();
 
       if (isCancelled()) return;
+
+      const resolvedGlossaryId = finalData.glossary_id || metaGlossaryId || null;
+      console.log('Persisting document with glossaryId:', resolvedGlossaryId);
 
       const persistedDocumentId = await createDocument({
         translatedContents: finalData.translated_contents,
@@ -435,16 +400,16 @@ const Torgman = () => {
         fileName: metaFileName,
         glossaryFileName: metaGlossaryFileName,
         glossaryFileSize: metaGlossaryFileSize,
+        glossaryId: resolvedGlossaryId,
       });
 
       if (isCancelled()) return;
 
       setActiveDocumentId(persistedDocumentId);
+      setGlossaryId(resolvedGlossaryId);
 
-      // Remove old sessionStorage artifacts so restore behavior is deterministic.
       clearLegacySessionStorage();
 
-      // Track translation completion
       const translationDuration = Date.now() - translationStartTs;
       trackTranslationCompleted(fileType, fileSize, translationDuration, true);
 
@@ -518,10 +483,7 @@ const Torgman = () => {
       }
     }
   }, []);
-  // ─────────────────────────────────────────────────────────────────────────
 
-  // Restore an in-flight translation first; otherwise hydrate the last
-  // completed document from IndexedDB.
   useEffect(() => {
     let cancelled = false;
     let activeController = null;
@@ -543,6 +505,7 @@ const Torgman = () => {
           setTargetLang(savedJob.targetLang || 'Arabic');
           setGlossaryFileName(savedJob.glossaryFileName || '');
           setGlossaryFileSize(savedJob.glossaryFileSize || null);
+          setGlossaryId(savedJob.glossaryId || null);
           setIsTranslating(true);
           setIsPreparingSample(false);
           setProgress(0);
@@ -569,6 +532,7 @@ const Torgman = () => {
           setFileName(savedDocument.fileName || '');
           setGlossaryFileName(savedDocument.glossaryFileName || '');
           setGlossaryFileSize(savedDocument.glossaryFileSize || null);
+          setGlossaryId(savedDocument.glossaryId || null);
           setDownloadUrl('indexeddb');
           setIsTranslating(false);
           setIsPreparingSample(false);
@@ -610,26 +574,15 @@ const Torgman = () => {
       return;
     }
 
-    // ── CHANGED: create a unique ID for this run and an AbortController ────
-    // If the user cancels mid-translation, translationIdRef.current is set to
-    // null (in cancelTranslation). Every async checkpoint below compares its
-    // captured thisId against translationIdRef.current; a mismatch means the
-    // run was superseded and we return early without touching state.
     const thisId = crypto.randomUUID();
     translationIdRef.current = thisId;
 
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    // ───────────────────────────────────────────────────────────────────────
 
     setIsTranslating(true);
     setProgress(0);
     setTotalBlocks(0);
-    // ── FIX: clear any leftover status (e.g. a previous run's error message)
-    // so it doesn't linger on screen through the new run. Without this, an
-    // old "حدث خطأ..." message stayed visible until the first 'progress' SSE
-    // event arrived (which could be several seconds, or never, if the new
-    // run also failed before producing progress).
     setStatus('');
     etaStartTimeRef.current = null;
     etaBaselineCompletedRef.current = null;
@@ -642,19 +595,17 @@ const Torgman = () => {
         formData.append('glossary', glossaryFile);
       }
 
-      // Determine endpoint and source language code
       const endpoints = {
-              'pdf': '/translation/pdf',
-              'docx': '/translation/docx',
-              'xliff': '/translation/xliff'
-            };
+        'pdf': '/translation/pdf',
+        'docx': '/translation/docx',
+        'xliff': '/translation/xliff'
+      };
       const endpoint = endpoints[fileType];
       const sourceLangObj = Sourcelanguages.find(lang => lang.englishName === sourceLang);
       const targetLangObj = Targetlanguages.find(lang => lang.englishName === targetLang);
       const sourceLangCode = sourceLangObj?.code || 'en';
       const targetLangCode = targetLangObj?.code || 'ar';
 
-      // Build query params including style guide if present and active
       let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
       if (hasStyleGuideData(styleGuideData) && isStyleGuideActive) {
         const styleGuideXML = formatStyleGuideToXML(styleGuideData);
@@ -668,11 +619,8 @@ const Torgman = () => {
         console.log('%c=== STYLE GUIDE SAVED BUT DEACTIVATED - NOT SENDING TO BACKEND ===', 'color: #FF9500; font-weight: bold; font-size: 14px;');
       }
 
-      // Track translation start
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
 
-      // ── CHANGED: this now just starts the backend job and returns a job_id
-      // immediately. The actual translation runs independently of this fetch.
       const startResponse = await fetch(
         `${API_URL}${endpoint}?${queryParams}`,
         {
@@ -697,7 +645,9 @@ const Torgman = () => {
         throw error;
       }
 
-      const { job_id } = await startResponse.json();
+      const { job_id, glossary_id } = await startResponse.json();
+      console.log('Start response glossary_id:', glossary_id);
+      setGlossaryId(glossary_id || null);
 
       const meta = {
         jobId: job_id,
@@ -708,12 +658,11 @@ const Torgman = () => {
         targetLang,
         glossaryFileName,
         glossaryFileSize,
+        glossaryId: glossary_id || null,
         translationStartTs,
         thisId,
       };
-      // Persist so a refresh/close can find and reattach to this job later.
       await setActiveTranslationJob(meta);
-      // ───────────────────────────────────────────────────────────────────────
 
       await watchJobStream(meta, controller);
     } catch (error) {
@@ -741,20 +690,14 @@ const Torgman = () => {
     const baselineCompleted = etaBaselineCompletedRef.current;
     if (!etaStartTimeRef.current || baselineCompleted == null) return '‫قيد التقدير...';
 
-    // How many segments have finished SINCE the clock started (not since the
-    // job started — segment 1 is excluded on purpose because it's bundled
-    // with document extraction time and would skew the average).
     const completedSinceBaseline = progress - baselineCompleted;
-    // Need at least one full timed segment before an average means anything;
-    // otherwise we're dividing by ~0 elapsed time and getting a bogus ~0s ETA.
     if (completedSinceBaseline < 1) return '‫قيد التقدير...';
 
-    const elapsed = (Date.now() - etaStartTimeRef.current) / 1000; // seconds
+    const elapsed = (Date.now() - etaStartTimeRef.current) / 1000;
     const avgPerBlock = elapsed / completedSinceBaseline;
     const remaining = avgPerBlock * (totalBlocks - progress);
     if (remaining < 60) return `نحو ${Math.ceil(remaining)} ثانية متبقية`;
     const mins = Math.floor(remaining / 60);
-    // return `~${mins} minutes remaining`;
     return `نحو ${mins} دقائق متبقية`;
   };
 
@@ -765,7 +708,6 @@ const Torgman = () => {
     setIsStyleGuideActive(true);
     setIsStyleGuideOpen(false);
     
-    // Log the style guide data and XML output
     console.log('%c=== STYLE GUIDE DATA ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
     console.log('Form Data:', data);
     const styleGuideXML = formatStyleGuideToXML(data);
@@ -785,7 +727,6 @@ const Torgman = () => {
     setIsStyleGuideOpen(false);
   };
 
-
   return (
     <div className="torgman-page">
       <div className="top-bar">
@@ -795,58 +736,9 @@ const Torgman = () => {
       </div>
 
       <div className="container">
-        {/* {isWhatsNewOpen && (
-          <aside className="card whats-new-panel hero-whats-new-panel" aria-label="ما الجديد">
-            <div className="whats-new-header">
-              <h3 className="whats-new-title">ما الجديد</h3>
-              <button
-                type="button"
-                className="whats-new-close"
-                onClick={() => setIsWhatsNewOpen(false)}
-                aria-label="إغلاق لوحة ما الجديد"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="whats-new-subtitle">آخر تحديثات تُرجمان</p>
-
-            <ul className="whats-new-list whats-new-timeline">
-              {WHATS_NEW_ITEMS.map((item, index) => (
-                <li key={`${item.date}-${item.text}`} className="whats-new-item whats-new-timeline-item">
-                  <div className="wn-timeline-col">
-                    <span className={`wn-timeline-dot wn-dot-${item.tagType}`} />
-                    {index < WHATS_NEW_ITEMS.length - 1 && (
-                      <span className="wn-timeline-line" />
-                    )}
-                  </div>
-                  <div className="wn-timeline-content">
-                    <div className="wn-timeline-meta">
-                      <span className={`wn-tag wn-tag-${item.tagType}`}>{item.tag}</span>
-                      <span className="whats-new-date">{item.date}</span>
-                    </div>
-                    <span className="wn-timeline-text">{item.text}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        )} */}
-
         <div className="main-grid">
         <div className="card">
         
-          {/* Style Guide Toggle Button */}
-           {/* <div className="style-guide-toggle">
-            <button
-              className={`btn-toggle-guide ${isStyleGuideOpen ? 'active' : ''} ${hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'has-data' : ''}`}
-              onClick={() => setIsStyleGuideOpen(!isStyleGuideOpen)}
-            >
-              <span className="icon">⚙️</span>
-              {hasStyleGuideData(styleGuideData) && isStyleGuideActive ? 'Using Style Guide ✓' : 'Add Style Guide (Optional)'}
-            </button>
-          </div> */}
-
           {/* Style Guide Panel - Conditionally Rendered */}
           {
           isStyleGuideOpen && (
@@ -927,26 +819,21 @@ const Torgman = () => {
                   type="button"
                   className="compact-remove-btn" 
                     onClick={async (e) => {
-                    // ── NEW: only this button actually stops the backend job ──
                       const saved = await getActiveTranslationJob();
                       if (saved?.jobId) {
                         fetch(`${API_URL}/translation/cancel/${saved.jobId}`, { method: 'POST' });
-                    }
+                      }
                       await clearActiveTranslationJob();
-                    // ─────────────────────────────────────────────────────────
-                    cancelTranslation();
-                    e.stopPropagation();
-                    setFileName('');
-                    setSelectedFile(null);
-                    setGlossaryFileName('');
-                    setGlossaryFile(null);
-                    resetTranslationUiState();
-                    if (fileInputRef.current) fileInputRef.current.value = '';
+                      cancelTranslation();
+                      e.stopPropagation();
+                      setFileName('');
+                      setSelectedFile(null);
+                      setGlossaryFileName('');
+                      setGlossaryFile(null);
+                      resetTranslationUiState();
+                      if (fileInputRef.current) fileInputRef.current.value = '';
                       if (glossaryInputRef.current) glossaryInputRef.current.value = '';
-
                   }}
-
-                  
                 >
                   تغيير الملف ✕
                 </button>
@@ -1008,7 +895,7 @@ const Torgman = () => {
           
           {/* Action Buttons */}
           <div className="action-area">
-            {/* Progress Bar - NEW */}
+            {/* Progress Bar */}
             {isTranslating && totalBlocks > 0 && (
               <div className="progress-container">
                 <div className="progress-bar">
@@ -1037,18 +924,9 @@ const Torgman = () => {
               </button>
             ) : (
               <div className="results-actions">
-                {/* <a 
-                  href={downloadUrl} 
-                  download="translated_file.pdf" 
-                  className="translate-btn download-btn"
-                >
-                  تحميل الملف
-                </a> */}
                 <button 
                   className="translate-btn edit-btn" 
                   onClick={() => {
-                    // Track navigation to editing interface
-                    // trackDocumentDownloaded('pdf');
                     navigate('/compare', { 
                       state: { 
                         documentId: activeDocumentId,
@@ -1057,7 +935,8 @@ const Torgman = () => {
                         sourceLang: sourceLang,
                         targetLang: targetLang,
                         fileName: fileName,
-                        fileType: getFileType(fileName)
+                        fileType: getFileType(fileName),
+                        glossaryId: glossaryId,
                       }
                     });
                   }}
@@ -1066,9 +945,6 @@ const Torgman = () => {
                 </button>
               </div>
             )}
-            {/* FIX: don't show the status line while the progress bar is already
-                displaying the same phase/counts — showing both at once was the
-                redundant "segments up and down" clutter in the screenshot. */}
             {status && !(isTranslating && totalBlocks > 0) && (
               <p className="status-msg">{status}</p>
             )}
@@ -1081,4 +957,4 @@ const Torgman = () => {
   );
 };
 
-export default Torgman;
+export default Torgman;     

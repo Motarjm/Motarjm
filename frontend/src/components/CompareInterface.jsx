@@ -74,6 +74,8 @@ const CompareInterface = () => {
   const [documentId, setDocumentId] = useState(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isReviewing, setIsReviewing] = useState(false);
+  const [glossary, setGlossary] = useState(null);
+  const [glossaryId, setGlossaryId] = useState(null);
   // NEW: review suggestions state
   const [reviewSuggestions, setReviewSuggestions] = useState({});
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -121,6 +123,13 @@ const CompareInterface = () => {
     trackNavigation('compare', 'translation_completed');
   }, []);
 
+    useEffect(() => {
+    if (!isHydrated || !documentId) return;
+    saveDocumentState(documentId, { glossaryId }).catch((e) => {
+      console.error('Failed to persist glossaryId:', e);
+    });
+  }, [glossaryId, documentId, isHydrated]);
+
   useEffect(() => {   
     let cancelled = false;
 
@@ -138,6 +147,7 @@ const CompareInterface = () => {
             targetLang: location.state.targetLang || 'Arabic',
             fileType: location.state.fileType || null,
             fileName: location.state.fileName || null,
+              glossaryId: location.state.glossaryId || null,
           });
           documentRecord = await loadDocument(resolvedDocumentId);
         }
@@ -148,6 +158,11 @@ const CompareInterface = () => {
           }
           return;
         }
+        
+        console.log('Hydrated document:', {
+  glossaryId: documentRecord.glossaryId,
+  glossaryFileName: documentRecord.glossaryFileName,
+});
 
         await setActiveDocumentId(documentRecord.id);
 
@@ -166,6 +181,16 @@ const CompareInterface = () => {
         setReviewSuggestions(documentRecord.reviewSuggestions || {});
         // load chat suggestions
         setChatSuggestions(documentRecord.chatSuggestions || {});
+        setGlossaryId(documentRecord.glossaryId || null);
+        if (documentRecord.glossaryId) {
+          fetch(`${API_URL}/translation/glossary/${documentRecord.glossaryId}`)
+            .then(async (res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data && !cancelled) setGlossary(data.terms);
+              console.log("glossary: ", data.terms);
+            })
+            .catch((e) => console.warn('Failed to load glossary:', e));
+        }
       } catch (e) {
         console.error('Failed to hydrate compare document from IndexedDB:', e);
       } finally {
@@ -175,7 +200,10 @@ const CompareInterface = () => {
       }
     };
 
+    console.log("glossary: ", glossary);
+
     hydrateDocument();
+    
 
     return () => {
       cancelled = true;
@@ -1137,6 +1165,12 @@ const CompareInterface = () => {
           onBatchApply={handleBatchApply}
           onBatchDismiss={handleBatchDismiss}
           onNavigateSuggestion={navigateToSuggestion}
+          glossary={glossary}
+          activeSegmentSource={(() => {
+            if (!activeSegment || !translatedContents) return '';
+            const [pi, bi] = activeSegment.split('-').map(Number);
+            return translatedContents[pi]?.[bi]?.original_text || '';
+          })()}
         />
 
         <div className="document-area">
@@ -1225,11 +1259,18 @@ const CompareInterface = () => {
                           <div className="english-side-inner">
                             <div
                               className="segment-text"
-                              contentEditable={true}
+                              contentEditable
                               suppressContentEditableWarning
                               onClick={() => handleSegmentClick(pageIndex, blockIndex)}
+                              onBeforeInput={(e) => e.preventDefault()}
+                              onKeyDown={(e) => {
+                                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                                      e.preventDefault();
+                                    }
+                                  }}
                               onPaste={(e) => e.preventDefault()}
                               onDrop={(e) => e.preventDefault()}
+                              onCut={(e) => e.preventDefault()}
                             >
                               {block.original_text || ''}
                             </div>

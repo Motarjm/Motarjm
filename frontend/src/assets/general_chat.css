@@ -354,3 +354,181 @@
   background: #fef1cc;
   border-color: #f4b942;
 }
+
+/* ══════════════════════════════════════
+   Panel Tabs (Chat / Termbase)
+   ══════════════════════════════════════ */
+
+.chat-panel-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(39, 40, 38, 0.09);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.panel-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.9rem;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.panel-tab-btn:hover {
+  color: var(--terracotta, #c1502e);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.panel-tab-btn.active {
+  color: var(--terracotta, #c1502e);
+  background: #fbfaf8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* ══════════════════════════════════════
+   Termbase Panel
+   ══════════════════════════════════════ */
+/* ══════════════════════════════════════
+   Termbase Panel (complete)
+   ══════════════════════════════════════ */
+
+.termbase-panel {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  direction: rtl;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* critical for flex child scrolling */
+}
+
+.termbase-search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid rgba(107, 125, 92, 0.25);
+  border-radius: 8px;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  outline: none;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.termbase-search-input:focus {
+  border-color: var(--terracotta, #c1502e);
+  box-shadow: 0 0 0 2px rgba(193, 80, 46, 0.1);
+}
+
+.termbase-section {
+  margin-bottom: 1.5rem;
+  flex-shrink: 0;
+}
+
+.termbase-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--olive, #6b7d5c);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid rgba(107, 125, 92, 0.15);
+}
+
+.termbase-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid rgba(107, 125, 92, 0.1);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 0.88rem;
+  transition: background 0.15s;
+}
+
+.termbase-row:hover {
+  background: rgba(193, 80, 46, 0.03);
+}
+
+.termbase-source {
+  color: var(--charcoal, #2c3e2f);
+  font-weight: 600;
+  flex: 1;
+  text-align: right;
+  word-break: break-word;
+}
+
+.termbase-arrow {
+  color: var(--olive, #6b7d5c);
+  opacity: 0.5;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.termbase-target {
+  color: var(--terracotta, #c1502e);
+  font-weight: 600;
+  flex: 1;
+  text-align: right;
+  word-break: break-word;
+}
+
+.termbase-insert {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  opacity: 0.5;
+  padding: 2px 4px;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.termbase-insert:hover {
+  opacity: 1;
+}
+
+/* Ensure panel tab content area fills available space */
+.general-chat-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* When termbase tab is active, it needs to fill the remaining height */
+.panel-tab-btn {
+  /* existing styles... */
+}
+
+/* Fix: ensure the chat panel content area stretches */
+.general-chat-panel > *:not(.general-chat-header):not(.general-chat-resizer) {
+  flex-shrink: 0;
+}
+
+.general-chat-panel > .termbase-panel {
+  flex: 1;
+  overflow-y: auto;
+}
+.termbase-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: #4f46e5; /* indigo-600 */
+  border-radius: 999px;
+  line-height: 1;
+}
