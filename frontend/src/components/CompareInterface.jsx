@@ -1213,7 +1213,7 @@ const CompareInterface = () => {
                           <input
                             type="checkbox"
                             className="seg-checkbox"
-                            title="Mark as reviewed"
+                            title="Mark as reviewed (Ctrl + Enter)"
                             checked={!!checkedBlocks[segmentId]}
                             onChange={e => {
                               e.stopPropagation();
