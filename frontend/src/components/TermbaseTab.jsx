@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { findMatchesClient } from '../utils/glossaryMatch';
+import '../assets/termbase.css';
+
 
 const TermbaseTab = ({ glossary, activeSegmentSource }) => {
   const [searchQuery, setSearchQuery] = useState('');

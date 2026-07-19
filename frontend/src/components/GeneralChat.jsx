@@ -4,6 +4,7 @@ import ChatInterface from './ChatInterface';
 import { API_URL } from '../apiConfig';
 import { trackEvent } from '../analytics';
 import TermbaseTab from './TermbaseTab';
+import TranslationMemoryTab from './TranslationMemoryTab';
 import { findMatchesClient } from '../utils/glossaryMatch';
 
 const WELCOME_MESSAGE = {
@@ -28,6 +29,7 @@ const GeneralChat = ({
   onNavigateSuggestion,
   glossary,
   activeSegmentSource,
+  tmId,
 }) => {
   const [messages, setMessages] = useState([]);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
@@ -37,17 +39,46 @@ const GeneralChat = ({
   const [isResizing, setIsResizing] = useState(false);
   const [panelTab, setPanelTab] = useState('chat');
 
+  const [tmSegmentMatches, setTmSegmentMatches] = useState([]);
+  const [tmLoading, setTmLoading] = useState(false);
+
   const [activeQuickAction, setActiveQuickAction] = useState(null);
   const [findTerm, setFindTerm] = useState('');
   const [replaceTerm, setReplaceTerm] = useState('');
 
   const messagesEndRef = useRef(null);
 
-  // ─── badge count ───
+  // ─── badge counts ───
   const termbaseCount = useMemo(() => {
     if (!activeSegmentSource || !glossary || Object.keys(glossary).length === 0) return 0;
     return findMatchesClient(activeSegmentSource, glossary).length;
   }, [activeSegmentSource, glossary]);
+
+  const tmCount = tmSegmentMatches.length;
+
+  // ─── fetch TM matches for current segment (lifted from TranslationMemoryTab) ───
+  useEffect(() => {
+    if (!tmId || !activeSegmentSource) {
+      setTmSegmentMatches([]);
+      return;
+    }
+    setTmLoading(true);
+    fetch(
+      `${API_URL}/translation/tm/search?tm_id=${encodeURIComponent(tmId)}&query=${encodeURIComponent(activeSegmentSource)}&top_k=5&mode=token`
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error('TM search failed');
+        return res.json();
+      })
+      .then((data) => {
+        setTmSegmentMatches(data.matches || []);
+      })
+      .catch((e) => {
+        console.warn('TM segment search error:', e);
+        setTmSegmentMatches([]);
+      })
+      .finally(() => setTmLoading(false));
+  }, [activeSegmentSource, tmId]);
 
   useEffect(() => {
     const key = `torgman-chat-${documentId}`;
@@ -255,27 +286,36 @@ const GeneralChat = ({
       />
 
       <div className="general-chat-header">
-        {glossary && Object.keys(glossary).length > 0 ? (
-          <div className="chat-panel-tabs">
-            <button
-              className={`panel-tab-btn ${panelTab === 'chat' ? 'active' : ''}`}
-              onClick={() => setPanelTab('chat')}
-            >
-              Document Chat
-            </button>
+        <div className="chat-panel-tabs">
+          <button
+            className={`panel-tab-btn ${panelTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setPanelTab('chat')}
+          >
+            Document Chat
+          </button>
+          {glossary && Object.keys(glossary).length > 0 && (
             <button
               className={`panel-tab-btn ${panelTab === 'termbase' ? 'active' : ''}`}
               onClick={() => setPanelTab('termbase')}
             >
-              Termbase
+              Glossary
               {termbaseCount > 0 && (
                 <span className="termbase-badge">{termbaseCount}</span>
               )}
             </button>
-          </div>
-        ) : (
-          <span className="general-chat-title">Document Chat</span>
-        )}
+          )}
+          {tmId && (
+            <button
+              className={`panel-tab-btn ${panelTab === 'tm' ? 'active' : ''}`}
+              onClick={() => setPanelTab('tm')}
+            >
+              TM
+              {tmCount > 0 && (
+                <span className="termbase-badge">{tmCount}</span>
+              )}
+            </button>
+          )}
+        </div>
         <button className="general-chat-clear-btn" onClick={handleClear} title="Clear conversation">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="3 6 5 6 21 6" />
@@ -404,6 +444,17 @@ const GeneralChat = ({
           <TermbaseTab
             glossary={glossary}
             activeSegmentSource={activeSegmentSource}
+          />
+        </div>
+      )}
+
+      {panelTab === 'tm' && tmId && (
+        <div key="tm" className="tm-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          <TranslationMemoryTab
+            tmId={tmId}
+            activeSegmentSource={activeSegmentSource}
+            segmentMatches={tmSegmentMatches}
+            loadingSegment={tmLoading}
           />
         </div>
       )}

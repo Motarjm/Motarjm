@@ -59,6 +59,10 @@ const Torgman = () => {
   const [glossaryFileName, setGlossaryFileName] = useState('');
   const [glossaryFileSize, setGlossaryFileSize] = useState(null);
   const [glossaryId, setGlossaryId] = useState(null);
+  const [tmFile, setTmFile] = useState(null);
+  const [tmFileName, setTmFileName] = useState('');
+  const [tmFileSize, setTmFileSize] = useState(null);
+  const [tmId, setTmId] = useState(null);
   const [status, setStatus] = useState('');
   const [downloadUrl, setDownloadUrl] = useState(''); 
   const [translatedContents, setTranslatedContents] = useState(null);
@@ -75,6 +79,7 @@ const Torgman = () => {
   const [isPreparingSample, setIsPreparingSample] = useState(false);
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
+  const tmInputRef = useRef();
   const translateBtnRef = useRef();
   const etaStartTimeRef = useRef(null);
   const etaBaselineCompletedRef = useRef(null);
@@ -211,6 +216,27 @@ const Torgman = () => {
     return true;
   };
 
+  const applyTmFile = (file) => {
+    if (!file) return false;
+
+    const isValidTm = /\.(tmx|csv|xlsx)$/i.test(file.name);
+    if (!isValidTm) {
+      alert('نوع ملف ذاكرة الترجمة غير مدعوم. يرجى اختيار ملف TMX أو CSV أو XLSX');
+      return false;
+    }
+
+    setTmFile(file);
+    setTmFileName(file.name);
+    setTmFileSize(file.size || null);
+    sessionStorage.setItem('translation_tm_name', file.name);
+    if (file.size) {
+      sessionStorage.setItem('translation_tm_size', String(file.size));
+    } else {
+      sessionStorage.removeItem('translation_tm_size');
+    }
+    return true;
+  };
+
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     const isValidSelection = applySelectedFile(file);
@@ -224,6 +250,14 @@ const Torgman = () => {
     const isValidSelection = applyGlossaryFile(file);
     if (!isValidSelection && glossaryInputRef.current) {
       glossaryInputRef.current.value = '';
+    }
+  };
+
+  const handleTmChange = (e) => {
+    const file = e.target.files[0];
+    const isValidSelection = applyTmFile(file);
+    if (!isValidSelection && tmInputRef.current) {
+      tmInputRef.current.value = '';
     }
   };
 
@@ -257,6 +291,7 @@ const Torgman = () => {
     const { jobId, fileType, fileName: metaFileName, fileSize, sourceLang: metaSourceLang,
             targetLang: metaTargetLang, glossaryFileName: metaGlossaryFileName,
             glossaryFileSize: metaGlossaryFileSize, glossaryId: metaGlossaryId,
+            tmFileName: metaTmFileName, tmFileSize: metaTmFileSize, tmId: metaTmId,
             translationStartTs, thisId } = meta;
 
     const isCancelled = () => translationIdRef.current !== thisId;
@@ -389,7 +424,8 @@ const Torgman = () => {
       if (isCancelled()) return;
 
       const resolvedGlossaryId = finalData.glossary_id || metaGlossaryId || null;
-      console.log('Persisting document with glossaryId:', resolvedGlossaryId);
+      const resolvedTmId = finalData.tm_id || metaTmId || null;
+      console.log('Persisting document with glossaryId:', resolvedGlossaryId, 'tmId:', resolvedTmId);
 
       const persistedDocumentId = await createDocument({
         translatedContents: finalData.translated_contents,
@@ -401,12 +437,16 @@ const Torgman = () => {
         glossaryFileName: metaGlossaryFileName,
         glossaryFileSize: metaGlossaryFileSize,
         glossaryId: resolvedGlossaryId,
+        tmFileName: metaTmFileName,
+        tmFileSize: metaTmFileSize,
+        tmId: resolvedTmId,
       });
 
       if (isCancelled()) return;
 
       setActiveDocumentId(persistedDocumentId);
       setGlossaryId(resolvedGlossaryId);
+      setTmId(resolvedTmId);
 
       clearLegacySessionStorage();
 
@@ -506,6 +546,9 @@ const Torgman = () => {
           setGlossaryFileName(savedJob.glossaryFileName || '');
           setGlossaryFileSize(savedJob.glossaryFileSize || null);
           setGlossaryId(savedJob.glossaryId || null);
+          setTmFileName(savedJob.tmFileName || '');
+          setTmFileSize(savedJob.tmFileSize || null);
+          setTmId(savedJob.tmId || null);
           setIsTranslating(true);
           setIsPreparingSample(false);
           setProgress(0);
@@ -533,6 +576,9 @@ const Torgman = () => {
           setGlossaryFileName(savedDocument.glossaryFileName || '');
           setGlossaryFileSize(savedDocument.glossaryFileSize || null);
           setGlossaryId(savedDocument.glossaryId || null);
+          setTmFileName(savedDocument.tmFileName || '');
+          setTmFileSize(savedDocument.tmFileSize || null);
+          setTmId(savedDocument.tmId || null);
           setDownloadUrl('indexeddb');
           setIsTranslating(false);
           setIsPreparingSample(false);
@@ -547,6 +593,15 @@ const Torgman = () => {
           if (savedGlossaryName) {
             setGlossaryFileName(savedGlossaryName);
             setGlossaryFileSize(savedGlossarySize ? Number(savedGlossarySize) : null);
+          }
+        }
+
+        if (!cancelled && !savedDocument.tmFileName) {
+          const savedTmName = sessionStorage.getItem('translation_tm_name') || '';
+          const savedTmSize = sessionStorage.getItem('translation_tm_size');
+          if (savedTmName) {
+            setTmFileName(savedTmName);
+            setTmFileSize(savedTmSize ? Number(savedTmSize) : null);
           }
         }
       } catch (e) {
@@ -593,6 +648,9 @@ const Torgman = () => {
       formData.append('file', selectedFile);
       if (glossaryFile) {
         formData.append('glossary', glossaryFile);
+      }
+      if (tmFile) {
+        formData.append('translation_memory', tmFile);
       }
 
       const endpoints = {
@@ -645,9 +703,10 @@ const Torgman = () => {
         throw error;
       }
 
-      const { job_id, glossary_id } = await startResponse.json();
-      console.log('Start response glossary_id:', glossary_id);
+      const { job_id, glossary_id, tm_id } = await startResponse.json();
+      console.log('Start response glossary_id:', glossary_id, 'tm_id:', tm_id);
       setGlossaryId(glossary_id || null);
+      setTmId(tm_id || null);
 
       const meta = {
         jobId: job_id,
@@ -659,6 +718,9 @@ const Torgman = () => {
         glossaryFileName,
         glossaryFileSize,
         glossaryId: glossary_id || null,
+        tmFileName,
+        tmFileSize,
+        tmId: tm_id || null,
         translationStartTs,
         thisId,
       };
@@ -830,9 +892,12 @@ const Torgman = () => {
                       setSelectedFile(null);
                       setGlossaryFileName('');
                       setGlossaryFile(null);
+                      setTmFileName('');
+                      setTmFile(null);
                       resetTranslationUiState();
                       if (fileInputRef.current) fileInputRef.current.value = '';
                       if (glossaryInputRef.current) glossaryInputRef.current.value = '';
+                      if (tmInputRef.current) tmInputRef.current.value = '';
                   }}
                 >
                   تغيير الملف ✕
@@ -848,6 +913,7 @@ const Torgman = () => {
             accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff,.docx"
           />
 
+          <div className="uploads-row">
           <div className="glossary-upload">
                 {!glossaryFileName ? (
                   <button
@@ -892,7 +958,53 @@ const Torgman = () => {
             onChange={handleGlossaryChange}
             accept=".tbx"
           />
-          
+
+          <div className="glossary-upload">
+                {!tmFileName ? (
+                  <button
+                    type="button"
+                    className="glossary-upload-btn"
+                    onClick={() => tmInputRef.current.click()}
+                  >
+                    أضف ذاكرة ترجمة (TMX)
+                  </button>
+                ) : (
+                  <div className="glossary-chip">
+                    <span className="glossary-chip-icon">📘</span>
+                    <span className="glossary-chip-name" title={tmFileName}>
+                      {tmFileName}
+                    </span>
+
+                    <button
+                      type="button"
+                      className="glossary-chip-remove"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTmFileName('');
+                        setTmFile(null);
+                        setTmFileSize(null);
+                        sessionStorage.removeItem('translation_tm_name');
+                        sessionStorage.removeItem('translation_tm_size');
+                        if (tmInputRef.current) {
+                          tmInputRef.current.value = '';
+                        }
+                      }}
+                      aria-label="إزالة ملف ذاكرة الترجمة"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+          <input
+            type="file"
+            ref={tmInputRef}
+            style={{ display: 'none' }}
+            onChange={handleTmChange}
+            accept=".tmx,.csv,.xlsx"
+          />
+          </div>
+
           {/* Action Buttons */}
           <div className="action-area">
             {/* Progress Bar */}
@@ -937,6 +1049,7 @@ const Torgman = () => {
                         fileName: fileName,
                         fileType: getFileType(fileName),
                         glossaryId: glossaryId,
+                        tmId: tmId,
                       }
                     });
                   }}
@@ -957,4 +1070,4 @@ const Torgman = () => {
   );
 };
 
-export default Torgman;     
+export default Torgman;

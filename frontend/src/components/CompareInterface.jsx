@@ -76,6 +76,7 @@ const CompareInterface = () => {
   const [isReviewing, setIsReviewing] = useState(false);
   const [glossary, setGlossary] = useState(null);
   const [glossaryId, setGlossaryId] = useState(null);
+  const [tmId, setTmId] = useState(null);
   // NEW: review suggestions state
   const [reviewSuggestions, setReviewSuggestions] = useState({});
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -125,10 +126,10 @@ const CompareInterface = () => {
 
     useEffect(() => {
     if (!isHydrated || !documentId) return;
-    saveDocumentState(documentId, { glossaryId }).catch((e) => {
+    saveDocumentState(documentId, { glossaryId, tmId }).catch((e) => {
       console.error('Failed to persist glossaryId:', e);
     });
-  }, [glossaryId, documentId, isHydrated]);
+  }, [glossaryId, tmId, documentId, isHydrated]);
 
   useEffect(() => {   
     let cancelled = false;
@@ -148,6 +149,7 @@ const CompareInterface = () => {
             fileType: location.state.fileType || null,
             fileName: location.state.fileName || null,
               glossaryId: location.state.glossaryId || null,
+              tmId: location.state.tmId || null,
           });
           documentRecord = await loadDocument(resolvedDocumentId);
         }
@@ -182,6 +184,7 @@ const CompareInterface = () => {
         // load chat suggestions
         setChatSuggestions(documentRecord.chatSuggestions || {});
         setGlossaryId(documentRecord.glossaryId || null);
+        setTmId(documentRecord.tmId || null);
         if (documentRecord.glossaryId) {
           fetch(`${API_URL}/translation/glossary/${documentRecord.glossaryId}`)
             .then(async (res) => (res.ok ? res.json() : null))
@@ -1166,6 +1169,7 @@ const CompareInterface = () => {
           onBatchDismiss={handleBatchDismiss}
           onNavigateSuggestion={navigateToSuggestion}
           glossary={glossary}
+          tmId={tmId}
           activeSegmentSource={(() => {
             if (!activeSegment || !translatedContents) return '';
             const [pi, bi] = activeSegment.split('-').map(Number);
