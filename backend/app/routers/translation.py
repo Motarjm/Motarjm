@@ -1,11 +1,12 @@
 import json
 import base64
 import asyncio
+from typing import Optional, Tuple
 from fastapi import APIRouter, File, HTTPException, UploadFile, Query, Request
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming, is_image_based, translate_file_content_docx_streaming
-from app.services.glossary_service import parse_tbx_basic, store_glossary
+from app.services.glossary_service import parse_tbx_basic, store_glossary, get_glossary
 from app.services.pdf_service import build_translated_pdf_base64
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
 from app.core.simple_calls import clear_doc_summary_cache
@@ -36,7 +37,7 @@ STREAM_POLL_INTERVAL = 0.5
 # early is job_store.request_cancel(job_id), which these check between steps.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _run_pdf_job_sync(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict):
+def _run_pdf_job_sync(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
     # Runs in a worker thread (via asyncio.to_thread) so the blocking calls inside
     # translate_file_content_pdf_streaming never freeze the event loop, and the
     # /stream/{job_id} endpoint can keep polling job_store in real time.
@@ -57,19 +58,21 @@ def _run_pdf_job_sync(job_id: str, pdf_bytes: bytes, source_lang: str, target_la
                 "translated_contents": translated_contents,
                 "pdf": pdf_base64,
                 "original_pdf_base64": original_pdf_base64,
+                "glossary_id": glossary_id,  # ADD
+
             }
             job_store.append_event(job_id, result)
             job_store.mark_done(job_id, result)
 
 
-async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict):
+async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict,glossary_id: Optional[str] = None):
     try:
-        await asyncio.to_thread(_run_pdf_job_sync, job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict)
+        await asyncio.to_thread(_run_pdf_job_sync, job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict,glossary_id)
     except Exception as exc:
         job_store.mark_error(job_id, str(exc))
 
 
-def _run_xliff_job_sync(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict):
+def _run_xliff_job_sync(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
     for event in translate_file_content_xliff_streaming(
         xliff_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict,
     ):
@@ -87,19 +90,21 @@ def _run_xliff_job_sync(job_id: str, xliff_bytes: bytes, source_lang: str, targe
                 "type": "done",
                 "translated_contents": [translated_contents],
                 "xliff": xliff_output_str,
+                "glossary_id": glossary_id,  # ADD
+
             }
             job_store.append_event(job_id, result)
             job_store.mark_done(job_id, result)
 
 
-async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict):
+async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
     try:
-        await asyncio.to_thread(_run_xliff_job_sync, job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict)
+        await asyncio.to_thread(_run_xliff_job_sync, job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id)
     except Exception as exc:
         job_store.mark_error(job_id, str(exc))
 
 
-def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict):
+def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
     for event in translate_file_content_docx_streaming(
         BytesIO(docx_bytes), source_lang, target_lang, style_guide or "", glossary=glossary_dict,
     ):
@@ -117,19 +122,20 @@ def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_
                 "type": "done",
                 "translated_contents": [translated_contents],
                 "xliff": xliff_output_str,
+                "glossary_id": glossary_id,  # ADD
             }
             job_store.append_event(job_id, result)
             job_store.mark_done(job_id, result)
 
 
-async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict):
+async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
     try:
-        await asyncio.to_thread(_run_docx_job_sync, job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict)
+        await asyncio.to_thread(_run_docx_job_sync, job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id)
     except Exception as exc:
         job_store.mark_error(job_id, str(exc))
 
 
-def _parse_glossary(glossary: UploadFile, glossary_bytes: bytes, source_lang: str, target_lang: str) -> dict:
+def _parse_glossary(glossary: UploadFile, glossary_bytes: bytes, source_lang: str, target_lang: str) -> Tuple[dict, Optional[str]]:
     if not glossary.filename.endswith(".tbx"):
         raise HTTPException(status_code=400, detail="Only .tbx glossary files are allowed")
     try:
@@ -137,8 +143,10 @@ def _parse_glossary(glossary: UploadFile, glossary_bytes: bytes, source_lang: st
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     glossary_dict = glossary_dict or {}
-    store_glossary(glossary_dict)
-    return glossary_dict
+    glossary_id = None
+    if glossary_dict:
+        glossary_id, _expires_at = store_glossary(glossary_dict)
+    return glossary_dict, glossary_id
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -166,18 +174,19 @@ async def translate_pdf_file(
         raise HTTPException(status_code=400, detail="Failed to read PDF file")
 
     glossary_dict = {}
+    glossary_id = None
     if glossary:
         try:
             tbx_bytes = await glossary.read()
         except Exception:
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        glossary_dict = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
     asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict))
-    return {"job_id": job_id}
+    return {"job_id": job_id, "glossary_id": glossary_id}
 
 
 @router.post("/xliff")
@@ -197,18 +206,19 @@ async def translate_xliff_file(
         raise HTTPException(status_code=400, detail="Failed to read XLIFF file")
 
     glossary_dict = {}
+    glossary_id = None
     if glossary:
         try:
             tbx_bytes = await glossary.read()
         except Exception:
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        glossary_dict = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
     asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict))
-    return {"job_id": job_id}
+    return {"job_id": job_id, "glossary_id": glossary_id}
 
 
 @router.post("/docx")
@@ -229,18 +239,27 @@ async def translate_docx_file(
         raise HTTPException(status_code=400, detail="Failed to read DOCX file")
 
     glossary_dict = {}
+    glossary_id = None
     if glossary:
         try:
             tbx_bytes = await glossary.read()
         except Exception:
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        glossary_dict = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
     asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict))
-    return {"job_id": job_id}
+    return {"job_id": job_id, "glossary_id": glossary_id}
+
+
+@router.get("/glossary/{glossary_id}")
+async def fetch_glossary(glossary_id: str):
+    terms = get_glossary(glossary_id)
+    if terms is None:
+        raise HTTPException(status_code=404, detail="Unknown or expired glossary_id")
+    return {"glossary_id": glossary_id, "terms": terms}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
