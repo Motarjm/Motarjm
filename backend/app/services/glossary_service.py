@@ -1,9 +1,11 @@
+import re
 import time
 import xml.etree.ElementTree as ET
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from uuid import uuid4
 
 TTL_SECONDS = 7 * 24 * 60 * 60
+#TODO: MUST BE MIGRATED TO DATABASE
 _GLOSSARY_STORE: Dict[str, Dict[str, object]] = {}
 
 
@@ -83,7 +85,7 @@ def parse_tbx_basic(
     return glossary
 
 
-def store_glossary(glossary: Dict[str, str]) -> str:
+def store_glossary(glossary: Dict[str, str]) -> Tuple[str, int]:
     _purge_expired()
     glossary_id = str(uuid4())
     expires_at = int(time.time()) + TTL_SECONDS

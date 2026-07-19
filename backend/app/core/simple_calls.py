@@ -5,6 +5,8 @@ from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 from app.core.agents import provider_invoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
 from typing import List, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List
 
 #TODO: terminoloy agent takes as arg 'document' with keys 'text' because the document is coming from the backend
 # but in the frontend the document is coming from the frontend with keys 'original_text' and 'translated_text' so we need to unify this
@@ -33,73 +35,123 @@ def generate_explanation(source_text: str, page_context: List):
     
     return response
 
-
 def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
-    """
-    Generates suggestions for the given translation
-
-    returns 
-    {
-        Model1: suggestion,
-        Model2: suggestion,
-        ... 
-    }
-    
-    - Model1, Model2, ... are the names of the models used for generating suggestions.
-    - suggestion is a string containing the suggestion for improving the translation.
-    
-    """
     sys_prompt_content = SUGGESTIONS_SYS_PROMPT
     if style_guide:
         sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
     
-    sys_prompt = SystemMessage(
-        content = sys_prompt_content,
-        agent="suggestions"
-    )
-    
+    sys_prompt = SystemMessage(content=sys_prompt_content, agent="suggestions")
     page_context = "\n\n".join(page_context)    
     
     user_prompt = HumanMessage(
-        content = SUGGESTIONS_PROMPT.format(source_lang=source_lang,
-                                            target_lang=target_lang,
-                                            page_context=page_context, 
-                                            source_text=source_text, 
-                                            translation=translation),
-                                            
+        content=SUGGESTIONS_PROMPT.format(
+            source_lang=source_lang,
+            target_lang=target_lang,
+            page_context=page_context, 
+            source_text=source_text, 
+            translation=translation
+        ),
         agent="suggestions"
     )
-
     prompt = [sys_prompt, user_prompt]
 
-    response1 = provider_invoke("suggestions1", prompt).content
-    if not isinstance(response1, str):
-        response1 = response1[0]["text"]
-
-    response2 = provider_invoke("suggestions2", prompt).content
-    if not isinstance(response2, str):
-        response2 = response2[0]["text"]
-
-    response3 = provider_invoke("suggestions3", prompt).content
-    
-    # deepseek and the other models
-    # if not isinstance(response3, str):
-    #     response3 = response3[0]["text"]
+    def _fetch(role: str, label: str):
+        """Wrapper that calls provider_invoke and normalizes the response."""
+        response = provider_invoke(role, prompt).content
         
-    # GPT5 nano
-    if not isinstance(response3, str):
-        if len(response3) > 1:
-            response3 = response3[1]["text"]
-        else:
-            response3 = response3[0]["text"]
-        # response3 = response3[1]["text"]
+        if not isinstance(response, str):
+            # Keep the special GPT-5 nano handling for suggestions3
+            if role == "suggestions3" and len(response) > 1:
+                response = response[1]["text"]
+            else:
+                response = response[0]["text"]
+        return label, response
 
-    # hardcoded for now, should be more sophisticated
-    return {
-        "Gemini": response1,
-        "Claude": response2,
-        "ChatGPT": response3
-    }
+    jobs = [
+        ("suggestions1", "Gemini"),
+        ("suggestions2", "Claude"),
+        ("suggestions3", "ChatGPT"),
+    ]
+
+    results = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(_fetch, role, label): label for role, label in jobs}
+        for future in as_completed(futures):
+            label = futures[future]
+            try:
+                _, text = future.result()
+                results[label] = text
+            except Exception as e:
+                results[label] = f"Error: {str(e)}"
+
+    return results
+
+# def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
+#     """
+#     Generates suggestions for the given translation
+
+#     returns 
+#     {
+#         Model1: suggestion,
+#         Model2: suggestion,
+#         ... 
+#     }
+    
+#     - Model1, Model2, ... are the names of the models used for generating suggestions.
+#     - suggestion is a string containing the suggestion for improving the translation.
+    
+#     """
+#     sys_prompt_content = SUGGESTIONS_SYS_PROMPT
+#     if style_guide:
+#         sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    
+#     sys_prompt = SystemMessage(
+#         content = sys_prompt_content,
+#         agent="suggestions"
+#     )
+    
+#     page_context = "\n\n".join(page_context)    
+    
+#     user_prompt = HumanMessage(
+#         content = SUGGESTIONS_PROMPT.format(source_lang=source_lang,
+#                                             target_lang=target_lang,
+#                                             page_context=page_context, 
+#                                             source_text=source_text, 
+#                                             translation=translation),
+                                            
+#         agent="suggestions"
+#     )
+
+#     prompt = [sys_prompt, user_prompt]
+
+#     response1 = provider_invoke("suggestions1", prompt).content
+#     if not isinstance(response1, str):
+#         response1 = response1[0]["text"]
+
+#     response2 = provider_invoke("suggestions2", prompt).content
+#     if not isinstance(response2, str):
+#         response2 = response2[0]["text"]
+
+#     response3 = provider_invoke("suggestions3", prompt).content
+    
+#     # deepseek and the other models
+#     # if not isinstance(response3, str):
+#     #     response3 = response3[0]["text"]
+        
+#     # GPT5 nano
+#     if not isinstance(response3, str):
+#         if len(response3) > 1:
+#             response3 = response3[1]["text"]
+#         else:
+#             response3 = response3[0]["text"]
+#         # response3 = response3[1]["text"]
+
+#     # hardcoded for now, should be more sophisticated
+#     return {
+#         "Gemini": response1,
+#         "Claude": response2,
+#         "ChatGPT": response3
+#     }
 
 
 def generate_backtranslation(target_text: str, source_lang: str, target_lang: str, page_context: List) -> str:

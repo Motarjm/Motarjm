@@ -30,6 +30,17 @@ gemini_2_5_flash_lite = ChatOpenAI(
     
 )
 
+gemini_2_5_flash_lite_low_tokens = ChatOpenAI(
+    model="google/gemini-2.5-flash-lite",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 100,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+    
+)
+
 gemini_3_1_flash_lite = ChatOpenAI(
     model="google/gemini-3.1-flash-lite",
     base_url="https://openrouter.ai/api/v1",
@@ -92,6 +103,27 @@ gpt_5_nano  = ChatOpenAI(
     }
 )
 
+gpt_4o_mini = ChatOpenAI(
+    model="openai/gpt-4o-mini",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 100,
+    # max_retries=0,
+    temperature=0.01,  # Gemini 3.0+ defaults to 1.0,
+    reasoning = {
+        "effort": "low",
+    }
+)
+
+claude_haiku_4_5_low_tokens = ChatOpenAI(
+    model="anthropic/claude-haiku-4.5",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 100,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+)
+#
 # limiter = ToolCallLimitMiddleware(
 #     run_limit=3,          # max 3 tool calls per agent.invoke()
 #     exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
@@ -128,10 +160,10 @@ providers = {"translator": [claude_haiku_4_5,
              
              "explanator": [gemini_2_5_flash_lite,deepseek],
 
-             "suggestions1": [gemini_2_5_flash_lite],
-             "suggestions2": [claude_haiku_4_5], # grok
+             "suggestions1": [gemini_2_5_flash_lite_low_tokens],
+             "suggestions2": [claude_haiku_4_5_low_tokens], # grok
              
-             "suggestions3": [gpt_5_nano], # gpt5 nano,
+             "suggestions3": [gpt_4o_mini], # gpt5 nano,
              
              "backtranslation": [gemini_2_5_flash_lite],
 

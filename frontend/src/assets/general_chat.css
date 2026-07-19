@@ -354,3 +354,39 @@
   background: #fef1cc;
   border-color: #f4b942;
 }
+
+/* ══════════════════════════════════════
+   Panel Tabs (Chat / Termbase)
+   ══════════════════════════════════════ */
+
+.chat-panel-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(39, 40, 38, 0.09);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.panel-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.9rem;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.panel-tab-btn:hover {
+  color: var(--terracotta, #c1502e);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.panel-tab-btn.active {
+  color: var(--terracotta, #c1502e);
+  background: #fbfaf8;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
