@@ -251,6 +251,9 @@ def evaluator_agent(state: State):
     if matched := re.search(r'\{.*\}', response, re.DOTALL):
       matched = matched.group(0)
       score = int(json.loads(matched)["score"])
+    
+    else:
+      score = 0
       
   except (json.JSONDecodeError, KeyError, TypeError, ValueError):
     score = 0
