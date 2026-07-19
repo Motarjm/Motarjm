@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming, is_image_based, translate_file_content_docx_streaming
 from app.services.glossary_service import parse_tbx_basic, store_glossary, get_glossary
+from app.services.tm_service import parse_tmx, store_tm, get_tm, search_tm, search_tm_char
 from app.services.pdf_service import build_translated_pdf_base64
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
 from app.core.simple_calls import clear_doc_summary_cache
@@ -149,6 +150,18 @@ def _parse_glossary(glossary: UploadFile, glossary_bytes: bytes, source_lang: st
     return glossary_dict, glossary_id
 
 
+def _parse_tm(tm_file: UploadFile, tm_bytes: bytes, source_lang: str, target_lang: str) -> Optional[str]:
+    if not tm_file.filename.lower().endswith(".tmx"):
+        raise HTTPException(status_code=400, detail="Only .tmx translation memory files are allowed")
+    try:
+        entries = parse_tmx(tm_bytes, source_lang=source_lang, target_lang=target_lang)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not entries:
+        return None
+    return store_tm(entries)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # "Start job" endpoints — validate input, kick off background work, return
 # immediately with a job_id. These no longer stream anything themselves.
@@ -182,17 +195,26 @@ async def translate_pdf_file(
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
         glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
+    tm_id = None
+    if translation_memory:
+        try:
+            tmx_bytes = await translation_memory.read()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to read TMX file")
+        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
     asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict))
-    return {"job_id": job_id, "glossary_id": glossary_id}
+    return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
 @router.post("/xliff")
 async def translate_xliff_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
+    translation_memory: UploadFile = File(None),
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
@@ -214,11 +236,19 @@ async def translate_xliff_file(
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
         glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
+    tm_id = None
+    if translation_memory:
+        try:
+            tmx_bytes = await translation_memory.read()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to read TMX file")
+        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
     asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict))
-    return {"job_id": job_id, "glossary_id": glossary_id}
+    return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
 @router.post("/docx")
@@ -247,11 +277,19 @@ async def translate_docx_file(
             raise HTTPException(status_code=400, detail="Failed to read TBX file")
         glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
 
+    tm_id = None
+    if translation_memory:
+        try:
+            tmx_bytes = await translation_memory.read()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to read TMX file")
+        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
     asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict))
-    return {"job_id": job_id, "glossary_id": glossary_id}
+    return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
 @router.get("/glossary/{glossary_id}")
@@ -260,6 +298,30 @@ async def fetch_glossary(glossary_id: str):
     if terms is None:
         raise HTTPException(status_code=404, detail="Unknown or expired glossary_id")
     return {"glossary_id": glossary_id, "terms": terms}
+
+
+@router.get("/tm/search")
+async def tm_search(
+    tm_id: str = Query(...),
+    query: str = Query(...),
+    top_k: int = Query(5, ge=1, le=20),
+    mode: str = Query("token", regex="^(token|char)$"),
+):
+    if get_tm(tm_id) is None:
+        raise HTTPException(status_code=404, detail="Unknown or expired tm_id")
+    if mode == "char":
+        matches = search_tm_char(tm_id, query, top_k=top_k)
+    else:
+        matches = search_tm(tm_id, query, top_k=top_k)
+    return {"matches": matches}
+
+
+@router.get("/tm/{tm_id}")
+async def fetch_tm(tm_id: str):
+    entries = get_tm(tm_id)
+    if entries is None:
+        raise HTTPException(status_code=404, detail="Unknown or expired tm_id")
+    return {"tm_id": tm_id, "entries": [{"source": s, "target": t} for s, t in entries]}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
