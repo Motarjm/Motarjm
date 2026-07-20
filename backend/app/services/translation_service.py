@@ -197,11 +197,12 @@ def translate_file_content_pdf_streaming(
     completed_blocks = 0
     translated_content = []
     terminology = {}
-    # terminology = terminology_agent(document=ordered_content, 
-    #                                 source_lang=source_lang, 
-    #                                 target_lang=target_lang,
-    #                                 style_guide=style_guide, 
-    #                                 glossary=glossary)
+    if not no_translation:
+        terminology = terminology_agent(document=ordered_content, 
+                                    source_lang=source_lang, 
+                                    target_lang=target_lang,
+                                    style_guide=style_guide, 
+                                    glossary=glossary)
 
     for page_num, page in enumerate(ordered_content):
         translated_blocks = []
