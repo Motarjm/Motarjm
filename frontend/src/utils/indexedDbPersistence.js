@@ -63,23 +63,42 @@ export const createDocument = async (payload) => {
   return id;
 };
 
+// Per-document promise chain used to serialize saveDocumentState calls.
+// Without this, two concurrent callers (e.g. a translatedContents update
+// and a reviewSuggestions update firing from the same click) can each
+// read the record before the other has written, so whichever write lands
+// last silently drops the other's change. Queuing writes per document
+// guarantees each read-modify-write completes before the next one starts.
+const writeQueues = new Map();
+
 // Applies a partial update to an existing document record.
 // Use whenever edited compare state changes (text, checks, suggestions, etc.).
-export const saveDocumentState = async (documentId, patch) => {
-  if (!documentId) return;
+// Returns a promise that resolves once this write (and any writes queued
+// ahead of it for the same document) has been committed.
+export const saveDocumentState = (documentId, patch) => {
+  if (!documentId) return Promise.resolve();
 
-  const db = await getDb();
-  const existing = (await db.get(DOCUMENTS_STORE, documentId)) || {
-    id: documentId,
-    createdAt: nowIso(),
-  };
+  const previous = writeQueues.get(documentId) || Promise.resolve();
 
-  await db.put(DOCUMENTS_STORE, {
-    ...existing,
-    ...patch,
-    id: documentId,
-    updatedAt: nowIso(),
-  });
+  const next = previous
+    .catch(() => {}) // a prior failed write shouldn't block subsequent ones
+    .then(async () => {
+      const db = await getDb();
+      const existing = (await db.get(DOCUMENTS_STORE, documentId)) || {
+        id: documentId,
+        createdAt: nowIso(),
+      };
+
+      await db.put(DOCUMENTS_STORE, {
+        ...existing,
+        ...patch,
+        id: documentId,
+        updatedAt: nowIso(),
+      });
+    });
+
+  writeQueues.set(documentId, next);
+  return next;
 };
 
 // Loads a document by ID from the documents store.

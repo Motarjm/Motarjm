@@ -56,6 +56,7 @@ const GeneralChat = ({
   const [scope, setScope] = useState('document'); // 'document' | 'segment'
   // ── Sub-tab within Segment scope ──
   const [segmentTab, setSegmentTab] = useState('suggestions');
+  const [reviewContextDismissed, setReviewContextDismissed] = useState(false);
 
   const [tmSegmentMatches, setTmSegmentMatches] = useState([]);
   const [tmLoading, setTmLoading] = useState(false);
@@ -65,6 +66,7 @@ const GeneralChat = ({
   const [replaceTerm, setReplaceTerm] = useState('');
 
   const messagesEndRef = useRef(null);
+  const abortRef = useRef(null); // AbortController for the in-flight streamResponse call, if any
 
   // Human-friendly segment number ("Segment #6") for the scope toggle label
   const activeSegmentNumber = useMemo(() => {
@@ -126,9 +128,9 @@ const GeneralChat = ({
     const key = `torgman-chat-${documentId}`;
     try {
       const saved = localStorage.getItem(key);
-      setMessages(saved ? JSON.parse(saved) : [WELCOME_MESSAGE]);
+      setMessages(saved ? JSON.parse(saved) : [{ ...WELCOME_MESSAGE }]);
     } catch {
-      setMessages([WELCOME_MESSAGE]);
+      setMessages([{ ...WELCOME_MESSAGE }]);
     }
     setMessagesLoaded(true);
   }, [documentId]);
@@ -172,6 +174,13 @@ const GeneralChat = ({
   const streamResponse = async (chatHistoryToSend, userText = null) => {
     if (loading) return;
     setLoading(true);
+
+    // Own this call's AbortController so Clear (or an unmount) can cancel
+    // the underlying fetch instead of letting it keep streaming — and so
+    // trailing updates below can check whether that's happened.
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     if (userText) {
       setMessages(prev => [...prev, { role: 'user', text: userText }]);
     }
@@ -179,13 +188,14 @@ const GeneralChat = ({
       const response = await fetch(`${API_URL}/document/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           chat_history: chatHistoryToSend,
           style_guide: styleGuideQueryValue || '',
           translated_contents: translatedContents,
           source_lang: sourceLang,
           target_lang: targetLang,
-          review_results: reviewResults || null,
+          review_results: reviewContextDismissed ? null : (reviewResults || null),
           model: model,
         }),
       });
@@ -223,8 +233,16 @@ const GeneralChat = ({
         }
       }
 
+      // If Clear fired while we were mid-stream, stop here entirely — no
+      // message update, no tracking, and critically no onChatSuggestion
+      // call. A conversation the user already discarded shouldn't be able
+      // to plant a pending suggestion on a segment after the fact.
+      if (controller.signal.aborted) return;
+
       setMessages(prev =>
-        prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
+        prev.some(msg => msg.id === botMessageId)
+          ? prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
+          : prev // the bot placeholder is gone (cleared) — nothing to update
       );
 
       if (userText) {
@@ -262,35 +280,40 @@ const GeneralChat = ({
             });
             const segmentList = segmentLinks.join(', ');
             const confirmationText = `\n\n📝 Added ${edits.length} suggestion(s) for review: ${segmentList}`;
-            setMessages(prev => {
-              const newMessages = [...prev];
-              if (newMessages.length > 0) {
-                newMessages[newMessages.length - 1].text = cleanText + confirmationText;
-              }
-              return newMessages;
-            });
+            setMessages(prev =>
+              prev.some(msg => msg.id === botMessageId)
+                ? prev.map(msg => msg.id === botMessageId ? { ...msg, text: cleanText + confirmationText } : msg)
+                : prev
+            );
           }
         } catch (e) {
           console.warn('Failed to parse action JSON:', e);
         }
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        // Clear was clicked mid-stream — not a real error, nothing to show.
+        return;
+      }
       console.error('General chat error:', error);
-      setMessages(prev => {
-        const newMessages = [...prev];
-        const last = newMessages[newMessages.length - 1];
-        if (last && last.role === 'bot' && last.id) {
-          last.text = '⚠️ Sorry, an error occurred. Please try again.';
-        }
-        return newMessages;
-      });
+      setMessages(prev =>
+        prev.map((msg, i) =>
+          i === prev.length - 1 && msg.role === 'bot' && msg.id
+            ? { ...msg, text: '⚠️ Sorry, an error occurred. Please try again.' }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
     }
   };
 
   useEffect(() => {
     if (!reviewResults || reviewResults.length === 0) return;
+    setReviewContextDismissed(false);
     const changedCount = reviewResults.filter(r => r.changed).length;
     const hiddenPrompt = `The document review just finished. ${changedCount} out of ${reviewResults.length} segments were revised. Summarize what was changed and why, referencing specific segments where useful.`;
     streamResponse([{ role: 'user', text: hiddenPrompt }]);
@@ -302,8 +325,16 @@ const GeneralChat = ({
   };
 
   const handleClear = () => {
-    setMessages([WELCOME_MESSAGE]);
+    // Cancel any in-flight response (e.g. the auto-triggered "review just
+    // finished" summary) so it can't land after the clear and repopulate
+    // the chat or plant a suggestion on a segment.
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+
+    setMessages([{ ...WELCOME_MESSAGE }]);
     try { localStorage.removeItem(`torgman-chat-${documentId}`); } catch {}
+    setReviewContextDismissed(true);
   };
 
   const handleReplaceSubmit = () => {
