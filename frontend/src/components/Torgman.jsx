@@ -68,6 +68,7 @@ const Torgman = () => {
   const [translatedContents, setTranslatedContents] = useState(null);
   const [fileContent, setFileContent] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [activeAction, setActiveAction] = useState(null); // 'translate' | 'segment' | null
   const [sourceLang, setSourceLang] = useState('English');
   const [targetLang, setTargetLang] = useState('Arabic');
   const [progress, setProgress] = useState(0);
@@ -174,6 +175,7 @@ const Torgman = () => {
     setActiveDocumentId(null);
     setGlossaryId(null);
     setIsTranslating(false);
+    setActiveAction(null);
     setIsPreparingSample(false);
     setProgress(0);
     setTotalBlocks(0);
@@ -520,6 +522,7 @@ const Torgman = () => {
     } finally {
       if (!isCancelled()) {
         setIsTranslating(false);
+        setActiveAction(null);
       }
     }
   }, []);
@@ -550,6 +553,7 @@ const Torgman = () => {
           setTmFileSize(savedJob.tmFileSize || null);
           setTmId(savedJob.tmId || null);
           setIsTranslating(true);
+          setActiveAction(savedJob.segmentOnly ? 'segment' : 'translate');
           setIsPreparingSample(false);
           setProgress(0);
           setTotalBlocks(0);
@@ -581,6 +585,7 @@ const Torgman = () => {
           setTmId(savedDocument.tmId || null);
           setDownloadUrl('indexeddb');
           setIsTranslating(false);
+          setActiveAction(null);
           setIsPreparingSample(false);
           setProgress(0);
           setTotalBlocks(0);
@@ -617,7 +622,7 @@ const Torgman = () => {
     };
   }, [watchJobStream]);
 
-  const handleTranslateFile = async () => {
+  const handleTranslateFile = async (segmentOnly = false) => {
     if (!selectedFile) {
       alert('الرجاء اختيار ملف أولاً');
       return;
@@ -636,6 +641,7 @@ const Torgman = () => {
     abortControllerRef.current = controller;
 
     setIsTranslating(true);
+    setActiveAction(segmentOnly ? 'segment' : 'translate');
     setProgress(0);
     setTotalBlocks(0);
     setStatus('');
@@ -665,6 +671,9 @@ const Torgman = () => {
       const targetLangCode = targetLangObj?.code || 'ar';
 
       let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
+      if (segmentOnly) {
+        queryParams += `&segment_only=true`;
+      }
       if (hasStyleGuideData(styleGuideData) && isStyleGuideActive) {
         const styleGuideXML = formatStyleGuideToXML(styleGuideData);
         const encodedStyleGuide = encodeURIComponent(styleGuideXML);
@@ -723,6 +732,7 @@ const Torgman = () => {
         tmId: tm_id || null,
         translationStartTs,
         thisId,
+        segmentOnly,
       };
       await setActiveTranslationJob(meta);
 
@@ -745,6 +755,7 @@ const Torgman = () => {
       void clearActiveTranslationJob();
       setStatus('حدث خطأ أثناء الاتصال بالخادم');
       setIsTranslating(false);
+      setActiveAction(null);
     }
   };
 
@@ -1025,15 +1036,27 @@ const Torgman = () => {
               </div>
             )}
             {!downloadUrl ? (
-              <button 
-                className="translate-btn"
-                onClick={handleTranslateFile}
-                disabled={!selectedFile || isTranslating}
-              >
-                {isTranslating
-                  ? (totalBlocks > 0 ? '‫قيد الترجمة...' : '‫قيد التحميل...')
-                  : 'ترجم المستندات'}
-              </button>
+              <div className="translate-buttons-row">
+                <button
+                  className="translate-btn segment-only-btn"
+                  onClick={() => handleTranslateFile(true)}
+                  disabled={!selectedFile || isTranslating}
+                  title="تقسيم المستند إلى فقرات دون ترجمتها"
+                >
+                  {isTranslating && activeAction === 'segment'
+                    ? (totalBlocks > 0 ? '‫قيد التقسيم...' : '‫قيد التحميل...')
+                    : 'قسّم بدون ترجمة'}
+                </button>
+                <button 
+                  className="translate-btn"
+                  onClick={() => handleTranslateFile(false)}
+                  disabled={!selectedFile || isTranslating}
+                >
+                  {isTranslating && activeAction === 'translate'
+                    ? (totalBlocks > 0 ? '‫قيد الترجمة...' : '‫قيد التحميل...')
+                    : 'ترجم المستندات'}
+                </button>
+              </div>
             ) : (
               <div className="results-actions">
                 <button 

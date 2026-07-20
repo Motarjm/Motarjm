@@ -607,6 +607,47 @@
   cursor: not-allowed;
 }
 
+/* Two-button action row: "ترجم المستندات" + "قسّم بدون ترجمة" */
+.translate-buttons-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.translate-buttons-row .translate-btn {
+  flex: 1;
+  width: auto;
+  max-width: 320px;
+}
+
+.segment-only-btn {
+  background: transparent;
+  border: 2px solid var(--olive);
+  color: var(--olive);
+}
+
+.segment-only-btn:hover:not(:disabled) {
+  background: rgba(107, 125, 92, 0.08);
+  border-color: var(--olive);
+  box-shadow: 0 6px 20px rgba(107, 125, 92, 0.15);
+  transform: translateY(-2px);
+}
+
+.segment-only-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .translate-buttons-row {
+    flex-direction: column;
+  }
+
+  .translate-buttons-row .translate-btn {
+    max-width: 100%;
+  }
+}
+
 /* Progress Bar Styles */
 .progress-container {
   width: 100%;

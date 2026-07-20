@@ -41,13 +41,13 @@ STREAM_POLL_INTERVAL = 0.5
 # early is job_store.request_cancel(job_id), which these check between steps.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _run_pdf_job_sync(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
-    logger.info(f"[pdf_job {job_id}] starting: {source_lang}->{target_lang}, {len(pdf_bytes)} bytes")
+def _run_pdf_job_sync(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+    logger.info(f"[pdf_job {job_id}] starting: {source_lang}->{target_lang}, {len(pdf_bytes)} bytes, no_translation={no_translation}")
     # Runs in a worker thread (via asyncio.to_thread) so the blocking calls inside
     # translate_file_content_pdf_streaming never freeze the event loop, and the
     # /stream/{job_id} endpoint can keep polling job_store in real time.
     for event in translate_file_content_pdf_streaming(
-        pdf_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict,
+        pdf_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
     ):
         if job_store.is_cancelled(job_id):
             logger.info(f"[pdf_job {job_id}] cancelled")
@@ -72,18 +72,18 @@ def _run_pdf_job_sync(job_id: str, pdf_bytes: bytes, source_lang: str, target_la
             logger.info(f"[pdf_job {job_id}] done")
 
 
-async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict,glossary_id: Optional[str] = None):
+async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
     try:
-        await asyncio.to_thread(_run_pdf_job_sync, job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict,glossary_id)
+        await asyncio.to_thread(_run_pdf_job_sync, job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id, no_translation)
     except Exception as exc:
         logger.exception(f"[pdf_job {job_id}] failed")
         job_store.mark_error(job_id, str(exc))
 
 
-def _run_xliff_job_sync(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
-    logger.info(f"[xliff_job {job_id}] starting: {source_lang}->{target_lang}, {len(xliff_bytes)} bytes")
+def _run_xliff_job_sync(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+    logger.info(f"[xliff_job {job_id}] starting: {source_lang}->{target_lang}, {len(xliff_bytes)} bytes, no_translation={no_translation}")
     for event in translate_file_content_xliff_streaming(
-        xliff_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict,
+        xliff_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
     ):
         if job_store.is_cancelled(job_id):
             logger.info(f"[xliff_job {job_id}] cancelled")
@@ -108,18 +108,18 @@ def _run_xliff_job_sync(job_id: str, xliff_bytes: bytes, source_lang: str, targe
             logger.info(f"[xliff_job {job_id}] done")
 
 
-async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
+async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
     try:
-        await asyncio.to_thread(_run_xliff_job_sync, job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id)
+        await asyncio.to_thread(_run_xliff_job_sync, job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id, no_translation)
     except Exception as exc:
         logger.exception(f"[xliff_job {job_id}] failed")
         job_store.mark_error(job_id, str(exc))
 
 
-def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
-    logger.info(f"[docx_job {job_id}] starting: {source_lang}->{target_lang}, {len(docx_bytes)} bytes")
+def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+    logger.info(f"[docx_job {job_id}] starting: {source_lang}->{target_lang}, {len(docx_bytes)} bytes, no_translation={no_translation}")
     for event in translate_file_content_docx_streaming(
-        BytesIO(docx_bytes), source_lang, target_lang, style_guide or "", glossary=glossary_dict,
+        BytesIO(docx_bytes), source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
     ):
         if job_store.is_cancelled(job_id):
             logger.info(f"[docx_job {job_id}] cancelled")
@@ -143,9 +143,9 @@ def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_
             logger.info(f"[docx_job {job_id}] done")
 
 
-async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None):
+async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
     try:
-        await asyncio.to_thread(_run_docx_job_sync, job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id)
+        await asyncio.to_thread(_run_docx_job_sync, job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id, no_translation)
     except Exception as exc:
         logger.exception(f"[docx_job {job_id}] failed")
         job_store.mark_error(job_id, str(exc))
@@ -192,6 +192,7 @@ async def translate_pdf_file(
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
+    segment_only: bool = Query(False),
 ):
     if not file.filename.endswith(".pdf"):
         logger.warning(f"rejected non-pdf upload: {file.filename}")
@@ -227,8 +228,8 @@ async def translate_pdf_file(
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
-    logger.info(f"[pdf_job {job_id}] created for {file.filename}")
-    asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict))
+    logger.info(f"[pdf_job {job_id}] created for {file.filename}, segment_only={segment_only}")
+    asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
@@ -240,6 +241,7 @@ async def translate_xliff_file(
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
+    segment_only: bool = Query(False),
 ):
     if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf") and not file.filename.endswith(".sdlxliff") and not file.filename.endswith(".mqxliff"):
         logger.warning(f"rejected non-xliff upload: {file.filename}")
@@ -272,8 +274,8 @@ async def translate_xliff_file(
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
-    logger.info(f"[xliff_job {job_id}] created for {file.filename}")
-    asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict))
+    logger.info(f"[xliff_job {job_id}] created for {file.filename}, segment_only={segment_only}")
+    asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
@@ -285,6 +287,7 @@ async def translate_docx_file(
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
+    segment_only: bool = Query(False),
 ):
     if not file.filename.endswith(".docx"):
         logger.warning(f"rejected non-docx upload: {file.filename}")
@@ -317,8 +320,8 @@ async def translate_docx_file(
     clear_doc_summary_cache()
 
     job_id = job_store.create_job()
-    logger.info(f"[docx_job {job_id}] created for {file.filename}")
-    asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict))
+    logger.info(f"[docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
+    asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 

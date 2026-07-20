@@ -66,9 +66,12 @@ def translate_file_content_pdf_streaming(
     target_lang: str,
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
+    no_translation: bool = False,
 ) -> Generator[dict, None, None]:
     """
     Translates all text blocks in a PDF, yielding progress and done events.
+    If no_translation is True, the file is only segmented/extracted and the
+    "translated_text" for every block is left empty ("").
 
     Yields:
         {"type": "progress", "completed": int, "total": int}
@@ -193,27 +196,31 @@ def translate_file_content_pdf_streaming(
     total_blocks = sum(len(page) for page in ordered_content)
     completed_blocks = 0
     translated_content = []
-    
-    terminology = terminology_agent(document=ordered_content, 
-                                    source_lang=source_lang, 
-                                    target_lang=target_lang,
-                                    style_guide=style_guide, 
-                                    glossary=glossary)
+    terminology = {}
+    # terminology = terminology_agent(document=ordered_content, 
+    #                                 source_lang=source_lang, 
+    #                                 target_lang=target_lang,
+    #                                 style_guide=style_guide, 
+    #                                 glossary=glossary)
 
     for page_num, page in enumerate(ordered_content):
         translated_blocks = []
         for i, block in enumerate(page):
             prev_text = page[i - 1]["text"] if i > 0 else ""
             # translated_text = block["text"]
-            translated_text = translate_text(
-                block["text"],
-                prev_text,
-                source_lang,
-                target_lang,
-                style_guide,
-                glossary=glossary,
-                terminology=terminology
-            )
+            if no_translation:
+                translated_text = ""
+
+            else:
+                translated_text = translate_text(
+                    block["text"],
+                    prev_text,
+                    source_lang,
+                    target_lang,
+                    style_guide,
+                    glossary=glossary,
+                    terminology=terminology
+                )
 
             print(f"\nPage {page_num} | Block {i}: {translated_text}")
 
@@ -237,12 +244,17 @@ def translate_file_content_xliff_streaming(
     target_lang: str,
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
+    no_translation: bool = False,
 ) -> Generator[dict, None, None]:
     """
     Translates all text segments in an XLIFF file, yielding progress and done events.
     
     Unlike PDF translation, XLIFF does not require text extraction, reordering, or bbox handling.
     It simply processes source segments in order.
+
+    If no_translation is True, the file is only segmented/extracted (no LLM calls are
+    made, including terminology extraction) and "translated_text" is left empty ("")
+    for every segment.
 
     Yields:
         {"type": "progress", "completed": int, "total": int}
@@ -258,25 +270,29 @@ def translate_file_content_xliff_streaming(
     total_segments = len(segments)
     completed_segments = 0
     translated_content = []
-    
-    terminology = terminology_agent(document=segments, 
-                                    source_lang=source_lang, 
-                                    target_lang=target_lang,
-                                    style_guide=style_guide, 
-                                    glossary=glossary)
+
+    terminology = {}
+    if not no_translation:
+        terminology = terminology_agent(document=segments,
+                                        source_lang=source_lang,
+                                        target_lang=target_lang,
+                                        style_guide=style_guide,
+                                        glossary=glossary)
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
-        # translated_text = segment["text"]
-        translated_text = translate_text(
-            segment["text"],
-            prev_text,
-            source_lang,
-            target_lang,
-            style_guide,
-            glossary=glossary,
-            terminology=terminology
-        )
+        if no_translation:
+            translated_text = ""
+        else:
+            translated_text = translate_text(
+                segment["text"],
+                prev_text,
+                source_lang,
+                target_lang,
+                style_guide,
+                glossary=glossary,
+                terminology=terminology
+            )
 
         print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
 
@@ -298,12 +314,17 @@ def translate_file_content_docx_streaming(
     target_lang: str,
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
+    no_translation: bool = False,
 ) -> Generator[dict, None, None]:
     """
     Translates all text segments in an DOCX file, yielding progress and done events.
 
     Unlike PDF translation, DOCX does not require text extraction, reordering, or bbox handling.
     It simply processes source segments in order.
+
+    If no_translation is True, the file is only segmented/extracted (no LLM calls are
+    made, including terminology extraction) and "translated_text" is left empty ("")
+    for every segment.
 
     Yields:
         {"type": "progress", "completed": int, "total": int}
@@ -319,25 +340,29 @@ def translate_file_content_docx_streaming(
     total_segments = len(segments)
     completed_segments = 0
     translated_content = []
-    
-    terminology = terminology_agent(document=segments, 
-                                    source_lang=source_lang, 
-                                    target_lang=target_lang,
-                                    style_guide=style_guide, 
-                                    glossary=glossary)
+
+    terminology = {}
+    if not no_translation:
+        terminology = terminology_agent(document=segments,
+                                        source_lang=source_lang,
+                                        target_lang=target_lang,
+                                        style_guide=style_guide,
+                                        glossary=glossary)
 
     for i, segment in enumerate(segments):
         prev_text = segments[i - 1]["text"] if i > 0 else ""
-        # translated_text = segment["text"]
-        translated_text = translate_text(
-            segment["text"],
-            prev_text,
-            source_lang,
-            target_lang,
-            style_guide,
-            glossary=glossary,
-            terminology=terminology
-        )
+        if no_translation:
+            translated_text = ""
+        else:
+            translated_text = translate_text(
+                segment["text"],
+                prev_text,
+                source_lang,
+                target_lang,
+                style_guide,
+                glossary=glossary,
+                terminology=terminology
+            )
 
         # print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
 
