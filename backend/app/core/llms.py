@@ -55,7 +55,7 @@ gemini_3_1_flash_lite = ChatOpenAI(
 claude_haiku_4_5 = ChatOpenAI(
     model="anthropic/claude-haiku-4.5",
     base_url="https://openrouter.ai/api/v1",
-    max_tokens = 2048,
+    max_tokens = 16348,
     temperature=0.01,
     reasoning = {
         "effort": "none",
