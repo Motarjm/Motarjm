@@ -244,8 +244,8 @@ def evaluator_agent(state: State):
   
   if not isinstance(response, str):
     if len(response) > 1:
-      response = response[1]["text"]
       print(response)
+      response = response[1]["text"]
       
     else:
       response = response[0]["text"]
