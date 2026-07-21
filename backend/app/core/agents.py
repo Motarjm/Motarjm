@@ -243,7 +243,12 @@ def evaluator_agent(state: State):
   response = provider_invoke("evaluator", prompt).content
   
   if not isinstance(response, str):
-    response = response[0]["text"]
+    if len(response) > 1:
+      response = response[1]["text"]
+      print(response)
+      
+    else:
+      response = response[0]["text"]
     
   # transform response string into json, we should later use 'with_structued_output'
   
