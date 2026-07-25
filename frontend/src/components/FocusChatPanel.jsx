@@ -65,7 +65,7 @@ const FocusChatPanel = ({
   // streaming / persistence / diff logic below is untouched either way.
   embedded = false,
 }) => {
- 
+
   const [messages, setMessages] = useState([]);
   const [selectedModel, setSelectedModel] = useState('claude');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -74,8 +74,8 @@ const FocusChatPanel = ({
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
-  const chatHistoryRef = useRef([]); // full raw history (including JSON actions) sent to backend
-  const focusStartTimeRef = useRef(Date.now()); // Track session start time
+  const chatHistoryRef = useRef([]); // full raw history sent to backend
+  const focusStartTimeRef = useRef(Date.now());
 
   // Load persisted chat history for this document segment.
   useEffect(() => {
@@ -161,15 +161,18 @@ const FocusChatPanel = ({
 
     setEphemeralError(null);
     const userMsg = { role: 'user', text };
-    const updatedMessages = [...messages, userMsg];
-    setMessages(updatedMessages);
+    setMessages(prev => [...prev, userMsg]);
     chatHistoryRef.current = [...chatHistoryRef.current, userMsg];
     trackChatInteraction('user');
     setIsStreaming(true);
 
-    // Add empty bot message placeholder for streaming
-    const botIndex = updatedMessages.length;
-    setMessages(prev => [...prev, { role: 'bot', text: '' }]);
+    let botMessageId = null;   // only set when first token arrives
+    let currentToolId = null;  // tracks the active tool chip (UI)
+    let currentToolCallId = null; // backend tool_call_id for the active call
+    let currentToolArgs = null;   // args of the active call, for history
+    const toolEntriesThisTurn = []; // completed tool turns, for chat_history only
+    let fullText = '';
+    let hadError = false;
 
     try {
       abortRef.current = new AbortController();
@@ -187,7 +190,7 @@ const FocusChatPanel = ({
           source_lang: sourceLang,
           target_lang: targetLang,
           page_context: pageContext,
-          chat_history: chatHistoryRef.current, // full raw history
+          chat_history: chatHistoryRef.current,
           model: selectedModel,
           doc_context: docContext,
         }),
@@ -195,72 +198,103 @@ const FocusChatPanel = ({
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = '';
-      let hadError = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-        // Parse SSE lines
         const lines = chunk.split('\n');
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           try {
             const data = JSON.parse(line.slice(6));
-            if (data.type === 'token') {
-              fullText += data.content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[botIndex] = { role: 'bot', text: fullText };
-                return updated;
+
+            if (data.type === 'tool_start') {
+              currentToolId = `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+              currentToolCallId = data.id || null;
+              currentToolArgs = { query: data.query || '' };
+              setMessages(prev => [...prev, {
+                role: 'tool',
+                id: currentToolId,
+                tool: data.tool,
+                query: data.query || '',
+                status: 'searching',
+                urls: [],
+              }]);
+
+            } else if (data.type === 'tool_call') {
+              setMessages(prev => prev.map(msg =>
+                msg.id === currentToolId
+                  ? { ...msg, status: 'done', urls: data.urls || [], query: data.query || msg.query }
+                  : msg
+              ));
+              // Full tool output (not just title/url) — for chat_history/model continuity.
+              toolEntriesThisTurn.push({
+                role: 'tool',
+                tool_call_id: data.id || currentToolCallId,
+                name: data.tool,
+                args: currentToolArgs || { query: data.query },
+                content: data.content || JSON.stringify({ query: data.query, results: data.urls || [] }),
               });
+              currentToolCallId = null;
+              currentToolArgs = null;
+
+            } else if (data.type === 'token') {
+              fullText += data.content;
+
+              if (!botMessageId) {
+                botMessageId = `bot-${Date.now()}`;
+                setMessages(prev => [...prev, { role: 'bot', text: fullText, id: botMessageId }]);
+              } else {
+                setMessages(prev =>
+                  prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
+                );
+              }
+
             } else if (data.type === 'error') {
-              // Do not append error to chat history. Show ephemeral error and remove bot placeholder.
               hadError = true;
               setEphemeralError(`⚠️ ${data.content}`);
-              setMessages(prev => prev.filter((_, idx) => idx !== botIndex));
-              break; // stop processing lines for this chunk
+              break;
             }
           } catch { /* skip malformed lines */ }
         }
         if (hadError) break;
       }
 
-      // If an error occurred during streaming, skip post-processing
-      if (hadError) {
-        // bot placeholder already removed, chatHistoryRef not updated — error is ephemeral only
-      } else {
-        // Check for edit action in completed response
-        const action = parseAction(fullText);
-
-        // Always append full raw text to chatHistoryRef (bot sees the JSON action)
-        chatHistoryRef.current = [...chatHistoryRef.current, { role: 'bot', text: fullText }];
-
-        // Track bot response
+      if (!hadError) {
+        // Persist this turn's tool calls + full raw bot text into chat_history
+        // (this is the backend-facing history sent as chat_history on the next
+        // request — separate from `messages`, which drives the visible chip).
+        chatHistoryRef.current = [
+          ...chatHistoryRef.current,
+          ...toolEntriesThisTurn,
+          { role: 'bot', text: fullText },
+        ];
         trackChatInteraction('bot', selectedModel);
 
+        const action = parseAction(fullText);
+
         if (action) {
-          // Don't apply immediately — show diff for user confirmation
-          setPendingEdit({ oldText: segment?.translated_text, newText: action.new_text, botIndex });
+          // Show diff for user confirmation
+          setPendingEdit({ oldText: segment?.translated_text, newText: action.new_text, botMessageId });
           // Display clean text (no JSON block) to the user
           const cleanText = fullText.replace(/```json\s*\{[\s\S]*?\}\s*```/, '').trim();
           setMessages(prev => {
             const updated = [...prev];
-            updated[botIndex] = { role: 'bot', text: cleanText };
+            for (let i = updated.length - 1; i >= 0; i--) {
+              if (updated[i].role === 'bot' && updated[i].id === botMessageId) {
+                updated[i] = { ...updated[i], text: cleanText };
+                break;
+              }
+            }
             return updated;
           });
         }
-        // no action: messages already has the full streamed text, nothing extra to do
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
-        // Remove the empty bot placeholder, don't persist error in history
-        setMessages(prev => prev.filter((_, idx) => idx !== botIndex));
         setEphemeralError('⚠️ Failed to get response. Please try again.');
-        
-        // Track chat error
         trackApiError(err, {
           endpoint: '/segment/chat',
           method: 'POST',
@@ -280,7 +314,7 @@ const FocusChatPanel = ({
     }
   };
 
-  
+
   // Detect Arabic text and track copy events
   const detectArabicText = (text) => {
     return /[\u0600-\u06FF]/.test(text);
@@ -291,14 +325,11 @@ const FocusChatPanel = ({
     const handleCopy = () => {
       const selection = window.getSelection().toString();
       if (selection && detectArabicText(selection)) {
-        // Check if copied text is from AI suggestion
         const isFromSuggestion = pendingEdit && pendingEdit.newText.includes(selection);
         trackArabicTextCopied(selection.length, 'focus_chat', isFromSuggestion);
       }
     };
 
-
-    // Listen for copy command
     document.addEventListener('copy', handleCopy);
     return () => document.removeEventListener('copy', handleCopy);
   }, [pendingEdit]);

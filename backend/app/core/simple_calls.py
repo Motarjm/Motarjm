@@ -1,7 +1,8 @@
 import json
 import re
 from functools import lru_cache
-from langchain.messages import AIMessage, HumanMessage, SystemMessage
+from typing import Any, Dict
+from langchain.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from app.core.prompts import *
 from app.core.agents import provider_invoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
 from typing import List, Tuple
@@ -306,16 +307,90 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
     for msg in chat_history:
         if msg["role"] == "user":
             messages.append(HumanMessage(content=msg["text"]))
+        elif msg["role"] == "tool":
+            # Same reconstruction as the general chatbot: replay the tool call
+            # and its result as real messages, never shown to the user.
+            tool_call_id = msg.get("tool_call_id")
+            tool_name = msg.get("name", "exa_search")
+            messages.append(AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": tool_name,
+                    "args": msg.get("args") or {},
+                    "id": tool_call_id,
+                }],
+            ))
+            messages.append(ToolMessage(
+                content=msg.get("content", ""),
+                tool_call_id=tool_call_id,
+                name=tool_name,
+            ))
         else:
             messages.append(AIMessage(content=msg["text"]))
-    
-    for chunk in provider_stream(provider_key, messages):
-        content = chunk.content
-        if isinstance(content, str):
-            yield content
-        elif isinstance(content, list) and content:
-            yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+
+    for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"]):
+        mode, payload = event
+
+        if mode == "updates":
+            # ── Tool node just ran: a search finished, surface the results ──
+            if payload.get("tools"):
+                tool_messages = payload["tools"].get("messages", [])
+                for tm in tool_messages:
+                    if getattr(tm, "name", None) != "exa_search":
+                        continue
+                    urls = []
+                    query = ""
+                    try:
+                        result_payload = json.loads(tm.content)
+                        query = result_payload.get("query", "")
+                        urls = [
+                            {"title": r.get("title"), "url": r.get("url")}
+                            for r in result_payload.get("results", [])
+                            if r.get("url")
+                        ]
+                    except (json.JSONDecodeError, TypeError, AttributeError):
+                        pass
+
+                    yield {
+                        "type": "tool_call",
+                        "tool": "exa_search",
+                        "query": query,
+                        "urls": urls,
+                        "content": tm.content,
+                        "id": getattr(tm, "tool_call_id", None),
+                    }
+                continue
+
+            # ── Model node just decided to call a tool: announce it early ──
+            if payload.get("model"):
+                model_messages = payload["model"].get("messages", [])
+                for msg in reversed(model_messages):
+                    if isinstance(msg, AIMessage) and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            if tc.get("name") == "exa_search":
+                                yield {
+                                    "type": "tool_start",
+                                    "tool": "exa_search",
+                                    "query": (tc.get("args") or {}).get("query", ""),
+                                    "id": tc.get("id"),
+                                }
+                        break
+            continue
             
+        elif mode == "messages":
+            message_chunk, metadata = payload
+            if metadata.get("langgraph_node") != "model":
+                continue
+
+            content = getattr(message_chunk, "content", "")
+            if isinstance(content, str):
+                if content:
+                    yield content
+            elif isinstance(content, list) and content:
+                text = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                if text:
+                    yield text
+
 
 def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str):
     """
@@ -527,20 +602,95 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
     for msg in chat_history:
         if msg["role"] == "user":
             messages.append(HumanMessage(content=msg["text"]))
+        elif msg["role"] == "tool":
+            # A prior search from an earlier turn. Reconstruct it as the model
+            # will expect: the AIMessage that requested the tool call, then
+            # the ToolMessage carrying its result — never shown to the user,
+            # but present so the model has real continuity of what it already
+            # searched for and found.
+            tool_call_id = msg.get("tool_call_id")
+            tool_name = msg.get("name", "exa_search")
+            messages.append(AIMessage(
+                content="",
+                tool_calls=[{
+                    "name": tool_name,
+                    "args": msg.get("args") or {},
+                    "id": tool_call_id,
+                }],
+            ))
+            messages.append(ToolMessage(
+                content=msg.get("content", ""),
+                tool_call_id=tool_call_id,
+                name=tool_name,
+            ))
         else:
             messages.append(AIMessage(content=msg["text"]))
-    
-    for chunk in provider_stream(provider_key, messages):
-        # if chunk.get("model"):
-        #     messages = chunk["model"]["messages"]
-        #   # Find the last AI message without tool calls
-        # for msg in reversed(messages):
-        #     if isinstance(msg, AIMessage) and not msg.tool_calls:
-        #         message = msg.content
-        #         yield message[0].get("text", "") if isinstance(message[0], dict) else str(message[0])
-        content = chunk.content
-        if isinstance(content, str):
-            yield content
-        elif isinstance(content, list) and content:
-            yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
-    
+
+    for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"]):
+        mode, payload = event
+
+        if mode == "updates":
+            # ── Tool node just ran: a search finished, surface the results ──
+            if payload.get("tools"):
+                tool_messages = payload["tools"].get("messages", [])
+                for tm in tool_messages:
+                    if getattr(tm, "name", None) != "exa_search":
+                        continue
+                    urls = []
+                    query = ""
+                    try:
+                        result_payload = json.loads(tm.content)
+                        query = result_payload.get("query", "")
+                        urls = [
+                            {"title": r.get("title"), "url": r.get("url")}
+                            for r in result_payload.get("results", [])
+                            if r.get("url")
+                        ]
+                    except (json.JSONDecodeError, TypeError, AttributeError):
+                        pass
+
+                    yield {
+                        "type": "tool_call",
+                        "tool": "exa_search",
+                        "query": query,
+                        "urls": urls,               # UI-only: title/url for the link chip
+                        "content": tm.content,       # full tool output, for chat_history/model continuity
+                        "id": getattr(tm, "tool_call_id", None),
+                    }
+                continue
+
+            # ── Model node just decided to call a tool: announce it early ──
+            if payload.get("model"):
+                model_messages = payload["model"].get("messages", [])
+                for msg in reversed(model_messages):
+                    if isinstance(msg, AIMessage) and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            if tc.get("name") == "exa_search":
+                                yield {
+                                    "type": "tool_start",
+                                    "tool": "exa_search",
+                                    "query": (tc.get("args") or {}).get("query", ""),
+                                    "id": tc.get("id"),
+                                }
+                        break
+            # Note: actual answer text is NOT taken from "updates" — that only
+            # fires once the model node's whole invoke() has finished, which
+            # is why text used to appear all at once. Real tokens come from
+            # the "messages" stream below instead.
+            continue
+
+        elif mode == "messages":
+            message_chunk, metadata = payload
+            # Only stream tokens generated by the model node itself (not the
+            # tool node's ToolMessage, which isn't a token-by-token chunk).
+            if metadata.get("langgraph_node") != "model":
+                continue
+
+            content = getattr(message_chunk, "content", "")
+            if isinstance(content, str):
+                if content:
+                    yield content
+            elif isinstance(content, list) and content:
+                text = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
+                if text:
+                    yield text

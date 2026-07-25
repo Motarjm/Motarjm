@@ -1,0 +1,88 @@
+.search-tool-block {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 6px 0;
+  max-width: 100%;
+}
+
+.search-tool-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color, #e2e2e2);
+  background: var(--surface-color, #f7f7f8);
+  color: var(--text-secondary, #555);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.search-tool-summary:hover:not(:disabled) {
+  background: var(--surface-hover, #eee);
+  border-color: var(--border-hover, #ccc);
+}
+
+.search-tool-summary:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.search-tool-block.searching .search-tool-summary {
+  font-style: italic;
+}
+
+.search-tool-caret {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-inline-start: 2px;
+}
+
+.search-tool-links {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #e2e2e2);
+  border-radius: 10px;
+  background: var(--surface-color, #fafafa);
+  max-width: 420px;
+}
+
+.search-tool-links li + li {
+  margin-top: 6px;
+}
+
+.search-tool-links a {
+  font-size: 13px;
+  color: var(--link-color, #2563eb);
+  text-decoration: none;
+  word-break: break-word;
+}
+
+.search-tool-links a:hover {
+  text-decoration: underline;
+}
+
+.search-tool-empty {
+  font-size: 13px;
+  color: var(--text-secondary, #888);
+  font-style: italic;
+}
+
+/* Reuses the same spinner look as .chip-spinner elsewhere in the app;
+   kept as a local fallback in case that class isn't in scope here. */
+.search-tool-summary .chip-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--border-color, #ccc);
+  border-top-color: var(--link-color, #2563eb);
+  border-radius: 50%;
+  animation: search-tool-spin 0.7s linear infinite;
+}
+
+@keyframes search-tool-spin {
+  to { transform: rotate(360deg); }
+}

@@ -50,7 +50,12 @@ async def general_chat(request: GeneralChatRequest):
                 review_results=request.review_results or [],
                 model=request.model
             ):
-                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                # Structured events (tool_start / tool_call) come through as dicts,
+                # plain text tokens come through as strings.
+                if isinstance(chunk, dict):
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         except Exception as e:
             logger.exception("general chat stream failed")

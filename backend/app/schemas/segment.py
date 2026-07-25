@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 
 class ExplanationRequest(BaseModel):
@@ -23,8 +23,12 @@ class BacktranslationRequest(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    role: Literal["user", "bot"]
+    role: Literal["user", "bot", "tool"]
     text: str
+    tool_call_id: Optional[str] = None
+    name: Optional[str] = None
+    args: Optional[dict] = None
+    content: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
