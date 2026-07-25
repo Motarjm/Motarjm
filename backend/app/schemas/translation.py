@@ -18,13 +18,3 @@ class TranslationBlockXLIFF(BaseModel):
     bbox: Optional[List[float]] = None
 
 
-class GenerateEditedPDFRequest(BaseModel):
-    translated_contents: List[List[TranslationBlockPDF]]
-    bbox: List[float]
-    original_pdf: str  # base64-encoded
-    
-class GenerateXliffRequest(BaseModel):
-    translated_contents: List[List[TranslationBlockXLIFF]]
-    original_xliff: Optional[str] = None  # None if original was PDF, provided if original was XLIFF
-    source_lang: str
-    target_lang: str    

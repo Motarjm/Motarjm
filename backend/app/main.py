@@ -3,9 +3,18 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
-
 import os
+import logging
 from app.routers import translation, generation, segment, document
+
+
+# 1. Initialize root logging configuration (Change WARNING to INFO or DEBUG)
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    force=True
+)
+
 
 app = FastAPI()
 

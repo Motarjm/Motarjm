@@ -251,7 +251,12 @@ def evaluator_agent(state: State):
   response = provider_invoke("evaluator", prompt).content
   
   if not isinstance(response, str):
-    response = response[0]["text"]
+    if len(response) > 1:
+      print(response)
+      response = response[1]["text"]
+      
+    else:
+      response = response[0]["text"]
     
   # transform response string into json, we should later use 'with_structued_output'
   
@@ -259,6 +264,9 @@ def evaluator_agent(state: State):
     if matched := re.search(r'\{.*\}', response, re.DOTALL):
       matched = matched.group(0)
       score = int(json.loads(matched)["score"])
+    
+    else:
+      score = 0
       
   except (json.JSONDecodeError, KeyError, TypeError, ValueError):
     score = 0

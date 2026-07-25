@@ -437,6 +437,19 @@
   font-weight: 400;
 }
 
+.uploads-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin: 1rem 0 0.5rem;
+  flex-wrap: wrap;
+}
+
+.uploads-row .glossary-upload {
+  margin: 0;
+}
+
 .glossary-upload {
   display: flex;
   align-items: center;
@@ -592,6 +605,47 @@
 .translate-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Two-button action row: "ترجم المستندات" + "قسّم بدون ترجمة" */
+.translate-buttons-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.translate-buttons-row .translate-btn {
+  flex: 1;
+  width: auto;
+  max-width: 320px;
+}
+
+.segment-only-btn {
+  background: transparent;
+  border: 2px solid var(--olive);
+  color: var(--olive);
+}
+
+.segment-only-btn:hover:not(:disabled) {
+  background: rgba(107, 125, 92, 0.08);
+  border-color: var(--olive);
+  box-shadow: 0 6px 20px rgba(107, 125, 92, 0.15);
+  transform: translateY(-2px);
+}
+
+.segment-only-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .translate-buttons-row {
+    flex-direction: column;
+  }
+
+  .translate-buttons-row .translate-btn {
+    max-width: 100%;
+  }
 }
 
 /* Progress Bar Styles */
@@ -831,6 +885,15 @@
   .edit-btn {
     max-width: 100%;
   }
+  .language-selector .lang-group:first-child {
+    order: 3; /* target language → last */
+  }
+  .language-selector .lang-group:last-child {
+    order: 1; /* source language → first */
+  }
+  .language-selector .arrow-icon {
+    order: 2; /* arrow between them */
+  }
 }
 
 @media (max-width: 480px) {
@@ -912,6 +975,15 @@
     align-self: flex-end;
     padding: 2px 0;
   }
+  .language-selector .lang-group:first-child {
+    order: 3; /* target language → last */
+  }
+  .language-selector .lang-group:last-child {
+    order: 1; /* source language → first */
+  }
+  .language-selector .arrow-icon {
+    order: 2; /* arrow between them */
+  }
 }
 
 @media (max-width: 360px) {
@@ -934,6 +1006,15 @@
   .whats-new-subtitle,
   .wn-timeline-text {
     font-size: 0.82rem;
+  }
+  .language-selector .lang-group:first-child {
+    order: 3; /* target language → last */
+  }
+  .language-selector .lang-group:last-child {
+    order: 1; /* source language → first */
+  }
+  .language-selector .arrow-icon {
+    order: 2; /* arrow between them */
   }
 }
 

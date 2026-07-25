@@ -32,6 +32,17 @@ gemini_2_5_flash_lite = ChatOpenAI(
     
 )
 
+gemini_2_5_flash_lite_low_tokens = ChatOpenAI(
+    model="google/gemini-2.5-flash-lite",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 100,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+    
+)
+
 gemini_3_1_flash_lite = ChatOpenAI(
     model="google/gemini-3.1-flash-lite",
     base_url="https://openrouter.ai/api/v1",
@@ -46,7 +57,7 @@ gemini_3_1_flash_lite = ChatOpenAI(
 claude_haiku_4_5 = ChatOpenAI(
     model="anthropic/claude-haiku-4.5",
     base_url="https://openrouter.ai/api/v1",
-    max_tokens = 2048,
+    max_tokens = 16348,
     temperature=0.01,
     reasoning = {
         "effort": "none",
@@ -99,6 +110,26 @@ limiter = ToolCallLimitMiddleware(
     exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
 )
 
+gpt_4o_mini = ChatOpenAI(
+    model="openai/gpt-4o-mini",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 100,
+    # max_retries=0,
+    temperature=0.01,  # Gemini 3.0+ defaults to 1.0,
+    reasoning = {
+        "effort": "low",
+    }
+)
+
+claude_haiku_4_5_low_tokens = ChatOpenAI(
+    model="anthropic/claude-haiku-4.5",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 100,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
+)
 
 agent_gemini_3_1_flash_lite = create_agent(gemini_3_1_flash_lite,
                                          [exa_search],
@@ -117,7 +148,7 @@ agent_deepseek = create_agent(deepseek,
 
 
 
-providers = {"translator": [claude_sonnet_4_6,
+providers = {"translator": [claude_haiku_4_5,
                             deepseek],
                                 # deepseek,
              
@@ -134,10 +165,10 @@ providers = {"translator": [claude_sonnet_4_6,
              
              "explanator": [gemini_2_5_flash_lite,deepseek],
 
-             "suggestions1": [gemini_2_5_flash_lite],
-             "suggestions2": [claude_haiku_4_5], # grok
+             "suggestions1": [gemini_2_5_flash_lite_low_tokens],
+             "suggestions2": [claude_haiku_4_5_low_tokens], # grok
              
-             "suggestions3": [gpt_5_nano], # gpt5 nano,
+             "suggestions3": [gpt_4o_mini], # gpt5 nano,
              
              "backtranslation": [gemini_2_5_flash_lite],
 

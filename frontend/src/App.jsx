@@ -1,7 +1,6 @@
 import './App.css';
 import PDFViewer from './components/PDFViewer';
 import CompareInterface from './components/CompareInterface';
-import EditingInterface from './components/EditingInterface';
 import Torgman from './components/Torgman';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
@@ -40,7 +39,6 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<ErrorBoundary name="Torgman"><Torgman /></ErrorBoundary>} />
-          <Route path="/editing" element={<ErrorBoundary name="EditingInterface"><EditingInterface /></ErrorBoundary>} />
           <Route path="/compare" element={<ErrorBoundary name="CompareInterface"><CompareInterface /></ErrorBoundary>} />
         </Routes>
       </Router>

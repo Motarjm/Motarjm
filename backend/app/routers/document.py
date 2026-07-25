@@ -3,7 +3,9 @@ from fastapi.responses import StreamingResponse
 from app.core.simple_calls import stream_reviewer, stream_general_chatbot
 from app.schemas.document import ReviewDocumentRequest, GeneralChatRequest
 import json
+import logging
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/document")
 
@@ -23,6 +25,7 @@ async def review_document(request: ReviewDocumentRequest):
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         except Exception as e:
+            logger.exception("document review stream failed")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",
@@ -55,6 +58,7 @@ async def general_chat(request: GeneralChatRequest):
                     yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         except Exception as e:
+            logger.exception("general chat stream failed")
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",

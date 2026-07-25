@@ -6,6 +6,7 @@ const DOCUMENTS_STORE = 'documents';
 const CHATS_STORE = 'chats';
 const META_STORE = 'meta';
 const ACTIVE_DOCUMENT_KEY = 'activeDocumentId';
+const ACTIVE_TRANSLATION_JOB_KEY = 'activeTranslationJob';
 
 // Generates a unique ID for persisted document records.
 // Use it when creating a new translation session/document entry.
@@ -62,23 +63,42 @@ export const createDocument = async (payload) => {
   return id;
 };
 
+// Per-document promise chain used to serialize saveDocumentState calls.
+// Without this, two concurrent callers (e.g. a translatedContents update
+// and a reviewSuggestions update firing from the same click) can each
+// read the record before the other has written, so whichever write lands
+// last silently drops the other's change. Queuing writes per document
+// guarantees each read-modify-write completes before the next one starts.
+const writeQueues = new Map();
+
 // Applies a partial update to an existing document record.
 // Use whenever edited compare state changes (text, checks, suggestions, etc.).
-export const saveDocumentState = async (documentId, patch) => {
-  if (!documentId) return;
+// Returns a promise that resolves once this write (and any writes queued
+// ahead of it for the same document) has been committed.
+export const saveDocumentState = (documentId, patch) => {
+  if (!documentId) return Promise.resolve();
 
-  const db = await getDb();
-  const existing = (await db.get(DOCUMENTS_STORE, documentId)) || {
-    id: documentId,
-    createdAt: nowIso(),
-  };
+  const previous = writeQueues.get(documentId) || Promise.resolve();
 
-  await db.put(DOCUMENTS_STORE, {
-    ...existing,
-    ...patch,
-    id: documentId,
-    updatedAt: nowIso(),
-  });
+  const next = previous
+    .catch(() => {}) // a prior failed write shouldn't block subsequent ones
+    .then(async () => {
+      const db = await getDb();
+      const existing = (await db.get(DOCUMENTS_STORE, documentId)) || {
+        id: documentId,
+        createdAt: nowIso(),
+      };
+
+      await db.put(DOCUMENTS_STORE, {
+        ...existing,
+        ...patch,
+        id: documentId,
+        updatedAt: nowIso(),
+      });
+    });
+
+  writeQueues.set(documentId, next);
+  return next;
 };
 
 // Loads a document by ID from the documents store.
@@ -102,6 +122,31 @@ export const getActiveDocumentId = async () => {
   const db = await getDb();
   const item = await db.get(META_STORE, ACTIVE_DOCUMENT_KEY);
   return item?.value || null;
+};
+
+// Stores the currently running translation job metadata.
+// Use this to resume an in-flight translation after refresh or reconnect.
+export const setActiveTranslationJob = async (jobMeta) => {
+  const db = await getDb();
+  await db.put(META_STORE, {
+    key: ACTIVE_TRANSLATION_JOB_KEY,
+    value: jobMeta,
+    updatedAt: nowIso(),
+  });
+};
+
+// Reads the currently running translation job metadata, if any.
+// Use it before hydrating completed documents so reattachment wins.
+export const getActiveTranslationJob = async () => {
+  const db = await getDb();
+  const item = await db.get(META_STORE, ACTIVE_TRANSLATION_JOB_KEY);
+  return item?.value || null;
+};
+
+// Clears the active translation job pointer once the job is done or discarded.
+export const clearActiveTranslationJob = async () => {
+  const db = await getDb();
+  await db.delete(META_STORE, ACTIVE_TRANSLATION_JOB_KEY);
 };
 
 // Saves chat UI/history for a specific document segment.

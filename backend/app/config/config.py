@@ -13,6 +13,9 @@ os.environ["LANGSMITH_TRACING"] = os.getenv("LANGSMITH_TRACING")
 os.environ["LANGSMITH_PROJECT"] = "Turjman"
 os.environ["LANGSMITH_ENDPOINT"] = "https://eu.api.smith.langchain.com"
 os.environ["EXA_API_KEY"] = os.getenv("EXA_API_KEY")
+# below line for testing
+# os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "1"
+# os.environ["DISABLE_MODEL_SOURCE_CHECK"] = "1"
 
 
 
