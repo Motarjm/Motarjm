@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from app.core.simple_calls import stream_reviewer, stream_general_chatbot
@@ -48,10 +47,14 @@ async def general_chat(request: GeneralChatRequest):
                 review_results=request.review_results or [],
                 model=request.model
             ):
-                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                # Structured events (tool_start / tool_call) come through as dicts,
+                # plain text tokens come through as strings.
+                if isinstance(chunk, dict):
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
         except Exception as e:
-            raise e
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream",

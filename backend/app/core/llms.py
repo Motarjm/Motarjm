@@ -1,10 +1,12 @@
 from langchain_openai import ChatOpenAI
-# from langchain.agents import create_agent
-# from app.core.tools import search_tool
-# from langchain.agents.middleware import ToolCallLimitMiddleware
+from langchain.agents import create_agent
+from app.core.tools import  exa_search
+from langchain.agents.middleware import ToolCallLimitMiddleware
 
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
+
+MAX_TOOL_CALLS = 3
 
 #ToDo: migrate from google_genai and open_ai langchain packages to langchain openrouter package
 deepseek = ChatOpenAI(
@@ -92,18 +94,22 @@ gpt_5_nano  = ChatOpenAI(
     }
 )
 
-# limiter = ToolCallLimitMiddleware(
-#     run_limit=3,          # max 3 tool calls per agent.invoke()
-#     exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
-# )
+limiter = ToolCallLimitMiddleware(
+    run_limit=MAX_TOOL_CALLS,          # max 3 tool calls per agent.invoke()
+    exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
+)
 
 
-# agent_gemini_3_flash_prev = create_agent(gemini_3_flash_prev,
-#                                          [search_tool],
-#                                          middleware = [limiter])
-# agent_deepseek = create_agent(deepseek, 
-#                               [search_tool],
-#                               middleware = [limiter])
+agent_gemini_3_1_flash_lite = create_agent(gemini_3_1_flash_lite,
+                                         [exa_search],
+                                         middleware = [limiter])
+
+agent_claude_haiku_4_5 = create_agent(claude_haiku_4_5,
+                                         [exa_search],
+                                         middleware = [limiter])
+agent_deepseek = create_agent(deepseek, 
+                              [exa_search],
+                              middleware = [limiter])
 
 # agent_grok = create_agent(grok, 
 #                           [search_tool],
@@ -136,25 +142,25 @@ providers = {"translator": [claude_sonnet_4_6,
              "backtranslation": [gemini_2_5_flash_lite],
 
              # chatbot — keyed by frontend model name
-             "chatbot_deepseek": [deepseek],    # deepseek
-             "chatbot_gemini": [gemini_3_1_flash_lite],  # gemini
+             "chatbot_deepseek": [agent_deepseek],    # deepseek
+             "chatbot_gemini": [agent_gemini_3_1_flash_lite],  # gemini
              "chatbot_grok": [grok],            # grok
-             "chatbot_claude": [claude_haiku_4_5],  # claude
+             "chatbot_claude": [agent_claude_haiku_4_5],  # claude
              
              "doc_summary": [gemini_2_5_flash_lite],
              "reviewer": [claude_haiku_4_5],
              
-             "general_chatbot_gemini": [gemini_3_1_flash_lite],
-             "general_chatbot_deepseek": [deepseek],
+             "general_chatbot_gemini": [agent_gemini_3_1_flash_lite],
+             "general_chatbot_deepseek": [agent_deepseek],
              "general_chatbot_grok": [grok],
-             "general_chatbot_claude": [claude_haiku_4_5]
+             "general_chatbot_claude": [agent_claude_haiku_4_5]
 
              }
 
  
 
 
-__all__ = ["providers"]
+__all__ = ["providers", "MAX_TOOL_CALLS"]
 
 
 

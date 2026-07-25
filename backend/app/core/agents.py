@@ -77,7 +77,7 @@ def provider_invoke(role, prompt, max_retries=2):
         ) from last_error
 
 
-def provider_stream(role, prompt, max_retries=2):
+def provider_stream(role, prompt, max_retries=2, stream_mode=None):
   """
   Streams model response tokens based on available providers with retry logic.
   Falls back to next provider in the list on failure.
@@ -86,9 +86,15 @@ def provider_stream(role, prompt, max_retries=2):
     - role, str: the provider key (e.g. 'chatbot_deepseek', 'chatbot_gemini')
     - prompt, list: list of langchain messages
     - max_retries, int: number of retry attempts per provider (default: 2)
+    - stream_mode, str | list | None: forwarded to the underlying LangGraph
+      .stream() call when the provider is a compiled graph (e.g. an agent
+      with tools). Pass a list like ["updates", "messages"] to get both
+      step-level (node-level) updates (for tool-call detection) and token-level message
+      chunks (for real streaming) in the same stream. Ignored (None) for
+      plain chat-model providers.
     
   Yields:
-    - str: text chunks as they arrive
+    - str (or graph chunk, depending on stream_mode): output as it arrives
     
   Raises:
     - Exception: if all providers fail
@@ -96,8 +102,9 @@ def provider_stream(role, prompt, max_retries=2):
   provider_list = providers.get(role, [])
   
   # if the llm is an agent, i must provide list of prompts as a dict
-  # if role in ["general_chatbot_gemini", "general_chatbot_deepseek", "general_chatbot_grok"]:
-  #   prompt = {"messages": prompt}
+  if role in ["general_chatbot_gemini", "general_chatbot_claude", "general_chatbot_deepseek",
+              "chatbot_deepseek", "chatbot_gemini",  "chatbot_claude"]:
+    prompt = {"messages": prompt}
   
   if not provider_list:
     raise ValueError(f"No providers found for role: {role}")
@@ -109,7 +116,8 @@ def provider_stream(role, prompt, max_retries=2):
       try:
         print(f"[{role}] Streaming attempt with provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
         
-        for chunk in provider.stream(prompt):
+        stream_kwargs = {"stream_mode": stream_mode} if stream_mode is not None else {}
+        for chunk in provider.stream(prompt, **stream_kwargs):
           yield chunk
         
         print(f"[{role}] Stream completed successfully with provider {provider_idx + 1}")

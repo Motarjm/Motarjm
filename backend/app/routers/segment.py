@@ -66,8 +66,14 @@ async def chat(request: ChatRequest, style_guide: str = Query(None)):
                 doc_context=request.doc_context,
                 style_guide=style_guide or "",
             ):
-                yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                if isinstance(chunk, dict):
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                    
+                else:
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                    
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 

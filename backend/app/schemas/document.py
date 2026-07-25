@@ -7,8 +7,13 @@ class ReviewDocumentRequest(BaseModel):
     translated_contents: List[List[dict]] = []
     
 class ChatMessage(BaseModel):
-    role: Literal["user", "bot"]
-    text: str
+    role: Literal["user", "bot", "tool"]
+    text: Optional[str] = None
+    # for tool calls
+    tool_call_id: Optional[str] = None
+    name: Optional[str] = None
+    args: Optional[dict] = None
+    content: Optional[str] = None
 
     
 class GeneralChatRequest(BaseModel):
