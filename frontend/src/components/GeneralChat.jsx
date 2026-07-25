@@ -28,6 +28,10 @@ const GeneralChat = ({
   const [width, setWidth] = useState(470);
   const [isResizing, setIsResizing] = useState(false);
 
+  // Full backend-facing history, including tool turns (search calls/results).
+  // This is NEVER rendered — only `messages` (user/bot only) drives the UI.
+  const chatHistoryRef = useRef([]);
+
   // Quick-action state
   const [activeQuickAction, setActiveQuickAction] = useState(null); // null | 'replace'
   const [findTerm, setFindTerm] = useState('');
@@ -40,9 +44,12 @@ const GeneralChat = ({
     const key = `torgman-chat-${documentId}`;
     try {
       const saved = localStorage.getItem(key);
-      setMessages(saved ? JSON.parse(saved) : [WELCOME_MESSAGE]);
+      const parsed = saved ? JSON.parse(saved) : null;
+      setMessages(parsed?.messages || [WELCOME_MESSAGE]);
+      chatHistoryRef.current = parsed?.chatHistory || [];
     } catch {
       setMessages([WELCOME_MESSAGE]);
+      chatHistoryRef.current = [];
     }
     setMessagesLoaded(true);
   }, [documentId]);
@@ -51,7 +58,10 @@ const GeneralChat = ({
   useEffect(() => {
     if (!messagesLoaded || !documentId) return;
     try {
-      localStorage.setItem(`torgman-chat-${documentId}`, JSON.stringify(messages));
+      localStorage.setItem(`torgman-chat-${documentId}`, JSON.stringify({
+        messages,
+        chatHistory: chatHistoryRef.current,
+      }));
     } catch {}
   }, [messages, documentId, messagesLoaded]);
 
@@ -89,12 +99,20 @@ const GeneralChat = ({
     };
   }, [isResizing]);
 
-  const streamResponse = async (chatHistoryToSend, userText = null) => {
+  const streamResponse = async (userText = null, { silent = false } = {}) => {
     if (loading) return;
     setLoading(true);
 
+    let botMessageId = null;
+    let fullText = '';
+    let activeToolCall = null;      // { id, name, args } while a search is in flight
+    const toolEntriesThisTurn = []; // completed {role:'tool', ...} entries, for chat_history only
+
     if (userText) {
-      setMessages(prev => [...prev, { role: 'user', text: userText }]);
+      chatHistoryRef.current = [...chatHistoryRef.current, { role: 'user', text: userText }];
+      if (!silent) {
+        setMessages(prev => [...prev, { role: 'user', text: userText }]);
+      }
     }
 
     try {
@@ -102,7 +120,7 @@ const GeneralChat = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_history: chatHistoryToSend,
+          chat_history: chatHistoryRef.current,
           style_guide: styleGuideQueryValue || '',
           translated_contents: translatedContents,
           source_lang: sourceLang,
@@ -117,10 +135,6 @@ const GeneralChat = ({
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let fullText = '';
-
-      const botMessageId = Date.now();
-      setMessages(prev => [...prev, { role: 'bot', text: '', id: botMessageId }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -135,11 +149,51 @@ const GeneralChat = ({
           if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
           try {
             const payload = JSON.parse(trimmedLine.slice(6));
-            if (payload.type === 'token') {
+
+            if (payload.type === 'tool_start') {
+              // Tracked for chat_history reconstruction AND shown as a live chip.
+              activeToolCall = { id: payload.id, name: payload.tool, args: { query: payload.query } };
+              const toolMsgId = `tool-${payload.id || Date.now()}`;
+              activeToolCall.uiId = toolMsgId;
+              setMessages(prev => [...prev, {
+                role: 'tool',
+                id: toolMsgId,
+                tool: payload.tool,
+                query: payload.query || '',
+                status: 'searching',
+                urls: [],
+              }]);
+
+            } else if (payload.type === 'tool_call') {
+              toolEntriesThisTurn.push({
+                role: 'tool',
+                tool_call_id: payload.id || activeToolCall?.id,
+                name: payload.tool,
+                args: activeToolCall?.args || { query: payload.query },
+                // Full tool output (titles, urls, and text snippets) — what the
+                // model actually read. The UI only ever gets `urls` for the chip.
+                content: payload.content || JSON.stringify({ query: payload.query, results: payload.urls || [] }),
+              });
+              const uiId = activeToolCall?.uiId;
+              setMessages(prev => prev.map(msg =>
+                msg.id === uiId
+                  ? { ...msg, status: 'done', urls: payload.urls || [], query: payload.query || msg.query }
+                  : msg
+              ));
+              activeToolCall = null;
+
+            } else if (payload.type === 'token') {
               fullText += payload.content;
-              setMessages(prev =>
-                prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
-              );
+              if (!botMessageId) {
+                botMessageId = `bot-${Date.now()}`;
+                setMessages(prev => [...prev, { role: 'bot', text: fullText, id: botMessageId }]);
+              } else {
+                const targetId = botMessageId;
+                setMessages(prev =>
+                  prev.map(msg => msg.id === targetId ? { ...msg, text: fullText } : msg)
+                );
+              }
+
             } else if (payload.type === 'error') {
               throw new Error(payload.content);
             }
@@ -149,9 +203,20 @@ const GeneralChat = ({
         }
       }
 
-      setMessages(prev =>
-        prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
-      );
+      if (botMessageId) {
+        const finalBotId = botMessageId;
+        setMessages(prev =>
+          prev.map(msg => msg.id === finalBotId ? { ...msg, text: fullText } : msg)
+        );
+      }
+
+      // Persist this turn's tool calls + final answer into the backend history
+      // (tool entries are never added to `messages`, so they never render).
+      chatHistoryRef.current = [
+        ...chatHistoryRef.current,
+        ...toolEntriesThisTurn,
+        { role: 'bot', text: fullText },
+      ];
 
       if (userText) {
         trackEvent('general_chat_message', {
@@ -162,68 +227,63 @@ const GeneralChat = ({
       }
 
       // PARSE JSON FROM RESPONSE
-    const jsonMatch = fullText.match(/```json\s*({.*?})\s*```/s);
-    if (jsonMatch) {
-      try {
-        const action = JSON.parse(jsonMatch[1]);
-        if (action.action === 'edit_translation') {
-          const edits = Array.isArray(action.edits) ? action.edits : [action];
-          
-          // Collect segment IDs for which suggestions were added
-         const suggestedSegments = [];
-          
-          edits.forEach(({ segment_id, new_text }) => {
-            if (onChatSuggestion) {
-             onChatSuggestion(segment_id, new_text, 'Chat suggestion');
-             suggestedSegments.push(segment_id);
-            }
-          }); 
-          
-          // Remove JSON from displayed message
-          const cleanText = fullText.replace(/```json\s*{.*?}\s*```/s, '').trim();
-          
-         // Build markdown links for each suggested segment
-         const segmentLinks = suggestedSegments.map((id, index) => {
+      const jsonMatch = fullText.match(/```json\s*({.*?})\s*```/s);
+      if (jsonMatch && botMessageId) {
+        try {
+          const action = JSON.parse(jsonMatch[1]);
+          if (action.action === 'edit_translation') {
+            const edits = Array.isArray(action.edits) ? action.edits : [action];
 
-            const [page, block] = id.split('-');
-            // Calculate the display number (segment counter)
-            let segmentNumber = 0;
-            for (let p = 0; p < parseInt(page); p++) {
-              if (translatedContents[p]) {
-                segmentNumber += translatedContents[p].length;
+            // Collect segment IDs for which suggestions were added
+            const suggestedSegments = [];
+
+            edits.forEach(({ segment_id, new_text }) => {
+              if (onChatSuggestion) {
+                onChatSuggestion(segment_id, new_text, 'Chat suggestion');
+                suggestedSegments.push(segment_id);
               }
-            }
-            segmentNumber += parseInt(block) + 1;
-            
-            return `[Segment ${segmentNumber}](#segment-${id})`;
-          });
-          
-         // Create the confirmation message: suggestions added for review
-          const segmentList = segmentLinks.join(', ');
-          const confirmationText = `\n\n📝 Added ${edits.length} suggestion(s) for review: ${segmentList}`;
-          
-          setMessages(prev => {
-            const newMessages = [...prev];
-            if (newMessages.length > 0) {
-              newMessages[newMessages.length - 1].text = cleanText + confirmationText;
-            }
-            return newMessages;
-          });
+            });
+
+            // Remove JSON from displayed message
+            const cleanText = fullText.replace(/```json\s*{.*?}\s*```/s, '').trim();
+
+            // Build markdown links for each suggested segment
+            const segmentLinks = suggestedSegments.map((id) => {
+              const [page, block] = id.split('-');
+              // Calculate the display number (segment counter)
+              let segmentNumber = 0;
+              for (let p = 0; p < parseInt(page); p++) {
+                if (translatedContents[p]) {
+                  segmentNumber += translatedContents[p].length;
+                }
+              }
+              segmentNumber += parseInt(block) + 1;
+
+              return `[Segment ${segmentNumber}](#segment-${id})`;
+            });
+
+            // Create the confirmation message: suggestions added for review
+            const segmentList = segmentLinks.join(', ');
+            const confirmationText = `\n\n📝 Added ${edits.length} suggestion(s) for review: ${segmentList}`;
+
+            setMessages(prev => prev.map(msg =>
+              msg.id === botMessageId ? { ...msg, text: cleanText + confirmationText } : msg
+            ));
+          }
+        } catch (e) {
+          console.warn('Failed to parse action JSON:', e);
         }
-      } catch (e) {
-        console.warn('Failed to parse action JSON:', e);
       }
-    }
-   
+
     } catch (error) {
       console.error('General chat error:', error);
       setMessages(prev => {
-        const newMessages = [...prev];
-        const last = newMessages[newMessages.length - 1];
-        if (last && last.role === 'bot' && last.id) {
-          last.text = '⚠️ Sorry, an error occurred. Please try again.';
+        if (botMessageId) {
+          return prev.map(msg =>
+            msg.id === botMessageId ? { ...msg, text: '⚠️ Sorry, an error occurred. Please try again.' } : msg
+          );
         }
-        return newMessages;
+        return [...prev, { role: 'bot', text: '⚠️ Sorry, an error occurred. Please try again.' }];
       });
     } finally {
       setLoading(false);
@@ -235,16 +295,16 @@ const GeneralChat = ({
     if (!reviewResults || reviewResults.length === 0) return;
     const changedCount = reviewResults.filter(r => r.changed).length;
     const hiddenPrompt = `The document review just finished. ${changedCount} out of ${reviewResults.length} segments were revised. Summarize what was changed and why, referencing specific segments where useful.`;
-    streamResponse([{ role: 'user', text: hiddenPrompt }]);
+    streamResponse(hiddenPrompt, { silent: true });
   }, [reviewResults]);
 
   const handleSend = (text) => {
-    const userMessage = { role: 'user', text };
-    streamResponse(messages.concat(userMessage), text);
+    streamResponse(text);
   };
 
   const handleClear = () => {
     setMessages([WELCOME_MESSAGE]);
+    chatHistoryRef.current = [];
     try { localStorage.removeItem(`torgman-chat-${documentId}`); } catch {}
   };
 

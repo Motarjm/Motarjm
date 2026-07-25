@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import SearchToolBlock from './SearchToolBlock';
 import '../assets/chat_interface.css';
 
 const ChatInterface = ({
@@ -56,7 +57,7 @@ const ChatInterface = ({
                 setTimeout(() => row.classList.remove('highlight-pulse'), 2000);
               }
             }}
-            title={`Go to segment ${segmentId}`}
+            title={`Go To Segment`}
           >
             🔍 {children}
           </button>
@@ -72,25 +73,43 @@ const ChatInterface = ({
         {messages.length === 0 && !ephemeralError && emptyStateText && (
           <div className="chat-interface-empty">{emptyStateText}</div>
         )}
+
         {messages.map((msg, i) => (
-          <div key={msg.id ?? i} className={`chat-interface-message ${msg.role === 'user' ? 'user' : 'bot'}`}>
-            <div className="chat-interface-bubble">
-              {msg.role === 'bot' ? (
-                msg.text === '' ? (
-                  <span className="chat-interface-typing">
-                    <span /><span /><span />
-                  </span>
-                ) : (
+          msg.role === 'tool' ? (
+            <SearchToolBlock
+              key={msg.id ?? `tool-${i}`}
+              status={msg.status}
+              urls={msg.urls}
+              query={msg.query}
+            />
+          ) : (
+            <div key={msg.id ?? i} className={`chat-interface-message ${msg.role === 'user' ? 'user' : 'bot'}`}>
+              <div className="chat-interface-bubble">
+                {msg.role === 'bot' ? (
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                     {msg.text}
                   </ReactMarkdown>
-                )
-              ) : (
-                msg.text
-              )}
+                ) : (
+                  msg.text
+                )}
+              </div>
+            </div>
+          )
+        ))}
+
+        {/* Typing indicator — shown whenever a response is being streamed.
+            This replaces the old empty-bot-bubble approach, so there is never
+            an empty bubble that needs to be "removed" when a tool starts. */}
+        {isLoading && (
+          <div className="chat-interface-message bot">
+            <div className="chat-interface-bubble">
+              <span className="chat-interface-typing">
+                <span /><span /><span />
+              </span>
             </div>
           </div>
-        ))}
+        )}
+
         {ephemeralError && (
           <div className="chat-interface-message bot">
             <div className="chat-interface-bubble chat-interface-bubble-error">{ephemeralError}</div>
