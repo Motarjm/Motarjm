@@ -6,7 +6,7 @@ import { trackEvent } from '../analytics';
 
 const WELCOME_MESSAGE = {
   role: 'bot',
-  text: '👋 Hello! You can ask me about terminology, style, whole document, or specific segments.',
+  text: '👋 Hello! \n\nYou can ask me about terminology, style, whole document, or specific segments.\n\n I can also search the web when a question needs current information.',
 };
 
 const GeneralChat = ({
