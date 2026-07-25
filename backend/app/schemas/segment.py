@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Literal, Optional
-
+from app.schemas.document import ChatMessage
 
 class ExplanationRequest(BaseModel):
     block: str
@@ -20,15 +20,6 @@ class BacktranslationRequest(BaseModel):
     source_lang: str
     target_lang: str
     page_blocks: List[str]
-
-
-class ChatMessage(BaseModel):
-    role: Literal["user", "bot", "tool"]
-    text: str
-    tool_call_id: Optional[str] = None
-    name: Optional[str] = None
-    args: Optional[dict] = None
-    content: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
