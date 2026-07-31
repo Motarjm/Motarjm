@@ -8,6 +8,9 @@ TTL_SECONDS = 7 * 24 * 60 * 60
 #TODO: MUST BE MIGRATED TO DATABASE
 _GLOSSARY_STORE: Dict[str, Dict[str, object]] = {}
 
+"""
+This is the glossary of the user
+"""
 
 def _strip_namespace(tag: str) -> str:
     if "}" in tag:

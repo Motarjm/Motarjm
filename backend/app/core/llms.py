@@ -1,7 +1,8 @@
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
-from app.core.tools import  exa_search
+from app.core.tools import exa_search, extract_terminology, TerminologyContext
 from langchain.agents.middleware import ToolCallLimitMiddleware
+
 
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
@@ -131,16 +132,20 @@ claude_haiku_4_5_low_tokens = ChatOpenAI(
     }
 )
 
+
 agent_gemini_3_1_flash_lite = create_agent(gemini_3_1_flash_lite,
-                                         [exa_search],
-                                         middleware = [limiter])
+                                         [exa_search, extract_terminology],
+                                         middleware = [limiter],
+                                         context_schema = TerminologyContext)
 
 agent_claude_haiku_4_5 = create_agent(claude_haiku_4_5,
-                                         [exa_search],
-                                         middleware = [limiter])
+                                         [exa_search, extract_terminology],
+                                         middleware = [limiter],
+                                         context_schema = TerminologyContext)
 agent_deepseek = create_agent(deepseek, 
-                              [exa_search],
-                              middleware = [limiter])
+                              [exa_search, extract_terminology],
+                              middleware = [limiter],
+                              context_schema = TerminologyContext)
 
 # agent_grok = create_agent(grok, 
 #                           [search_tool],
@@ -192,6 +197,3 @@ providers = {"translator": [claude_haiku_4_5,
 
 
 __all__ = ["providers", "MAX_TOOL_CALLS"]
-
-
-

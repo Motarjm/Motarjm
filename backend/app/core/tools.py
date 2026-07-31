@@ -1,11 +1,13 @@
 import json
-from langchain.tools import tool
+from langchain.tools import tool, ToolRuntime
 from langchain_exa import ExaSearchResults
+from app.services.generate_glossary_service import build_terminology_xlsx, store_file
+from typing import TypedDict, Optional
 
 # searching the web for relevant information to answer a question
 search_tool = ExaSearchResults()
 
-"""
+"""list
 def _run(
         self,
         query: str,
@@ -89,3 +91,57 @@ def exa_search(query: str,
             })
 
     return json.dumps({"query": query, "results": normalized}, ensure_ascii=False)
+
+class TerminologyContext(TypedDict):
+    """
+    never exposed to the model as a tool argument, and never baked in via closure, so the
+    same statically-bound agent (built once in llms.py) can serve concurrent
+    requests for different documents safely.
+    """
+    translated_contents: list
+    source_lang: str
+    target_lang: str
+    style_guide: str
+    glossary: Optional[dict]
+
+
+@tool
+def extract_terminology(runtime: ToolRuntime) -> str:
+    """Extract key terminology/glossary terms from the current document
+    and prepare them as a downloadable Source/Target spreadsheet. Call
+    this when the user asks to extract, pull out, or list key terms,
+    terminology, or a glossary for the document."""
+    # Local import avoids a circular import (simple_calls imports from
+    # tools, terminology_agent lives in simple_calls).
+    from app.core.simple_calls import terminology_agent
+
+    ctx = runtime.context or {}
+    translated_contents = ctx.get("translated_contents")
+    if not translated_contents:
+        return "No document is loaded for this conversation, so there's nothing to extract terms from."
+
+    document = [
+        [{"text": block["original_text"]} for block in page]
+        for page in translated_contents
+    ]
+
+    result = terminology_agent(
+        document=document,
+        source_lang=ctx.get("source_lang"),
+        target_lang=ctx.get("target_lang"),
+        style_guide=ctx.get("style_guide") or "",
+        glossary=ctx.get("glossary") or {},
+    )
+
+    terms = json.loads(result) if isinstance(result, str) else result
+    if not isinstance(terms, dict):
+        return "Term extraction failed: the terminology agent returned an unexpected format."
+
+    xlsx_bytes = build_terminology_xlsx(terms)
+    file_id = store_file("terminology.xlsx", xlsx_bytes,
+                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    # This string is what goes back into the model's context as the
+    # ToolMessage content — keep it short, no binary data.
+    return json.dumps({"status": "ready", "file_id": file_id, "terms": json.dumps(terms, ensure_ascii=False)})
+

@@ -70,6 +70,12 @@ const GeneralChat = ({
   const [findTerm, setFindTerm] = useState('');
   const [replaceTerm, setReplaceTerm] = useState('');
 
+  // Terms extraction: the file is prepared server-side, but we no longer
+  // auto-download it — we surface a banner with a button and let the user
+  // decide when to grab it.
+  const [pendingTermsFile, setPendingTermsFile] = useState(null); // { fileId } | null
+  const [termsDownloading, setTermsDownloading] = useState(false);
+
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null); // AbortController for the in-flight streamResponse call, if any
 
@@ -214,6 +220,7 @@ const GeneralChat = ({
           source_lang: sourceLang,
           target_lang: targetLang,
           review_results: reviewContextDismissed ? null : (reviewResults || null),
+          glossary: glossary || {},
           model: model,
         }),
       });
@@ -236,18 +243,25 @@ const GeneralChat = ({
             const payload = JSON.parse(trimmedLine.slice(6));
 
             if (payload.type === 'tool_start') {
-              // Tracked for chat_history reconstruction AND shown as a live chip.
+              // Only surface a visible "searching" chip for web search.
+              // extract_terminology is NOT a search and has no URLs to show;
+              // it later surfaces via file_ready as a bot message.
               activeToolCall = { id: payload.id, name: payload.tool, args: { query: payload.query } };
-              const toolMsgId = `tool-${payload.id || Date.now()}`;
-              activeToolCall.uiId = toolMsgId;
-              setMessages(prev => [...prev, {
-                role: 'tool',
-                id: toolMsgId,
-                tool: payload.tool,
-                query: payload.query || '',
-                status: 'searching',
-                urls: [],
-              }]);
+
+              if (payload.tool === 'exa_search') {
+                const toolMsgId = `tool-${payload.id || Date.now()}`;
+                activeToolCall.uiId = toolMsgId;
+                setMessages(prev => [...prev, {
+                  role: 'tool',
+                  id: toolMsgId,
+                  tool: payload.tool,
+                  query: payload.query || '',
+                  status: 'searching',
+                  urls: [],
+                }]);
+              }
+              // For extract_terminology we intentionally do NOT add a role:'tool'
+              // message, so SearchToolBlock never renders for it.
 
             } else if (payload.type === 'tool_call') {
               toolEntriesThisTurn.push({
@@ -266,6 +280,23 @@ const GeneralChat = ({
                   : msg
               ));
               activeToolCall = null;
+
+            } else if (payload.type === 'file_ready') {
+              // Model called extract_terminology — download the file it
+              // prepared, and drop a small confirmation into the chat.
+              toolEntriesThisTurn.push({
+                role: 'tool',
+                tool_call_id: payload.id,
+                name: 'extract_terminology',
+                args: {},
+                content: payload.content || JSON.stringify({ file_id: payload.file_id }),
+              });
+
+              if (payload.file_id) {
+                // Don't download automatically — surface a banner and let
+                // the user trigger the download themselves.
+                setPendingTermsFile({ fileId: payload.file_id });
+              }
 
             } else if (payload.type === 'token') {
               fullText += payload.content;
@@ -428,6 +459,30 @@ const GeneralChat = ({
     setReplaceTerm('');
   };
 
+  const handleDownloadTerms = () => {
+    if (!pendingTermsFile) return;
+    setTermsDownloading(true);
+    fetch(`${API_URL}/document/terms-download/${pendingTermsFile.fileId}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Download failed');
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'terminology.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        trackEvent('extract_terms', { document_id: documentId, via: 'chat_tool' });
+        setPendingTermsFile(null);
+      })
+      .catch((e) => console.error('Terminology download error:', e))
+      .finally(() => setTermsDownloading(false));
+  };
+
   const segmentHasContext = !!activeSegmentId;
 
   return (
@@ -485,6 +540,15 @@ const GeneralChat = ({
                 }
               </button>
 
+                <button
+                className="quick-chip"
+                onClick={() => handleSend('Extract key terms from the document.')}
+                disabled={loading}
+                title="Extract terminology from document"
+              >
+                <span className="chip-icon">📚</span> Extract Key Terms
+              </button>
+
               <button
                 className={`quick-chip ${activeQuickAction === 'replace' ? 'active' : ''}`}
                 onClick={() => setActiveQuickAction(activeQuickAction === 'replace' ? null : 'replace')}
@@ -511,6 +575,8 @@ const GeneralChat = ({
               >
                 <span className="chip-icon">✅</span> Check consistency
               </button>
+
+
             </div>
 
             {activeQuickAction === 'replace' && (
@@ -564,6 +630,30 @@ const GeneralChat = ({
                 </button>
                 <button className="batch-btn apply" onClick={onBatchApply}>Apply All</button>
                 <button className="batch-btn dismiss" onClick={onBatchDismiss}>Dismiss All</button>
+              </div>
+            </div>
+          )}
+
+          {pendingTermsFile && (
+            <div className="terms-ready-banner">
+              <div className="batch-banner-text">
+                📚 Terminology extraction ready
+              </div>
+              <div className="batch-banner-actions">
+                <button
+                  className="batch-btn apply"
+                  onClick={handleDownloadTerms}
+                  disabled={termsDownloading}
+                >
+                  {termsDownloading ? 'Downloading…' : 'Download'}
+                </button>
+                <button
+                  className="batch-btn dismiss"
+                  onClick={() => setPendingTermsFile(null)}
+                  disabled={termsDownloading}
+                >
+                  Dismiss
+                </button>
               </div>
             </div>
           )}

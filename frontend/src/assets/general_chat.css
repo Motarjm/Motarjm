@@ -355,6 +355,33 @@
   border-color: #f4b942;
 }
 
+/* --- Terms Ready Banner --- */
+.terms-ready-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(107, 125, 92, 0.08);
+  border-left: 4px solid var(--olive, #6b7d5c);
+  padding: 10px 14px;
+  margin: 0 12px 12px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+  animation: explanationFadeIn 0.3s ease;
+}
+
+.terms-ready-banner .batch-banner-text {
+  color: var(--charcoal, #2c3e2f);
+  font-weight: 500;
+}
+
+.terms-ready-banner .batch-btn.apply {
+  background: var(--olive, #6b7d5c);
+}
+
+.terms-ready-banner .batch-btn.apply:hover {
+  background: #566249;
+}
+
 /* ══════════════════════════════════════
    Panel Tabs (Chat / Termbase)
    ══════════════════════════════════════ */

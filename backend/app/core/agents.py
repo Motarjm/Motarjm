@@ -14,8 +14,6 @@ from app.core.graph_models import *
 from langsmith import traceable
 
 
-
-
 @traceable(run_type="chain")
 def provider_invoke(role, prompt, max_retries=2):
   """
@@ -77,7 +75,7 @@ def provider_invoke(role, prompt, max_retries=2):
         ) from last_error
 
 
-def provider_stream(role, prompt, max_retries=2, stream_mode=None):
+def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None):
   """
   Streams model response tokens based on available providers with retry logic.
   Falls back to next provider in the list on failure.
@@ -92,6 +90,12 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None):
       step-level (node-level) updates (for tool-call detection) and token-level message
       chunks (for real streaming) in the same stream. Ignored (None) for
       plain chat-model providers.
+    - context, dict | None: forwarded as `context=` to `.stream()`. This is
+      how per-request data (e.g. document contents for extract_terminology)
+      reaches tools bound to an agent via `runtime: ToolRuntime` — the tool
+      itself is bound once at import time (see llms.py), and this context
+      is what varies per call. Ignored for plain chat-model providers
+      (they don't accept a context kwarg).
     
   Yields:
     - str (or graph chunk, depending on stream_mode): output as it arrives
@@ -102,8 +106,9 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None):
   provider_list = providers.get(role, [])
   
   # if the llm is an agent, i must provide list of prompts as a dict
-  if role in ["general_chatbot_gemini", "general_chatbot_claude", "general_chatbot_deepseek",
-              "chatbot_deepseek", "chatbot_gemini",  "chatbot_claude"]:
+  is_agent_role = role in ["general_chatbot_gemini", "general_chatbot_claude", "general_chatbot_deepseek",
+              "chatbot_deepseek", "chatbot_gemini",  "chatbot_claude"]
+  if is_agent_role:
     prompt = {"messages": prompt}
   
   if not provider_list:
@@ -117,6 +122,11 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None):
         print(f"[{role}] Streaming attempt with provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
         
         stream_kwargs = {"stream_mode": stream_mode} if stream_mode is not None else {}
+        # Only compiled graphs (agents) accept `context=` — plain
+        # ChatOpenAI providers (e.g. grok, used directly for the *_grok
+        # roles) don't, so only pass it through for agent-based roles.
+        if context is not None and is_agent_role:
+          stream_kwargs["context"] = context
         for chunk in provider.stream(prompt, **stream_kwargs):
           yield chunk
         

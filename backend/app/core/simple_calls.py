@@ -513,7 +513,8 @@ def terminology_agent(document, source_lang, target_lang, style_guide, glossary)
 
 def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
                            chat_history: List[dict],  doc_context: List[List[dict]], 
-                           style_guide: str = "", review_results: List[dict] = []):
+                           style_guide: str = "", review_results: List[dict] = [],
+                           glossary: dict = None):
     """
     Streams chatbot response tokens for a general document-level chat.
     
@@ -626,7 +627,20 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
         else:
             messages.append(AIMessage(content=msg["text"]))
 
-    for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"]):
+    # extract_terminology is bound statically on the agent (see llms.py) and
+    # reads its data via `runtime: ToolRuntime` -> `runtime.context`, so all
+    # we need to do here is hand this turn's data through as `context=`.
+    # It never becomes a tool argument the model has to fill in.
+    terminology_context = {
+        "translated_contents": doc_context,
+        "source_lang": source_lang,
+        "target_lang": target_lang,
+        "style_guide": style_guide,
+        "glossary": glossary,
+    }
+
+    for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"],
+                                  context=terminology_context):
         mode, payload = event
 
         if mode == "updates":
@@ -634,7 +648,26 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
             if payload.get("tools"):
                 tool_messages = payload["tools"].get("messages", [])
                 for tm in tool_messages:
-                    if getattr(tm, "name", None) != "exa_search":
+                    tool_name = getattr(tm, "name", None)
+
+                    if tool_name == "extract_terminology":
+                        # Result is the short JSON string the tool returned
+                        # (status/file_id/term_count) — never binary content.
+                        try:
+                            result_payload = json.loads(tm.content)
+                        except (json.JSONDecodeError, TypeError, AttributeError):
+                            result_payload = {}
+                        yield {
+                            "type": "file_ready",
+                            "tool": "extract_terminology",
+                            "file_id": result_payload.get("file_id"),
+                            "terms": result_payload.get("terms"),
+                            "content": tm.content,
+                            "id": getattr(tm, "tool_call_id", None),
+                        }
+                        continue
+
+                    if tool_name != "exa_search":
                         continue
                     urls = []
                     query = ""
@@ -670,6 +703,12 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
                                     "type": "tool_start",
                                     "tool": "exa_search",
                                     "query": (tc.get("args") or {}).get("query", ""),
+                                    "id": tc.get("id"),
+                                }
+                            elif tc.get("name") == "extract_terminology":
+                                yield {
+                                    "type": "tool_start",
+                                    "tool": "extract_terminology",
                                     "id": tc.get("id"),
                                 }
                         break
