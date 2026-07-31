@@ -13,7 +13,8 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 import re
 from io import BytesIO
-    
+
+NUM_OF_SENTENCES_PER_SEGMENT = 1
 
 ABBREVIATIONS = {
     "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "vs", "etc",
@@ -141,8 +142,8 @@ def add_paragraph_blocks(blocks, paragraph):
  
     sentences = split_sentences(text)
     # group 3 sentences, instead of single sentences cuz of AI translation
-    for i in range(0, len(sentences), 3):
-        group = " ".join(sentences[i:i + 3])
+    for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):
+        group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
         blocks.append({
             "text": group,
             "type": btype,

@@ -7,6 +7,7 @@ from ultralytics import YOLO
 from huggingface_hub import hf_hub_download
 # the below line must be imported before paddleocr package to resolve langchain import error
 from app.patches.patch_langchain_imports import *
+from app.services.docx_service import split_sentences, NUM_OF_SENTENCES_PER_SEGMENT
 from paddleocr import PaddleOCR
 from PIL import Image
 import numpy as np
@@ -311,13 +312,18 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
                     block_text += ocr_result_texts[i] + "\n"
 
 
-        ocr_text.append(
-          {
-              "text": block_text,
-              "bbox": block_bbox,
-              "type": yolo_result_names[name_idx]
-          }
-        )
+        # split sentences 
+        sentences = split_sentences(block_text)
+        for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):            
+            group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
+            print(group)
+            ocr_text.append(
+            {
+                "text": group,
+                "bbox": block_bbox,
+                "type": yolo_result_names[name_idx]
+            }
+            )
 
 # the below code is for debugging purposes to visualize the extracted text and their bounding boxes, it can be removed later
     
