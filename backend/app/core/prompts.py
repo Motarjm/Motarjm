@@ -53,27 +53,52 @@ Output the {target_lang} translation of the source text only, nothing else:"""
 
 TERMINOLOGY_PROMPT = """Extract key terminology and named entities from the {source_lang} text below, to serve as a consistent translation glossary.
 
-Extract TWO categories:
+Extract ONLY these TWO categories:
 
-1. NAMED ENTITIES — Extract every named entity exactly as it appears:
+1. NAMED ENTITIES — Proper nouns and named items exactly as they appear:
    - People (full names, titles, honorifics)
-   - Organizations, institutions, companies
-   - Places (cities, countries, regions, landmarks)
-   - Products, brands, works (books, films, laws, treaties)
-   - Events (conferences, wars, agreements)
+   - Organizations, institutions, companies, government bodies
+   - Places (cities, countries, regions, landmarks, geographic features)
+   - Products, brands, trademarks, creative works (books, films, laws, treaties, reports)
+   - Events (conferences, wars, agreements, summits)
+   - Named roles or positions when tied to a specific person or body (e.g. "Secretary-General of the United Nations")
 
-2. KEY TERMS — Technical and specialized vocabulary:
-   - Technical terms and specialized vocabulary
-   - Complex or uncommon words
-   - Domain-specific jargon
-   - Multi-word expressions and idioms (as single entries)
+2. KEY TERMS — Strictly domain-specific or technical vocabulary:
+   - Technical, scientific, legal, medical, financial, or industry-specific jargon
+   - Specialized equipment, processes, protocols, or standards
+   - Fixed multi-word technical expressions that have a precise meaning in this field (e.g. "due diligence", "force majeure", "machine learning", "carbon sequestration")
+   - Acronyms and abbreviations used as terms
+   - Idioms ONLY if they are established figurative expressions with a non-literal meaning
 
-Rules:
-- Maximum 5 words per entry — if a phrase is longer, it is a clause, not a term; skip it
-- Omit common everyday vocabulary
-- One translation per entry — choose the meaning that fits this context
-- Named entities with no standard {target_lang} translation should be transliterated or kept in original form
-- Named entities that have a well-known {target_lang} equivalent should use that
+STRICT EXCLUSIONS — NEVER extract any of the following, even if they appear in multi-word phrases:
+- Common physical descriptions: "long hair", "blue eyes", "tall building", "heavy rain", "old man"
+- Basic adjective + noun combinations: "good idea", "big problem", "important decision", "strong support"
+- Everyday vocabulary that any bilingual speaker knows: "table", "water", "friend", "walk", "happy"
+- Generic verbs or actions: "run", "speak", "build", "discuss", "travel"
+- General relational words: "because", "however", "therefore", "meanwhile"
+- Numbers, dates, or units unless they are part of a named entity (e.g. "Article 5" is fine; "5 meters" is not)
+
+RULES:
+- Maximum 5 words per entry. If a phrase is longer, it is a clause, not a term; SKIP it.
+- ONE translation per entry — choose the meaning that fits this context.
+- Named entities with no standard {target_lang} translation should be transliterated or kept in original form.
+- Named entities that have a well-known {target_lang} equivalent should use that equivalent.
+- A multi-word entry must be a FIXED technical or named expression. If the words are merely adjacent in the sentence but do not form a recognized term, extract the single important word only or skip entirely.
+- WHEN IN DOUBT, SKIP. It is better to return too few terms than too many.
+
+EXAMPLES OF WHAT TO EXTRACT:
+- "World Health Organization" → named entity
+- "due diligence" → legal jargon
+- "Kyoto Protocol" → named treaty
+- "photosynthesis" → technical term
+- "breach of contract" → fixed legal expression
+
+EXAMPLES OF WHAT NOT TO EXTRACT:
+- "long hair" → common physical description
+- "important meeting" → generic adjective + noun
+- "walked quickly" → basic verb + adverb
+- "the government" → generic unless it names a specific body
+- "good results" → generic evaluative phrase
 
 Return ONLY a JSON object — no preamble, no markdown, no explanation:
 {{
