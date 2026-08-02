@@ -13,6 +13,38 @@ const WELCOME_MESSAGE = {
   text: '👋 Hello! \n\nYou can ask me about terminology, style, whole document, or specific segments.\n\n I can also search the web when a question needs current information.',
 };
 
+// Strips ```json {...} ``` action blocks out of the text the user sees —
+// wherever they fall in the message (start, middle, or end), including
+// while the block is still streaming in and hasn't closed yet. Called on
+// every token, so the raw JSON never renders even for a moment.
+function stripStreamingJsonBlock(text) {
+  // 1. Remove every *complete* ```json {...} ``` block, keeping any prose
+  //    that comes before or after it intact (handles mid-message blocks).
+  let result = text.replace(/```json\s*\{[\s\S]*?\}\s*```/g, '');
+  // Collapse the gap a removed block leaves behind, without disturbing
+  // normal paragraph spacing elsewhere in the message.
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  // 2. An opening ```json fence with no closing ``` yet means the JSON is
+  //    still streaming in — hide from the fence to the end of the buffer
+  //    (there may be nothing after it yet), but keep the prose before it.
+  const openFence = result.search(/```json\b/);
+  if (openFence !== -1) {
+    return result.slice(0, openFence).trim();
+  }
+
+  // 3. The fence marker itself arrives one token at a time ("`", "``",
+  //    "```", "```j", "```js", "```jso") right at the tail of the buffer —
+  //    trim a trailing partial match so it never blinks into view for a
+  //    token or two before it's recognized as the start of a fence.
+  const partialFence = result.match(/`{1,3}(j(s(o(n)?)?)?)?$/);
+  if (partialFence) {
+    return result.slice(0, partialFence.index).trim();
+  }
+
+  return result.trim();
+}
+
 const GeneralChat = ({
   documentId,
   translatedContents,
@@ -300,13 +332,14 @@ const GeneralChat = ({
 
             } else if (payload.type === 'token') {
               fullText += payload.content;
+              const displayText = stripStreamingJsonBlock(fullText);
               if (!botMessageId) {
                 botMessageId = `bot-${Date.now()}`;
-                setMessages(prev => [...prev, { role: 'bot', text: fullText, id: botMessageId }]);
+                setMessages(prev => [...prev, { role: 'bot', text: displayText, id: botMessageId }]);
               } else {
                 const targetId = botMessageId;
                 setMessages(prev =>
-                  prev.map(msg => msg.id === targetId ? { ...msg, text: fullText } : msg)
+                  prev.map(msg => msg.id === targetId ? { ...msg, text: displayText } : msg)
                 );
               }
 
@@ -325,9 +358,12 @@ const GeneralChat = ({
       // to plant a pending suggestion or leave a stray tool call in history.
       if (controller.signal.aborted) return;
 
+      // Final stripped text — the raw fullText (with the JSON block intact)
+      // is kept around below for action-parsing and chat history only.
+      const displayText = stripStreamingJsonBlock(fullText);
       setMessages(prev =>
         prev.some(msg => msg.id === botMessageId)
-          ? prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
+          ? prev.map(msg => msg.id === botMessageId ? { ...msg, text: displayText } : msg)
           : prev // the bot placeholder is gone (cleared) — nothing to update
       );
 
@@ -365,9 +401,6 @@ const GeneralChat = ({
               }
             });
 
-            // Remove JSON from displayed message
-            const cleanText = fullText.replace(/```json\s*{.*?}\s*```/s, '').trim();
-
             // Build markdown links for each suggested segment
             const segmentLinks = suggestedSegments.map((id) => {
               const [page, block] = id.split('-');
@@ -381,13 +414,7 @@ const GeneralChat = ({
               segmentNumber += parseInt(block) + 1;
               return `[Segment ${segmentNumber}](#segment-${id})`;
             });
-            const segmentList = segmentLinks.join(', ');
-            const confirmationText = `\n\n📝 Added ${edits.length} suggestion(s) for review: ${segmentList}`;
-            setMessages(prev =>
-              prev.some(msg => msg.id === botMessageId)
-                ? prev.map(msg => msg.id === botMessageId ? { ...msg, text: cleanText + confirmationText } : msg)
-                : prev
-            );
+            
           }
         } catch (e) {
           console.warn('Failed to parse action JSON:', e);

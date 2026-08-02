@@ -7,6 +7,38 @@ import { trackFocusPanelSession, trackAISuggestionApplied, trackChatInteraction,
 import { trackApiError } from '../errorTracking';
 import { loadSegmentChat, saveSegmentChat } from '../utils/indexedDbPersistence';
 
+// Strips ```json {...} ``` action blocks out of the text the user sees —
+// wherever they fall in the message (start, middle, or end), including
+// while the block is still streaming in and hasn't closed yet. Called on
+// every token, so the raw JSON never renders even for a moment.
+function stripStreamingJsonBlock(text) {
+  // 1. Remove every *complete* ```json {...} ``` block, keeping any prose
+  //    that comes before or after it intact (handles mid-message blocks).
+  let result = text.replace(/```json\s*\{[\s\S]*?\}\s*```/g, '');
+  // Collapse the gap a removed block leaves behind, without disturbing
+  // normal paragraph spacing elsewhere in the message.
+  result = result.replace(/\n{3,}/g, '\n\n');
+
+  // 2. An opening ```json fence with no closing ``` yet means the JSON is
+  //    still streaming in — hide from the fence to the end of the buffer
+  //    (there may be nothing after it yet), but keep the prose before it.
+  const openFence = result.search(/```json\b/);
+  if (openFence !== -1) {
+    return result.slice(0, openFence).trim();
+  }
+
+  // 3. The fence marker itself arrives one token at a time ("`", "``",
+  //    "```", "```j", "```js", "```jso") right at the tail of the buffer —
+  //    trim a trailing partial match so it never blinks into view for a
+  //    token or two before it's recognized as the start of a fence.
+  const partialFence = result.match(/`{1,3}(j(s(o(n)?)?)?)?$/);
+  if (partialFence) {
+    return result.slice(0, partialFence.index).trim();
+  }
+
+  return result.trim();
+}
+
 // Inline diff preview component
 const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
   const parts = diffWords(oldText, newText);
@@ -246,13 +278,14 @@ const FocusChatPanel = ({
 
             } else if (data.type === 'token') {
               fullText += data.content;
+              const displayText = stripStreamingJsonBlock(fullText);
 
               if (!botMessageId) {
                 botMessageId = `bot-${Date.now()}`;
-                setMessages(prev => [...prev, { role: 'bot', text: fullText, id: botMessageId }]);
+                setMessages(prev => [...prev, { role: 'bot', text: displayText, id: botMessageId }]);
               } else {
                 setMessages(prev =>
-                  prev.map(msg => msg.id === botMessageId ? { ...msg, text: fullText } : msg)
+                  prev.map(msg => msg.id === botMessageId ? { ...msg, text: displayText } : msg)
                 );
               }
 
@@ -278,23 +311,29 @@ const FocusChatPanel = ({
         trackChatInteraction('bot', selectedModel);
 
         const action = parseAction(fullText);
+        // Raw fullText may still have the JSON block in it (parseAction and
+        // chat history need it) — this is what's actually shown to the user,
+        // and it's the same stripping used live, token-by-token, above.
+        const displayText = stripStreamingJsonBlock(fullText);
 
         if (action) {
           // Show diff for user confirmation
           setPendingEdit({ oldText: segment?.translated_text, newText: action.new_text, botMessageId });
-          // Display clean text (no JSON block) to the user
-          const cleanText = fullText.replace(/```json\s*\{[\s\S]*?\}\s*```/, '').trim();
-          setMessages(prev => {
-            const updated = [...prev];
-            for (let i = updated.length - 1; i >= 0; i--) {
-              if (updated[i].role === 'bot' && updated[i].id === botMessageId) {
-                updated[i] = { ...updated[i], text: cleanText };
-                break;
-              }
-            }
-            return updated;
-          });
         }
+
+        // Always reconcile the final message with the stripped text, whether
+        // or not an action was found — a malformed/unrecognized JSON block
+        // should never be left visible either.
+        setMessages(prev => {
+          const updated = [...prev];
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].role === 'bot' && updated[i].id === botMessageId) {
+              updated[i] = { ...updated[i], text: displayText };
+              break;
+            }
+          }
+          return updated;
+        });
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
