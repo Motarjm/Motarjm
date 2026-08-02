@@ -9,7 +9,7 @@ from huggingface_hub import hf_hub_download
 from app.patches.patch_langchain_imports import *
 from app.services.docx_service import split_sentences, NUM_OF_SENTENCES_PER_SEGMENT
 from paddleocr import PaddleOCR
-from PIL import Image
+from PIL import Image, ImageDraw
 import numpy as np
 import cv2
 from itertools import groupby
@@ -122,6 +122,24 @@ def pdf_to_images(pdf_bytes: bytes):
 
             yield np.array(img)
 
+def save_image_with_bbox(img_array: np.ndarray, bboxes, output_path: str, color = "red", width=3):
+    """
+    bbox: tuple (x1, y1, x2, y2)
+    """
+    img = Image.fromarray(img_array)
+    draw = ImageDraw.Draw(img)
+    colors = ["red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan", "magenta", "lime", "teal", "lavender", "brown", "beige", "maroon",  "olive", "coral", "navy", "grey", "grey", "grey", "grey", "grey"]
+    
+    for i, box in enumerate(bboxes):
+        draw.rectangle(box, outline=colors[i], width=width)
+        # if i == 0:
+        #     draw.rectangle(box, outline="red", width=width)
+        # else:
+        #     draw.rectangle(box, outline="blue", width=width)
+        
+        
+    img.save(output_path)
+    print(f"Saved to {output_path}")
 
 def yolo_predict(image,c, device="cpu"):
     """
@@ -143,9 +161,7 @@ def yolo_predict(image,c, device="cpu"):
         device=device
     )
 
-    # Annotate and save the result
-    # result[0].save(filename=f"result.jpg")
-
+    # result[0].save(filename=f"result_{c}.jpg")
     # annotated_frame = result[0].plot(pil=True, line_width=5, font_size=20)
     # cv2.imwrite("result.jpg", annotated_frame)
 
@@ -160,6 +176,14 @@ def yolo_predict(image,c, device="cpu"):
     filtered_boxes = boxes[keep]
     filtered_scores = scores[keep]
     filtered_classes = classes[keep]
+    
+    ## Testing
+    # filtered_data = result[0].boxes.data[keep]
+    # # 4. Overwrite the original object's data
+    # result[0].boxes.data = filtered_data
+    # # Annotate and save the result
+    # result[0].save(filename=f"result_{c}.jpg")
+
 
     filtered = np.concatenate(
         (filtered_boxes, filtered_scores[:, np.newaxis], filtered_classes[:, np.newaxis]),
@@ -246,6 +270,7 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
 
     ocr_text = []
     tables = page.find_tables()
+    break_flag = False
     # check if there are tables
     if tables.tables:
         for num, table in enumerate(tables.tables):
@@ -282,14 +307,15 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
         # we only need to extract text from those blocks
         # the only category that is out is picture
         # tables are extracted from pymupdf
-        if yolo_result_names[name_idx] not in [ 'Caption',
+        if yolo_result_names[name_idx] not in ['Caption',
                                             'Footnote',
                                             'Formula',
                                             'List-item',
                                             'Page-footer',
                                             'Section-header',
                                             'Text',
-                                            'Title']:
+                                            'Title', 
+                                            "Table"]:
 
             continue
         
@@ -300,7 +326,13 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
             if block["type"] == "Table":
                 table_bbox = block["bbox"]
                 if ocr_in_yolo_ioa(table_bbox, block_bbox, threshold=0.7):
-                    continue
+                    break_flag = True  
+                    break
+                
+                
+        if break_flag:
+            break_flag = False
+            continue
         
         # try to get text
         block_text = page.get_text("text", clip=block_bbox)
@@ -321,7 +353,8 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
             {
                 "text": group,
                 "bbox": block_bbox,
-                "type": yolo_result_names[name_idx]
+                # if yolo found a table, mark it as text because there is no table specific structure like the above pymupdf table extraction, so we will treat it as text
+                "type": "Text" if yolo_result_names[name_idx] == "Table" else yolo_result_names[name_idx]
             }
             )
 
@@ -352,8 +385,6 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
     # cv2.imshow("Output", image)
     # cv2.waitKey(0)
     # cv2.destroyWindow("Output")
-    
-    
     ocr_text = sorted(ocr_text, key=lambda b: (round(b["bbox"][1], 0), b["bbox"][0]))
     return ocr_text
 
