@@ -685,9 +685,22 @@ const CompareInterface = () => {
     sel.addRange(range);
   };
 
+  // Confirm a segment as translated/reviewed and jump to the next one.
+  // Shared by the Ctrl+Enter shortcut and the "Translated" button so both
+  // stay perfectly in sync.
+  const handleConfirmSegment = (pageIndex, blockIndex, textOverride) => {
+    const segmentId = `${pageIndex}-${blockIndex}`;
+    if (textOverride !== undefined) {
+      handleArabicEdit(pageIndex, blockIndex, textOverride);
+    }
+    if (!checkedBlocks[segmentId]) {
+      handleCheckboxChange(pageIndex, blockIndex);
+    }
+    focusNextSegment(pageIndex, blockIndex);
+  };
+
   // Keyboard shortcuts inside the Arabic contentEditable field
   const handleSegmentKeyDown = (e, pageIndex, blockIndex) => {
-    const segmentId = `${pageIndex}-${blockIndex}`;
     const isCmd = e.ctrlKey || e.metaKey;
 
     // Splitting must be done with the cursor placed in the source (English) text,
@@ -696,11 +709,7 @@ const CompareInterface = () => {
     // Ctrl/Cmd + Enter: confirm segment and jump to the next one
     if (isCmd && !e.shiftKey && e.key === 'Enter') {
       e.preventDefault();
-      handleArabicEdit(pageIndex, blockIndex, e.currentTarget.textContent);
-      if (!checkedBlocks[segmentId]) {
-        handleCheckboxChange(pageIndex, blockIndex);
-      }
-      focusNextSegment(pageIndex, blockIndex);
+      handleConfirmSegment(pageIndex, blockIndex, e.currentTarget.textContent);
       return;
     }
     
@@ -1240,7 +1249,6 @@ const CompareInterface = () => {
                           <input
                             type="checkbox"
                             className="seg-checkbox"
-                            title="Mark as reviewed (Ctrl + Enter)"
                             checked={!!checkedBlocks[segmentId]}
                             onChange={e => {
                               e.stopPropagation();
@@ -1344,6 +1352,26 @@ const CompareInterface = () => {
                               {copiedSegment === segmentId ? '✓' : '📋'}
                             </button>
                           </div>
+
+                          {/* Mark this segment translated/reviewed and jump to the next one —
+                              mirrors the Ctrl+Enter shortcut used in the target field above.
+                              Only shown for the currently active segment. */}
+                          {isActive && (
+                            <button
+                              className="translated-btn"
+                              onMouseDown={(e) => e.preventDefault()} // keep focus/caret in the target field
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const row = document.getElementById(`row-${segmentId}`);
+                                const editableDiv = row ? row.querySelector('.arabic-side .segment-text') : null;
+                                const currentText = editableDiv ? editableDiv.textContent : block.translated_text;
+                                handleConfirmSegment(pageIndex, blockIndex, currentText);
+                              }}
+                              title="Mark as translated (Ctrl + Enter)"
+                            >
+                              ✓ تمت الترجمة
+                            </button>
+                          )}
                           
                           {/* Backtranslation box moved here to utilize the full width of the Arabic column */}
                           {openBackTranslations[segmentId] && (
