@@ -120,6 +120,48 @@
 }
 
 /* Scrollable horizontal row of chips */
+/* Row wrapping the scrollable chips + the fixed "scroll to end" button */
+.quick-actions-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.quick-actions-chips-row .quick-actions-chips {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Pinned control at the right edge of the chips row: scrolls the chips
+   all the way to the end so overflow chips (e.g. "Check consistency")
+   become visible without manual scrolling/dragging. */
+.quick-chips-scroll-end-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(107, 125, 92, 0.25);
+  background: var(--cream, #f7f3eb);
+  color: #999;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-chips-scroll-end-btn:hover {
+  color: var(--terracotta, #c1502e);
+  border-color: var(--terracotta, #c1502e);
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(193, 80, 46, 0.1);
+}
+
+.quick-chips-scroll-end-btn:active {
+  transform: scale(0.92);
+}
+
 .quick-actions-chips {
   display: flex;
   gap: 0.45rem;

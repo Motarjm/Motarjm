@@ -1,5 +1,4 @@
 import './App.css';
-import PDFViewer from './components/PDFViewer';
 import CompareInterface from './components/CompareInterface';
 import Torgman from './components/Torgman';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';

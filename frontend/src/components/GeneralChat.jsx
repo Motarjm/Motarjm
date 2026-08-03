@@ -109,6 +109,7 @@ const GeneralChat = ({
   const [termsDownloading, setTermsDownloading] = useState(false);
 
   const messagesEndRef = useRef(null);
+  const quickChipsRef = useRef(null);
   const abortRef = useRef(null); // AbortController for the in-flight streamResponse call, if any
 
   // Human-friendly segment number ("Segment #6") for the scope toggle label
@@ -123,50 +124,6 @@ const GeneralChat = ({
     }
     return num + block + 1;
   }, [activeSegmentId, translatedContents]);
-
-  // Auto-switch to the Segment tab whenever the user clicks a (new) segment
-  // in the document.
-  useEffect(() => {
-    if (activeSegmentId) {
-      setScope('segment');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSegmentId]);
-
-  // ── Keyboard shortcuts for the Suggestions sub-tab ──
-  // Ctrl/Cmd + Shift + R: regenerate suggestions
-  // Ctrl/Cmd + 1..9: apply the corresponding suggestion card
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (scope !== 'segment' || segmentTab !== 'suggestions' || !activeSegmentId) return;
-      const isCmd = e.ctrlKey || e.metaKey;
-      if (!isCmd) return;
-
-      // Regenerate: Ctrl/Cmd + Shift + R (avoids clashing with the browser's
-      // own Ctrl+R page reload).
-      if ((e.ctrlKey && e.key === 'e') || ((e.ctrlKey && e.key === 'E') || (e.ctrlKey && e.key === 'ث') )) {
-        e.preventDefault();
-        if (!suggestionsLoading?.[activeSegmentId]) {
-          onEnsureSuggestions && onEnsureSuggestions(true);
-        }
-        return;
-      }
-
-      // Apply suggestion: Ctrl/Cmd + 1..9
-      if (!e.shiftKey && /^[1-9]$/.test(e.key)) {
-        const list = suggestions?.[activeSegmentId];
-        if (!Array.isArray(list)) return;
-        const index = parseInt(e.key, 10) - 1;
-        if (list[index]) {
-          e.preventDefault();
-          onApplySuggestion && onApplySuggestion(list[index].text);
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [scope, segmentTab, activeSegmentId, suggestions, suggestionsLoading, onEnsureSuggestions, onApplySuggestion]);
 
   // Lazily fetch explanation / suggestions when their sub-tab is opened
   useEffect(() => {
@@ -598,7 +555,25 @@ const GeneralChat = ({
       {scope === 'document' && (
         <>
           <div className="quick-actions-strip">
-            <div className="quick-actions-chips">
+            <div className="quick-actions-chips-row">
+              <button
+                type="button"
+                className="quick-chips-scroll-end-btn quick-chips-scroll-start-btn"
+                onClick={() => {
+                  const el = quickChipsRef.current;
+                  if (el) {
+                    el.scrollTo({ left: 0, behavior: 'smooth' });
+                  }
+                }}
+                title="Scroll to first action"
+                aria-label="Scroll to the first action"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 6 9 12 15 18" />
+                </svg>
+              </button>
+
+              <div className="quick-actions-chips" ref={quickChipsRef}>
               <button
                 className={`quick-chip review-chip ${reviewLoading ? 'loading' : ''}`}
                 onClick={() => onReviewDocument && onReviewDocument()}
@@ -647,7 +622,24 @@ const GeneralChat = ({
                 <span className="chip-icon">✅</span> Check consistency
               </button>
 
+              </div>
 
+              <button
+                type="button"
+                className="quick-chips-scroll-end-btn"
+                onClick={() => {
+                  const el = quickChipsRef.current;
+                  if (el) {
+                    el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+                  }
+                }}
+                title="Show more actions"
+                aria-label="Scroll to the last action"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 6 15 12 9 18" />
+                </svg>
+              </button>
             </div>
 
             {activeQuickAction === 'replace' && (
@@ -797,7 +789,7 @@ const GeneralChat = ({
                       className="regenerate-btn"
                       onClick={() => onEnsureSuggestions && onEnsureSuggestions(true)}
                       disabled={suggestionsLoading?.[activeSegmentId] || !activeSegmentId}
-                      title="Regenerate suggestions (Ctrl + E)"
+                      title="Regenerate suggestions"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="23 4 23 10 17 10" />
@@ -818,13 +810,11 @@ const GeneralChat = ({
                       <div className="suggestion-card" key={i}>
                         <div className="suggestion-card-meta">
                           <span className="suggestion-model-label">{s.model}</span>
-                          {i < 9 && <span className="suggestion-shortcut-badge">Ctrl+{i + 1}</span>}
                         </div>
                         <div className="suggestion-card-text">{s.text}</div>
                         <button
                           className="suggestion-apply-btn"
                           onClick={() => onApplySuggestion && onApplySuggestion(s.text)}
-                          title={i < 9 ? `Apply (Ctrl + ${i + 1})` : 'Apply'}
                         >
                           ✓
                         </button>
