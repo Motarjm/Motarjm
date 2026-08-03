@@ -10,7 +10,7 @@ from openpyxl import Workbook
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/document")
+router = APIRouter(prefix="/document", tags=["Document"])
 
 
 @router.post("/review")
