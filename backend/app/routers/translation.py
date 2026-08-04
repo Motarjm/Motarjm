@@ -129,13 +129,16 @@ def _run_docx_job_sync(job_id: str, docx_bytes: bytes, source_lang: str, target_
             job_store.append_event(job_id, event)
         elif event["type"] == "done":
             translated_contents = event["translated_contents"]
-            xliff_output_str = build_xliff_from_scratch(translated_contents, source_lang, target_lang)
-            if isinstance(xliff_output_str, bytes):
-                xliff_output_str = xliff_output_str.decode('utf-8')
+            # xliff_output_str = build_xliff_from_scratch(translated_contents, source_lang, target_lang)
+            # if isinstance(xliff_output_str, bytes):
+            #     xliff_output_str = xliff_output_str.decode('utf-8')
+            
             result = {
                 "type": "done",
                 "translated_contents": [translated_contents],
-                "xliff": xliff_output_str,
+                "original_docx_base64": 
+                    base64.b64encode(docx_bytes).decode("utf-8"),  # ← NEW
+                # "xliff": xliff_output_str,
                 "glossary_id": glossary_id,  # ADD
             }
             job_store.append_event(job_id, result)

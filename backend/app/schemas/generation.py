@@ -15,6 +15,9 @@ class GenerateXliffRequest(BaseModel):
     target_lang: str    
 
 class TranslationBlockDocx(BaseModel):
+    # The ID is used to map the original docx's paragrpahs objects and the translated segments
+    # if the user uploaded a pdf, i would generate a docx from scratch. that is why it is optional
+    id: Optional[str] = None
     original_text: str
     translated_text: str
     type: Optional[str] = None
@@ -23,3 +26,4 @@ class TranslationBlockDocx(BaseModel):
 
 class GenerateDocxRequest(BaseModel):
     translated_contents: List[List[TranslationBlockDocx]]
+    original_docx: Optional[str] = None  # base64-encoded

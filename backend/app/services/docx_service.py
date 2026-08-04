@@ -1,16 +1,13 @@
 """
 This handles the reading of docx pages and generating them
 """
-
 from docx import Document
 from docx.text.paragraph import Paragraph
 from docx.table import Table
-from docx.shared import Pt, Inches, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.style import WD_STYLE_TYPE
-from docx.oxml.ns import qn
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.shared import Pt, Inches, RGBColor
 import re
 from io import BytesIO
 
@@ -89,6 +86,243 @@ def extract_run_format(paragraph) -> dict:
             }
     return {}
 
+            
+def infer_block_type(paragraph) -> str:
+    """Map a source paragraph's Word style to our layout-type vocabulary."""
+    style_name = (paragraph.style.name or "").lower()
+    if "title" in style_name:
+        return "Title"
+    if "heading" in style_name:
+        return "Section-header"
+    if "caption" in style_name:
+        return "Caption"
+    if "list" in style_name or paragraph._p.pPr is not None and paragraph._p.pPr.numPr is not None:
+        return "List-item"
+    return "Text" 
+
+
+def resolve_effective_alignment(paragraph):
+    """Direct paragraph formatting wins. Otherwise walk the style's
+    base_style chain until an explicit alignment is found — Heading/Title
+    styles almost never set alignment directly on themselves, they inherit
+    it from a parent style, so checking only paragraph.style.paragraph_format
+    (without walking base_style) misses this and silently skips the mirror
+    for headings. 
+    
+    Returns None if no explicit alignment is found anywhere
+    in the chain, which means Word is rendering it at its true default: left."""
+    if paragraph.alignment is not None:
+        return paragraph.alignment
+    style = paragraph.style
+    while style is not None:
+        fmt = style.paragraph_format
+        if fmt is not None and fmt.alignment is not None:
+            return fmt.alignment
+        style = style.base_style
+    return None
+ 
+def add_paragraph_blocks(blocks, paragraph, para_idx):
+    """Same sentence-grouping as before, but each block keeps a reference
+    to its source paragraph so translations can be written back into the
+    ORIGINAL paragraph object — never a freshly built one."""
+    text = paragraph.text.strip()
+    if not text:
+        return
+    style_name = paragraph.style.name if paragraph.style else "Normal"
+    run_fmt = extract_run_format(paragraph)
+    btype = infer_block_type(paragraph)
+
+    sentences = split_sentences(text)
+    for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):
+        group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
+        blocks.append({
+            "id": f"{para_idx}_{i}",      # ← NEW
+            "text": group,
+            "type": btype,
+            "bbox": [],
+            "info": {"style_name": style_name, **run_fmt},
+            "_paragraph_ref": paragraph,  # internal only — never sent to the frontend
+        })
+
+
+def add_table_blocks(blocks, table, table_num, table_idx):
+    """Same as before, but keeps a _cell_ref instead of only row/col indices —
+    table.style, borders, shading, and merges are never re-extracted because
+    the table itself is never rebuilt."""
+    for row_idx, col_idx, cell in iter_unique_cells_table(table):
+        text = cell.text.strip()
+        if not text:
+            continue
+        cell_para = cell.paragraphs[0] if cell.paragraphs else None
+        cell_fmt = extract_run_format(cell_para) if cell_para else {}
+        blocks.append({
+            "id": f"{table_idx}_{row_idx}_{col_idx}",      # ← NEW
+            "text": text,
+            "type": "Table",
+            "bbox": [],
+            "info": {"num": table_num, "row": row_idx, "col": col_idx, **cell_fmt},
+            "_cell_ref": cell,
+        })
+
+
+def get_docx_blocks(docx_bytes: bytes):
+    """Returns (doc, blocks) instead of just blocks — the caller must keep
+    `doc` alive and pass it into apply_translations later. This is the same
+    walk as before; the only change is we no longer discard the parsed
+    Document once blocks are extracted."""
+    doc = Document(docx_bytes)
+    blocks = []
+    table_num = 0
+
+    def walk(container_element):
+        nonlocal table_num
+        for i, element in enumerate(container_element):
+            if element.tag.endswith('p'):
+                add_paragraph_blocks(blocks, Paragraph(element, doc), i)
+            elif element.tag.endswith('tbl'):
+                add_table_blocks(blocks, Table(element, doc), table_num, i)
+                table_num += 1
+
+    if doc.sections and doc.sections[0].header:
+        walk(doc.sections[0].header._element)
+    walk(doc.element.body)
+    if doc.sections and doc.sections[0].footer:
+        walk(doc.sections[0].footer._element)
+
+    return doc, blocks
+
+
+def apply_complex_script_font(run, font_name: str = "Arial"):
+    """
+    if the font lacks full Arabic coverage, unsupported glyphs render as
+    the placeholder .notdef box, which looks exactly like words being
+    replaced with dots. w:hint tells Word to actually prefer the cs slot
+    for this run instead of guessing based on the first character."""
+    rPr = run._element.get_or_add_rPr()
+    rFonts = rPr.find(qn('w:rFonts'))
+    if rFonts is None:
+        rFonts = OxmlElement('w:rFonts')
+        rPr.append(rFonts)
+    rFonts.set(qn('w:cs'), font_name)
+    rFonts.set(qn('w:hint'), 'cs')
+
+
+def _write_translation_into_paragraph(paragraph, translated_text, complex_font: str = "Arial"):
+    """Overwrite text in place.
+    
+    Paragraph-level formatting (alignment,
+    spacing, indentation) lives on the pPr element and is left untouched
+    except for the bidi flag and alignment mirror applied below. 
+    
+    Run-level formatting (bold/italic/color/font) lives on run[0]'s rPr, which is
+    also left untouched except for the RTL/complex-script fields added
+    below — only run[0].text is replaced, so its formatting carries over
+    unchanged. Extra runs are emptied rather than deleted, so no rPr/rIds
+    are broken."""
+
+    # ── 1. Paragraph-level RTL (w:pPr/w:bidi) ──
+    pPr = paragraph._element.get_or_add_pPr()
+    if pPr.find(qn('w:bidi')) is None:
+        bidi = OxmlElement('w:bidi')
+        bidi.set(qn('w:val'), '1')
+        pPr.append(bidi)
+
+    # ── 2. Mirror alignment: left ↔ right ──
+    # Uses resolve_effective_alignment instead of reading paragraph.alignment
+    effective_align = resolve_effective_alignment(paragraph)
+    if effective_align in (WD_ALIGN_PARAGRAPH.LEFT, None):
+        # None means no explicit alignment anywhere in the chain, which is
+        # Word's true rendered default (left) — treat it the same as LEFT.
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    elif effective_align == WD_ALIGN_PARAGRAPH.RIGHT:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    # CENTER / JUSTIFY — leave as-is, no mirroring needed.
+
+    # ── 3. Ensure at least one run exists ──
+    runs = paragraph.runs
+    if not runs:
+        new_run = paragraph.add_run(translated_text)
+        rPr = new_run._element.get_or_add_rPr()
+        rtl = OxmlElement('w:rtl')
+        rtl.set(qn('w:val'), '1')
+        rPr.append(rtl)
+        apply_complex_script_font(new_run, complex_font)
+        return
+
+    # ── 4. Overwrite existing runs ──
+    runs[0].text = translated_text
+    for run in runs[1:]:
+        run.text = ""
+
+    # ── 5. Run-level RTL (w:rPr/w:rtl) + complex-script font ──
+    rPr = runs[0]._element.get_or_add_rPr()
+    if rPr.find(qn('w:rtl')) is None:
+        rtl = OxmlElement('w:rtl')
+        rtl.set(qn('w:val'), '1')
+        rPr.append(rtl)
+    apply_complex_script_font(runs[0], complex_font)
+
+
+def apply_translations(doc, blocks, complex_font: str = "Arial") -> bytes:
+    """Writes every block's translated_text back into the ORIGINAL document.
+    No Document(), no add_table, no resolve_style, no apply_run_format —
+    table borders/shading/merges, images, headers, footers, and page setup
+    are untouched because the document object they live on is never
+    replaced, only edited."""
+    para_groups, cell_groups = {}, {}
+    for block in blocks:
+        if "_paragraph_ref" in block:
+            para_groups.setdefault(id(block["_paragraph_ref"]), []).append(block)
+        elif "_cell_ref" in block:
+            cell_groups.setdefault(id(block["_cell_ref"]), []).append(block)
+
+    for group in para_groups.values():
+        paragraph = group[0]["_paragraph_ref"]
+        translated = " ".join(b.get("translated_text", b["text"]) for b in group)
+        _write_translation_into_paragraph(paragraph, translated, complex_font)
+
+    for group in cell_groups.values():
+        cell = group[0]["_cell_ref"]
+        paragraph = cell.paragraphs[0] if cell.paragraphs else cell.add_paragraph()
+        translated = " ".join(b.get("translated_text", b["text"]) for b in group)
+        _write_translation_into_paragraph(paragraph, translated, complex_font)
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+def build_docx(original_docx_bytes: bytes, translated_contents: list[list[dict]]) -> bytes:
+    """
+    Re-parses the original docx and writes translations back by matching
+    segment IDs. Multiple translated segments with the same ID (split case)
+    are joined with spaces.
+    """
+    doc, blocks = get_docx_blocks(BytesIO(original_docx_bytes))
+
+    # Build lookup by ID, joining splits with spaces
+    translation_by_id = {}
+    for t in translated_contents[0]:
+        tid = t.get("id")
+        if tid is not None:
+            txt = t.get("translated_text", "")
+            if tid in translation_by_id:
+                translation_by_id[tid] += " " + txt
+            else:
+                translation_by_id[tid] = txt
+
+    for block in blocks:
+        tid = block.get("id")
+        if tid is not None and tid in translation_by_id:
+            block["translated_text"] = translation_by_id[tid]
+        # If ID not found (e.g. merged away), apply_translations falls back to original text
+    print(translation_by_id)
+    return apply_translations(doc, blocks)
+
+"""
+=================================================
+Below code is used if uploaded doc was PDF
+"""
 def apply_run_format(run, fmt: dict):
     if not fmt:
         return
@@ -107,111 +341,7 @@ def apply_run_format(run, fmt: dict):
             run.font.color.rgb = RGBColor.from_string(fmt["color"])
         except Exception:
             pass
-            
-            
-def infer_block_type(paragraph) -> str:
-    """Map a source paragraph's Word style to our layout-type vocabulary."""
-    style_name = (paragraph.style.name or "").lower()
-    if "title" in style_name:
-        return "Title"
-    if "heading" in style_name:
-        return "Section-header"
-    if "caption" in style_name:
-        return "Caption"
-    if "list" in style_name or paragraph._p.pPr is not None and paragraph._p.pPr.numPr is not None:
-        return "List-item"
-    return "Text"
- 
-def extract_table_style_info(table) -> dict:
-    return {
-        "table_style": table.style.name if table.style else None,
-        "col_widths": [col.width for col in table.columns] if table.columns else [],
-    }
- 
- 
-def add_paragraph_blocks(blocks, paragraph):
-    """Split a paragraph's text into sentence-grouped blocks, tagging each
-    with the source style name and dominant run formatting so build_docx
-    can reproduce it."""
-    text = paragraph.text.strip()
-    if not text:
-        return
-    style_name = paragraph.style.name if paragraph.style else "Normal"
-    run_fmt = extract_run_format(paragraph)
-    btype = infer_block_type(paragraph)
- 
-    sentences = split_sentences(text)
-    # group 3 sentences, instead of single sentences cuz of AI translation
-    for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):
-        group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
-        blocks.append({
-            "text": group,
-            "type": btype,
-            "bbox": [],  # No bounding box for DOCX paragraphs
-            "info": {
-                "style_name": style_name,
-                **run_fmt,
-            },
-        })
-        
-def add_table_blocks(blocks, table, table_num):
-    """Emit one block per unique cell, carrying row/col position, table-level
-    style/column-width info, and per-cell run formatting."""
-    n_rows = len(table.rows)
-    n_cols = len(table.columns)
-    style_info = extract_table_style_info(table)
- 
-    for row_idx, col_idx, cell in iter_unique_cells_table(table):
-        text = cell.text.strip()
-        if not text:
-            continue
-        cell_para = cell.paragraphs[0] if cell.paragraphs else None
-        cell_fmt = extract_run_format(cell_para) if cell_para else {}
-        blocks.append({
-            "text": text,
-            "type": "Table",
-            "bbox": [],
-            "info": {
-                "num": table_num,
-                "rows": n_rows,
-                "cols": n_cols,
-                "row": row_idx,
-                "col": col_idx,
-                "table_style": style_info["table_style"],
-                "col_widths": style_info["col_widths"],
-                **cell_fmt,
-            },
-        })
-        
-def get_docx_blocks(docx_bytes: bytes) -> list[list[dict]]:
-    doc = Document(docx_bytes)
-    blocks = []
-    table_num = 0
- 
-    def walk(container_element):
-        nonlocal table_num
-        for element in container_element:
-            if element.tag.endswith('p'):
-                paragraph = Paragraph(element, doc)
-                add_paragraph_blocks(blocks, paragraph)
-            elif element.tag.endswith('tbl'):
-                table = Table(element, doc)
-                add_table_blocks(blocks, table, table_num)
-                table_num += 1
- 
-    # HEADER
-    if len(doc.sections) > 0 and doc.sections[0].header:
-        walk(doc.sections[0].header._element)
- 
-    # BODY
-    walk(doc.element.body)
- 
-    # FOOTER
-    if len(doc.sections) > 0 and doc.sections[0].footer:
-        walk(doc.sections[0].footer._element)
- 
-    return blocks
- 
+
 def resolve_style(doc, style_name, fallback=None):
     """Return style_name if it exists in this document's style set,
     otherwise fallback (or None, meaning 'use Word's default')."""
@@ -258,7 +388,7 @@ def add_table(doc, blocks):
         apply_run_format(run, info)
         
         
-def build_docx(pages):
+def build_docx_from_scratch(pages):
     """
     pages: list (per page) of list (per block) of dicts like
            {"type": "Text", "text": "...", "bbox": [x0, y0, x1, y1], ...}

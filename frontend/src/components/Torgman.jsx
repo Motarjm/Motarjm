@@ -411,13 +411,27 @@ const Torgman = () => {
         newFileContent = finalData.original_pdf_base64 || null;
         setFileContent(newFileContent);
         setDownloadUrl(url);
-      } else if (fileType === 'xliff' || fileType == "docx") {
+      } else if (fileType === 'xliff') {
         translationPhase = 'building_xliff_output';
         const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
         const url = URL.createObjectURL(blob);
         setTranslatedContents(finalData.translated_contents);
         newFileContent = finalData.xliff;
         setFileContent(finalData.xliff);
+        setDownloadUrl(url);
+      }
+      else if (fileType === 'docx') {
+        translationPhase = 'building_docx_output';
+        const blob = new Blob(
+                [Uint8Array.from(atob(finalData.original_docx_base64), c => c.charCodeAt(0))],
+                { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
+              );
+        const url = URL.createObjectURL(blob);
+        setTranslatedContents(finalData.translated_contents);
+        newFileContent = finalData.original_docx_base64;
+        setFileContent(finalData.original_docx_base64);
+        // this is the original file, you wouldnt want the user to download this
+        // I just placed it cuz, انتقل للتعديل button doesnt show unless there is a url saved
         setDownloadUrl(url);
       }
 
@@ -453,7 +467,7 @@ const Torgman = () => {
       clearLegacySessionStorage();
 
       const translationDuration = Date.now() - translationStartTs;
-      trackTranslationCompleted(fileType, fileSize, translationDuration, true);
+      trackTranslationCompleted(fileType, fileSize, translationDuration, latestTotalBlocks, true);
 
       void clearActiveTranslationJob();
       setStatus('‫تمت الترجمة بنجاح!');

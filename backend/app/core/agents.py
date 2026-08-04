@@ -263,10 +263,10 @@ def evaluator_agent(state: State):
   if not isinstance(response, str):
     if len(response) > 1:
       print(response)
-      response = response[1]["text"]
+      response = response[1].get("text", "")
       
     else:
-      response = response[0]["text"]
+      response = response[0].get("text", "")
     
   # transform response string into json, we should later use 'with_structued_output'
   

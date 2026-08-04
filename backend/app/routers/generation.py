@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.pdf_service import build_translated_pdf
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
-from app.services.docx_service import build_docx
+from app.services.docx_service import build_docx_from_scratch, build_docx
 from app.schemas.generation import GenerateDocxRequest, GenerateEditedPDFRequest, GenerateXliffRequest
 
 logger = logging.getLogger(__name__)
@@ -98,8 +98,16 @@ async def generate_docx(request: GenerateDocxRequest):
             [block.model_dump() for block in page]
             for page in request.translated_contents
         ]
-
-        docx_bytes = build_docx(translated_contents)
+        # if uploaded file was a docx, generate the translated docx file using the original document
+        if request.original_docx:
+            original_docx_bytes = base64.b64decode(request.original_docx)
+            docx_bytes = build_docx(original_docx_bytes, translated_contents)
+            
+        # uploaded file was not a docx. Curently, it would be PDF
+        # generate the docx file from scratch
+        else:
+            docx_bytes = build_docx_from_scratch(translated_contents)
+            
     except Exception:
         logger.exception("failed to generate DOCX")
         raise
