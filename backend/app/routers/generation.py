@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.pdf_service import build_translated_pdf
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
-from app.services.docx_service import build_docx
+from app.services.docx_service import build_translated_docx
 from app.schemas.generation import GenerateDocxRequest, GenerateEditedPDFRequest, GenerateXliffRequest
 
 logger = logging.getLogger(__name__)
@@ -93,13 +93,15 @@ async def generate_docx(request: GenerateDocxRequest):
     
     """
     try:
+        original_docx_bytes = base64.b64decode(request.original_docx)
+        
         # Convert Pydantic models to plain dicts for the XLIFF builder
         translated_contents = [
             [block.model_dump() for block in page]
             for page in request.translated_contents
         ]
 
-        docx_bytes = build_docx(translated_contents)
+        docx_bytes = build_translated_docx(original_docx_bytes, translated_contents)
     except Exception:
         logger.exception("failed to generate DOCX")
         raise

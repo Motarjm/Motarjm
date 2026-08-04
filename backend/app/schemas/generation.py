@@ -15,6 +15,7 @@ class GenerateXliffRequest(BaseModel):
     target_lang: str    
 
 class TranslationBlockDocx(BaseModel):
+    id: str
     original_text: str
     translated_text: str
     type: Optional[str] = None
@@ -23,3 +24,4 @@ class TranslationBlockDocx(BaseModel):
 
 class GenerateDocxRequest(BaseModel):
     translated_contents: List[List[TranslationBlockDocx]]
+    original_docx: str  # base64-encoded
