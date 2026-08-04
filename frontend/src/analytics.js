@@ -46,9 +46,10 @@ export const trackTranslationStarted = (fileType, fileSize, sourceLang, targetLa
  * @param {string} fileType - 'pdf' or 'xliff'
  * @param {number} fileSize - Size of file in bytes
  * @param {number} durationMs - Time taken in milliseconds
+ * @param {number} totalBlocks - Total number of blocks translated
  * @param {boolean} success - Whether translation was successful
  */
-export const trackTranslationCompleted = (fileType, fileSize, durationMs, success = true) => {
+export const trackTranslationCompleted = (fileType, fileSize, durationMs, totalBlocks, success = true) => {
   const isRealDocument = fileSize > 50000;
   
   posthog.capture('translation_completed', {
@@ -56,6 +57,7 @@ export const trackTranslationCompleted = (fileType, fileSize, durationMs, succes
     file_size: fileSize,
     file_size_kb: Math.round(fileSize / 1024),
     duration_minutes: Math.round(durationMs / 1000 / 60),
+    total_blocks: totalBlocks,
     is_real_document: isRealDocument,
     success: success,
     timestamp: new Date().toISOString(),
