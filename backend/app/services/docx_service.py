@@ -7,6 +7,7 @@ from docx.table import Table
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from docx.shared import Pt, Inches, RGBColor
 import re
 from io import BytesIO
 
@@ -291,7 +292,7 @@ def apply_translations(doc, blocks, complex_font: str = "Arial") -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
-def build_translated_docx(original_docx_bytes: bytes, translated_contents: list[list[dict]]) -> bytes:
+def build_docx(original_docx_bytes: bytes, translated_contents: list[list[dict]]) -> bytes:
     """
     Re-parses the original docx and writes translations back by matching
     segment IDs. Multiple translated segments with the same ID (split case)
@@ -387,7 +388,7 @@ def add_table(doc, blocks):
         apply_run_format(run, info)
         
         
-def build_docx(pages):
+def build_docx_from_scratch(pages):
     """
     pages: list (per page) of list (per block) of dicts like
            {"type": "Text", "text": "...", "bbox": [x0, y0, x1, y1], ...}
