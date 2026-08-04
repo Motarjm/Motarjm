@@ -336,7 +336,7 @@ def translate_file_content_docx_streaming(
     """
     
     # Extract segments from DOCX file
-    segments = get_docx_blocks(docx_bytes)
+    _, segments = get_docx_blocks(docx_bytes)
     
     total_segments = len(segments)
     completed_segments = 0
@@ -366,10 +366,11 @@ def translate_file_content_docx_streaming(
             )
 
         # print(f"\nSegment {i} (ID: {segment['id']}): {translated_text}")
-
+        print(translated_text)
         translated_content.append({
             "original_text": segment["text"],
             "translated_text": translated_text,
+            "id": segment.get("id"),       # ← NEW
             "type": segment.get("type", "Text"),
             "info": segment.get("info", {}),
         })
