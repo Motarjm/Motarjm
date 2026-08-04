@@ -544,6 +544,7 @@ const CompareInterface = () => {
       const requestBody = {
         translated_contents: translatedContents.map(page =>
           page.map(block => ({
+            id: block.id,
             original_text: block.original_text,
             translated_text: block.translated_text,
             type: block.type || null,
@@ -551,6 +552,10 @@ const CompareInterface = () => {
           }))
         ),
       };
+
+      if (fileType === 'docx' && originalFile) {
+        requestBody.original_docx = originalFile;
+      }
 
       const response = await fetch(`${API_URL}/generation/docx`, {
         method: 'POST',
