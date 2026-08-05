@@ -10,6 +10,7 @@ import {
   trackTranslationStarted,
   trackTranslationCompleted,
   trackTranslationError,
+  trackWrongFileUploaded,
 } from '../analytics';
 import { trackNetworkError } from '../errorTracking';
 import {
@@ -242,6 +243,9 @@ const Torgman = () => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     const isValidSelection = applySelectedFile(file);
+    if (!isValidSelection && file) {
+      trackWrongFileUploaded(file.name, 'main_document');
+    }
     if (!isValidSelection && fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -250,6 +254,9 @@ const Torgman = () => {
   const handleGlossaryChange = (e) => {
     const file = e.target.files[0];
     const isValidSelection = applyGlossaryFile(file);
+    if (!isValidSelection && file) {
+      trackWrongFileUploaded(file.name, 'glossary');
+    }
     if (!isValidSelection && glossaryInputRef.current) {
       glossaryInputRef.current.value = '';
     }
@@ -258,6 +265,9 @@ const Torgman = () => {
   const handleTmChange = (e) => {
     const file = e.target.files[0];
     const isValidSelection = applyTmFile(file);
+    if (!isValidSelection && file) {
+      trackWrongFileUploaded(file.name, 'translation_memory');
+    }
     if (!isValidSelection && tmInputRef.current) {
       tmInputRef.current.value = '';
     }

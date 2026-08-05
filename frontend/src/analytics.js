@@ -21,6 +21,21 @@ export const trackFileSelected = (fileType, fileSize, fileName) => {
 };
 
 /**
+ * Track wrong file upload attempt
+ * @param {string} fileName - Name of the wrong file
+ * @param {string} uploadTarget - Where they tried to upload it ('main_document', 'glossary', 'translation_memory')
+ */
+export const trackWrongFileUploaded = (fileName, uploadTarget) => {
+  const ext = fileName.split('.').pop()?.toLowerCase() || 'unknown';
+  posthog.capture('wrong_file_uploaded', {
+    file_name: fileName,
+    file_extension: ext,
+    upload_target: uploadTarget,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+/**
  * Track translation start event
  * @param {string} fileType - 'pdf' or 'xliff'
  * @param {number} fileSize - Size of file in bytes
@@ -29,7 +44,7 @@ export const trackFileSelected = (fileType, fileSize, fileName) => {
  */
 export const trackTranslationStarted = (fileType, fileSize, sourceLang, targetLang) => {
   const isRealDocument = fileSize > 50000; // > 50KB heuristic
-  
+
   posthog.capture('translation_started', {
     file_type: fileType,
     file_size: fileSize,
@@ -51,7 +66,7 @@ export const trackTranslationStarted = (fileType, fileSize, sourceLang, targetLa
  */
 export const trackTranslationCompleted = (fileType, fileSize, durationMs, totalBlocks, success = true) => {
   const isRealDocument = fileSize > 50000;
-  
+
   posthog.capture('translation_completed', {
     file_type: fileType,
     file_size: fileSize,
@@ -251,6 +266,7 @@ export const trackSegmentError = (error, operation = 'unknown') => {
 
 export default {
   trackFileSelected,
+  trackWrongFileUploaded,
   trackTranslationStarted,
   trackTranslationCompleted,
   trackDocumentDownloaded,
