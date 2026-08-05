@@ -161,7 +161,7 @@ def parse_tbx_basic(
             tgt = lang_terms[langs[1]][0]
             if src and tgt and src not in glossary:
                 glossary[src] = tgt
-    print(glossary)
+    
     return glossary
 
 

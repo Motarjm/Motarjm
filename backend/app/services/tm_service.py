@@ -7,12 +7,13 @@ import time
 from typing import Optional, List, Dict
 from lxml import etree
 from rapidfuzz import process, fuzz
-
+from app.services.glossary_service import _lang_matches
 # ── In-memory store ──
 # tm_id -> {"entries": [(source, target), ...], "created_at": ts}
 _tm_store: Dict[str, dict] = {}
 
 TM_TTL_SECONDS = 24 * 60 * 60  # 24h, same spirit as glossary store
+
 
 
 def parse_tmx(tmx_bytes: bytes, source_lang: str, target_lang: str) -> List[tuple]:
@@ -29,12 +30,6 @@ def parse_tmx(tmx_bytes: bytes, source_lang: str, target_lang: str) -> List[tupl
     src_lang = source_lang.lower()
     tgt_lang = target_lang.lower()
 
-    def lang_matches(tuv_lang: str, target: str) -> bool:
-        if not tuv_lang:
-            return False
-        tuv_lang = tuv_lang.lower()
-        return tuv_lang == target or tuv_lang.startswith(target + "-") or target.startswith(tuv_lang + "-")
-
     entries = []
     for tu in root.iter("tu"):
         source_seg, target_seg = None, None
@@ -46,9 +41,9 @@ def parse_tmx(tmx_bytes: bytes, source_lang: str, target_lang: str) -> List[tupl
             text = "".join(seg_el.itertext()).strip()
             if not text:
                 continue
-            if lang_matches(lang, src_lang) and source_seg is None:
+            if _lang_matches(lang, src_lang) and source_seg is None:
                 source_seg = text
-            elif lang_matches(lang, tgt_lang) and target_seg is None:
+            elif _lang_matches(lang, tgt_lang) and target_seg is None:
                 target_seg = text
 
         if source_seg and target_seg:
