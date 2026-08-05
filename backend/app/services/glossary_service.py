@@ -1,21 +1,89 @@
-import re
 import time
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
 from uuid import uuid4
 
 TTL_SECONDS = 7 * 24 * 60 * 60
-#TODO: MUST BE MIGRATED TO DATABASE
+# TODO: MUST BE MIGRATED TO DATABASE
 _GLOSSARY_STORE: Dict[str, Dict[str, object]] = {}
 
-"""
-This is the glossary of the user
-"""
 
-def _strip_namespace(tag: str) -> str:
+def _get_local_name(tag: str) -> str:
+    """Strip namespace URI from an XML tag, returning the local name."""
     if "}" in tag:
         return tag.split("}", 1)[1]
     return tag
+
+
+def _get_xml_lang(element: ET.Element) -> Optional[str]:
+    """Extract xml:lang from an element, handling namespaced and plain forms."""
+    # Standard namespaced xml:lang used by TBX
+    lang = element.attrib.get("{http://www.w3.org/XML/1998/namespace}lang")
+    if lang:
+        return lang
+    # Fallback for non-standard files
+    lang = element.attrib.get("lang")
+    if lang:
+        return lang
+    # Defensive scan
+    for key in element.attrib:
+        if key.endswith("}lang") or key == "lang":
+            return element.attrib[key]
+    return None
+
+
+def _extract_text(element: ET.Element) -> str:
+    """Extract all text from an element, including nested children."""
+    return "".join(element.itertext()).strip()
+
+
+def _lang_matches(tbx_lang: str, requested_lang: str) -> bool:
+    """Check if a TBX language code matches a requested code.
+    
+    Supports prefix matching so 'en' matches 'en-US', 'en-GB', etc.
+    """
+    tbx_norm = tbx_lang.lower().replace("_", "-")
+    req_norm = requested_lang.lower().replace("_", "-")
+    if tbx_norm == req_norm:
+        return True
+    if tbx_norm.startswith(req_norm + "-"):
+        return True
+    return False
+
+
+def _find_terms_in_lang_sec(lang_sec: ET.Element) -> List[str]:
+    """Extract term texts from a language section.
+    
+    Handles TBX structural variants:
+      - tig -> term          (TBX v1/v2)
+      - termSec -> term      (TBX v3)
+      - ntig -> termGrp -> term   (TBX v1/v2 normalized)
+    """
+    terms: List[str] = []
+
+    for child in lang_sec:
+        child_name = _get_local_name(child.tag)
+
+        if child_name in ("tig", "termSec"):
+            for sub in child:
+                if _get_local_name(sub.tag) == "term":
+                    text = _extract_text(sub)
+                    if text:
+                        terms.append(text)
+                    break  # first term per group
+
+        elif child_name == "ntig":
+            for sub in child:
+                if _get_local_name(sub.tag) == "termGrp":
+                    for term_el in sub:
+                        if _get_local_name(term_el.tag) == "term":
+                            text = _extract_text(term_el)
+                            if text:
+                                terms.append(text)
+                            break
+                    break  # first termGrp per ntig
+
+    return terms
 
 
 def parse_tbx_basic(
@@ -24,10 +92,21 @@ def parse_tbx_basic(
     target_lang: Optional[str] = None,
 ) -> Dict[str, str]:
     """
-    Parse a TBX-Basic file into a simple term -> translation dict.
+    Parse a TBX file (any version/dialect) into a simple term -> translation dict.
 
-    If source_lang and target_lang are provided, only entries with both are used.
-    Otherwise, entries with exactly two languages are mapped by order of appearance.
+    Supports:
+      - TBX v1  (martif, termEntry, langSet, tig / ntig)
+      - TBX v2 Basic  (martif type="TBX-Basic", same elements)
+      - TBX v3  (tbx, conceptEntry, langSec, termSec)
+      - Namespaced and non-namespaced variants
+      - Mixed content inside <term> elements
+
+    If source_lang and target_lang are provided, only entries containing both
+    languages are used. Language matching supports prefix matching
+    (e.g. 'en' matches 'en-US').
+
+    If no languages are provided, entries with exactly two languages are mapped
+    by order of appearance (first -> second).
     """
     try:
         root = ET.fromstring(tbx_bytes)
@@ -36,56 +115,56 @@ def parse_tbx_basic(
 
     glossary: Dict[str, str] = {}
 
-    for term_entry in root.iter():
-        # Only process termEntry nodes (ignore TBX header/metadata).
-        if _strip_namespace(term_entry.tag) != "termEntry":
+    for element in root.iter():
+        if _get_local_name(element.tag) not in ("termEntry", "conceptEntry"):
             continue
 
-        lang_terms: Dict[str, str] = {}
-        for lang_set in term_entry:
-            # Each langSet represents terms for a single language.
-            if _strip_namespace(lang_set.tag) != "langSet":
+        # Collect terms by language for this concept
+        lang_terms: Dict[str, List[str]] = {}
+
+        for child in element:
+            if _get_local_name(child.tag) not in ("langSet", "langSec"):
                 continue
 
-            # TBX uses xml:lang namespaced attribute for language code.
-            lang = lang_set.attrib.get("{http://www.w3.org/XML/1998/namespace}lang")
+            lang = _get_xml_lang(child)
             if not lang:
                 continue
 
-            term_value = None
-            # Take the first term in the first tig we find.
-            for tig in lang_set:
-                if _strip_namespace(tig.tag) != "tig":
-                    continue
-                for term_el in tig:
-                    if _strip_namespace(term_el.tag) == "term" and term_el.text:
-                        term_value = term_el.text.strip()
-                        break
-                if term_value:
-                    break
+            terms = _find_terms_in_lang_sec(child)
+            if terms:
+                lang_terms.setdefault(lang, []).extend(terms)
 
-            if term_value:
-                lang_terms[lang] = term_value
-
-        if source_lang and target_lang:
-            # Strict mapping when language codes are provided.
-            source_term = lang_terms.get(source_lang)
-            target_term = lang_terms.get(target_lang)
-            if not source_term or not target_term:
-                continue
-            if source_term not in glossary:
-                glossary[source_term] = target_term
+        if not lang_terms:
             continue
 
-        if len(lang_terms) == 2:
-            # Fallback: map in the order languages appear in the TBX entry.
-            langs = list(lang_terms.keys())
-            source_term = lang_terms[langs[0]]
-            target_term = lang_terms[langs[1]]
-            if source_term and target_term and source_term not in glossary:
-                glossary[source_term] = target_term
+        if source_lang and target_lang:
+            src_terms: Optional[List[str]] = None
+            tgt_terms: Optional[List[str]] = None
 
+            for lang, terms in lang_terms.items():
+                if _lang_matches(lang, source_lang):
+                    src_terms = terms
+                if _lang_matches(lang, target_lang):
+                    tgt_terms = terms
+
+            if src_terms and tgt_terms:
+                src = src_terms[0]
+                tgt = tgt_terms[0]
+                if src and tgt and src not in glossary:
+                    glossary[src] = tgt
+            continue
+
+        # Fallback: exactly two languages, map first -> second by appearance order
+        if len(lang_terms) == 2:
+            langs = list(lang_terms.keys())
+            src = lang_terms[langs[0]][0]
+            tgt = lang_terms[langs[1]][0]
+            if src and tgt and src not in glossary:
+                glossary[src] = tgt
+    print(glossary)
     return glossary
+
+
 
 
 def store_glossary(glossary: Dict[str, str]) -> Tuple[str, int]:
@@ -109,8 +188,9 @@ def get_glossary(glossary_id: str) -> Optional[Dict[str, str]]:
 
 def _purge_expired() -> None:
     now = int(time.time())
-    expired_ids = [gid for gid, entry in _GLOSSARY_STORE.items() if entry.get("expires_at", 0) <= now]
+    expired_ids = [
+        gid for gid, entry in _GLOSSARY_STORE.items()
+        if entry.get("expires_at", 0) <= now
+    ]
     for glossary_id in expired_ids:
         _GLOSSARY_STORE.pop(glossary_id, None)
-
-

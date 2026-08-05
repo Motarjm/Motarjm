@@ -38,9 +38,10 @@ const TermbaseTab = ({ glossary, activeSegmentSource }) => {
           <div className="termbase-section-label">Found in current segment</div>
           {segmentMatches.map(({ term, translation }) => (
             <div key={term} className="termbase-row">
-              <span className="termbase-source">{term}</span>
-              <span className="termbase-arrow">→</span>
               <span className="termbase-target">{translation}</span>
+              <span className="termbase-arrow">→</span>
+              <span className="termbase-source">{term}</span>
+
             </div>
           ))}
         </div>
@@ -53,9 +54,10 @@ const TermbaseTab = ({ glossary, activeSegmentSource }) => {
         ) : (
           filteredTerms.map(([src, tgt]) => (
             <div key={src} className="termbase-row">
-              <span className="termbase-source">{src}</span>
-              <span className="termbase-arrow">→</span>
               <span className="termbase-target">{tgt}</span>
+              <span className="termbase-arrow">→</span>
+              <span className="termbase-source">{src}</span>
+
             </div>
           ))
         )}

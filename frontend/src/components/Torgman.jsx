@@ -277,7 +277,7 @@ const Torgman = () => {
     if (isPreparingSample || (isTranslating && !downloadUrl)) return;
 
     setIsPreparingSample(true);
-    setStatus('جارٍ تجهيز ملف العينة...');
+    
     
     try {
       const response = await fetch(SAMPLE_PDF_URL);
