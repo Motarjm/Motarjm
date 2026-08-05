@@ -1129,4 +1129,51 @@
 
 .glossary-chip-remove:hover {
   color: #d32f2f;
+
+
+}
+
+/* Pre-translate hint banner */
+.pre-translate-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 1.25rem 0 0.5rem;
+  padding: 0.85rem 1.1rem;
+  background: rgba(218, 165, 32, 0.08);
+  border: 1px dashed rgba(218, 165, 32, 0.35);
+  border-radius: 8px;
+  direction: rtl;
+  animation: fadeInHint 0.5s ease-out;
+}
+
+.pre-translate-hint-icon {
+  font-size: 1.15rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.pre-translate-hint-text {
+  font-size: 0.85rem;
+  color: #8a6800;
+  font-weight: 500;
+  line-height: 1.5;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+@keyframes fadeInHint {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .pre-translate-hint {
+    padding: 0.75rem 0.9rem;
+    margin: 1rem 0 0.4rem;
+  }
+  .pre-translate-hint-text {
+    font-size: 0.8rem;
+  }
 }

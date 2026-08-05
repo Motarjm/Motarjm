@@ -1040,6 +1040,16 @@ const Torgman = () => {
           />
           </div>
 
+          {/* Pre-translate hint — appears when main file is ready but no glossary/TM yet */}
+          {selectedFile && !isTranslating && !downloadUrl && !glossaryFileName && !tmFileName && (
+          <div className="pre-translate-hint">
+            <span className="pre-translate-hint-icon">💡</span>
+            <span className="pre-translate-hint-text">
+              للحصول على ترجمة أدق، يمكنك إضافة ملف مصطلحات أو ذاكرة ترجمة قبل البدء
+            </span>
+          </div>
+          )}
+
           {/* Action Buttons */}
           <div className="action-area">
             {/* Progress Bar */}
