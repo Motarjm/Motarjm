@@ -13,6 +13,8 @@ import {
   loadDocument,
   saveDocumentState,
   setActiveDocumentId,
+  base64ToFile,
+  fileToBase64,
 } from '../utils/indexedDbPersistence';
 
 // Helper to get exact cursor position in contentEditable
@@ -77,6 +79,12 @@ const CompareInterface = () => {
   const [glossary, setGlossary] = useState(null);
   const [glossaryId, setGlossaryId] = useState(null);
   const [tmId, setTmId] = useState(null);
+  const [glossaryFileBase64, setGlossaryFileBase64] = useState(null);
+  const [tmFileBase64, setTmFileBase64] = useState(null);
+  const [glossaryFileName, setGlossaryFileName] = useState('');
+  const [tmFileName, setTmFileName] = useState('');
+  const [glossaryUploading, setGlossaryUploading] = useState(false);
+  const [tmUploading, setTmUploading] = useState(false);
   // NEW: review suggestions state
   const [reviewSuggestions, setReviewSuggestions] = useState({});
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -124,10 +132,116 @@ const CompareInterface = () => {
 
     useEffect(() => {
     if (!isHydrated || !documentId) return;
-    saveDocumentState(documentId, { glossaryId, tmId }).catch((e) => {
+    saveDocumentState(documentId, {
+      glossaryId, tmId, glossaryFileBase64, tmFileBase64, glossaryFileName, tmFileName,
+    }).catch((e) => {
       console.error('Failed to persist glossaryId:', e);
     });
-  }, [glossaryId, tmId, documentId, isHydrated]);
+  }, [glossaryId, tmId, glossaryFileBase64, tmFileBase64, glossaryFileName, tmFileName, documentId, isHydrated]);
+
+  // Re-uploads a cached (base64) glossary/TM file to mint a fresh backend id
+  // when the original one has expired or the backend restarted. Updates the
+  // document record with the new id so this only has to happen once.
+  const reuploadCachedGlossary = async (base64, fileName, docId) => {
+    try {
+      const file = base64ToFile(base64, fileName, 'application/xml');
+      const formData = new FormData();
+      formData.append('glossary', file);
+      const res = await fetch(`${API_URL}/translation/glossary?source_lang=en&target_lang=ar`, {
+        method: 'POST', body: formData,
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      setGlossaryId(data.glossary_id);
+      if (docId) await saveDocumentState(docId, { glossaryId: data.glossary_id });
+      const termsRes = await fetch(`${API_URL}/translation/glossary/${data.glossary_id}`);
+      return termsRes.ok ? await termsRes.json() : null;
+    } catch (e) {
+      console.warn('Failed to re-upload cached glossary:', e);
+      return null;
+    }
+  };
+
+  const reuploadCachedTm = async (base64, fileName, docId) => {
+    try {
+      const file = base64ToFile(base64, fileName, 'application/xml');
+      const formData = new FormData();
+      formData.append('tm_file', file);
+      const res = await fetch(`${API_URL}/translation/tm?source_lang=en&target_lang=ar`, {
+        method: 'POST', body: formData,
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      setTmId(data.tm_id);
+      if (docId) await saveDocumentState(docId, { tmId: data.tm_id });
+      return data;
+    } catch (e) {
+      console.warn('Failed to re-upload cached tm:', e);
+      return null;
+    }
+  };
+
+  // User-triggered upload from the editor — attaches a TBX glossary to the
+  // document that's already open (replaces any glossary already attached).
+  const uploadGlossary = async (file) => {
+    if (!file) return;
+    setGlossaryUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const formData = new FormData();
+      formData.append('glossary', file);
+      const res = await fetch(`${API_URL}/translation/glossary?source_lang=en&target_lang=ar`, {
+        method: 'POST', body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Upload failed');
+      }
+      const data = await res.json();
+      setGlossaryId(data.glossary_id);
+      setGlossaryFileBase64(base64);
+      setGlossaryFileName(file.name);
+
+      const termsRes = await fetch(`${API_URL}/translation/glossary/${data.glossary_id}`);
+      if (termsRes.ok) {
+        const termsData = await termsRes.json();
+        setGlossary(termsData.terms);
+      }
+    } catch (e) {
+      console.error('Glossary upload failed:', e);
+      alert('فشل رفع ملف المصطلحات');
+    } finally {
+      setGlossaryUploading(false);
+    }
+  };
+
+  // Same, for a TMX translation memory. GeneralChat already re-fetches TM
+  // matches whenever `tmId` changes, so no extra fetch is needed here.
+  const uploadTm = async (file) => {
+    if (!file) return;
+    setTmUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const formData = new FormData();
+      formData.append('tm_file', file);
+      const res = await fetch(`${API_URL}/translation/tm?source_lang=en&target_lang=ar`, {
+        method: 'POST', body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Upload failed');
+      }
+      const data = await res.json();
+      setTmId(data.tm_id);
+      setTmFileBase64(base64);
+      setTmFileName(file.name);
+    } catch (e) {
+      console.error('TM upload failed:', e);
+      alert('فشل رفع ملف ذاكرة الترجمة');
+    } finally {
+      setTmUploading(false);
+    }
+  };
 
   useEffect(() => {   
     let cancelled = false;
@@ -183,14 +297,42 @@ const CompareInterface = () => {
         setChatSuggestions(documentRecord.chatSuggestions || {});
         setGlossaryId(documentRecord.glossaryId || null);
         setTmId(documentRecord.tmId || null);
+        setGlossaryFileBase64(documentRecord.glossaryFileBase64 || null);
+        setTmFileBase64(documentRecord.tmFileBase64 || null);
+        setGlossaryFileName(documentRecord.glossaryFileName || '');
+        setTmFileName(documentRecord.tmFileName || '');
+
         if (documentRecord.glossaryId) {
           fetch(`${API_URL}/translation/glossary/${documentRecord.glossaryId}`)
-            .then(async (res) => (res.ok ? res.json() : null))
+            .then(async (res) => {
+              if (res.ok) return res.json();
+              // Backend store expired/restarted — if we cached the original
+              // file, silently re-upload it to mint a fresh id.
+              if (res.status === 404 && documentRecord.glossaryFileBase64 && documentRecord.glossaryFileName) {
+                const refreshed = await reuploadCachedGlossary(
+                  documentRecord.glossaryFileBase64, documentRecord.glossaryFileName, resolvedDocumentId
+                );
+                return refreshed ? { terms: refreshed.terms } : null;
+              }
+              return null;
+            })
             .then((data) => {
               if (data && !cancelled) setGlossary(data.terms);
-              console.log("glossary: ", data.terms);
             })
             .catch((e) => console.warn('Failed to load glossary:', e));
+        }
+
+        if (documentRecord.tmId) {
+          fetch(`${API_URL}/translation/tm/${documentRecord.tmId}`)
+            .then((res) => {
+              if (res.ok || !(documentRecord.tmFileBase64 && documentRecord.tmFileName)) return;
+              if (res.status === 404) {
+                return reuploadCachedTm(
+                  documentRecord.tmFileBase64, documentRecord.tmFileName, resolvedDocumentId
+                );
+              }
+            })
+            .catch((e) => console.warn('Failed to validate tm:', e));
         }
       } catch (e) {
         console.error('Failed to hydrate compare document from IndexedDB:', e);
@@ -1174,6 +1316,12 @@ const CompareInterface = () => {
           onNavigateSuggestion={navigateToSuggestion}
           glossary={glossary}
           tmId={tmId}
+          glossaryFileName={glossaryFileName}
+          tmFileName={tmFileName}
+          glossaryUploading={glossaryUploading}
+          tmUploading={tmUploading}
+          onUploadGlossary={uploadGlossary}
+          onUploadTm={uploadTm}
           activeSegmentSource={(() => {
             if (!activeSegment || !translatedContents) return '';
             const [pi, bi] = activeSegment.split('-').map(Number);

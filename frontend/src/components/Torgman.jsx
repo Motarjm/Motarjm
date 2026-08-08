@@ -21,6 +21,11 @@ import {
   getActiveDocumentId,
   loadDocument,
   setActiveTranslationJob,
+  saveDocumentState,
+  setPendingUpload,
+  getPendingUpload,
+  clearPendingUpload,
+  fileToBase64,
 } from '../utils/indexedDbPersistence';
 
 const WHATS_NEW_ITEMS = [
@@ -60,10 +65,14 @@ const Torgman = () => {
   const [glossaryFileName, setGlossaryFileName] = useState('');
   const [glossaryFileSize, setGlossaryFileSize] = useState(null);
   const [glossaryId, setGlossaryId] = useState(null);
+  const [glossaryFileBase64, setGlossaryFileBase64] = useState(null);
+  const [glossaryUploading, setGlossaryUploading] = useState(false);
   const [tmFile, setTmFile] = useState(null);
   const [tmFileName, setTmFileName] = useState('');
   const [tmFileSize, setTmFileSize] = useState(null);
   const [tmId, setTmId] = useState(null);
+  const [tmFileBase64, setTmFileBase64] = useState(null);
+  const [tmUploading, setTmUploading] = useState(false);
   const [status, setStatus] = useState('');
   const [downloadUrl, setDownloadUrl] = useState(''); 
   const [translatedContents, setTranslatedContents] = useState(null);
@@ -87,6 +96,24 @@ const Torgman = () => {
   const etaBaselineCompletedRef = useRef(null);
   const abortControllerRef = useRef(null);
   const translationIdRef = useRef(null);
+  // Holds the in-flight upload promise so handleTranslateFile can await it —
+  // closes the race where "Translate" is clicked before an async glossary/TM
+  // upload (started on file selection) has finished and set glossaryId/tmId.
+  const glossaryUploadPromiseRef = useRef(null);
+  const tmUploadPromiseRef = useRef(null);
+  // Always mirrors the latest glossary/TM attachment (id + cached file),
+  // updated synchronously — unlike state, which a long-running async
+  // function only sees as of when it started. Lets a translation job that's
+  // already in flight pick up a glossary/TM uploaded *while it was running*
+  // once the job finishes and the document gets created.
+  const glossaryRef = useRef({ id: null, fileName: '', fileSize: null, base64: null });
+  const tmRef = useRef({ id: null, fileName: '', fileSize: null, base64: null });
+  // True once the user has explicitly uploaded or removed a glossary/TM
+  // since the current translation started — lets us tell "user attached/
+  // removed one mid-flight, respect that" apart from "nothing happened,
+  // fall back to whatever the job itself used".
+  const glossaryTouchedRef = useRef(false);
+  const tmTouchedRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -210,12 +237,6 @@ const Torgman = () => {
     setGlossaryFile(file);
     setGlossaryFileName(file.name);
     setGlossaryFileSize(file.size || null);
-    sessionStorage.setItem('translation_glossary_name', file.name);
-    if (file.size) {
-      sessionStorage.setItem('translation_glossary_size', String(file.size));
-    } else {
-      sessionStorage.removeItem('translation_glossary_size');
-    }
     return true;
   };
 
@@ -231,13 +252,127 @@ const Torgman = () => {
     setTmFile(file);
     setTmFileName(file.name);
     setTmFileSize(file.size || null);
-    sessionStorage.setItem('translation_tm_name', file.name);
-    if (file.size) {
-      sessionStorage.setItem('translation_tm_size', String(file.size));
-    } else {
-      sessionStorage.removeItem('translation_tm_size');
-    }
     return true;
+  };
+
+  // Uploads a TBX glossary immediately on selection so an id exists before
+  // (or after) translation, and caches the file as base64 in IndexedDB so it
+  // survives tab close and can be silently re-uploaded if the backend's
+  // in-memory store ever expires or restarts. `existingDocumentId` is passed
+  // when attaching a glossary to an already-translated document.
+  const uploadGlossaryFile = async (file, existingDocumentId) => {
+    if (!file) return;
+    const uploadPromise = (async () => {
+    setGlossaryUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const sourceLangObj = Sourcelanguages.find((l) => l.englishName === sourceLang);
+      const targetLangObj = Targetlanguages.find((l) => l.englishName === targetLang);
+      const src = sourceLangObj?.code || 'en';
+      const tgt = targetLangObj?.code || 'ar';
+
+      const formData = new FormData();
+      formData.append('glossary', file);
+
+      const res = await fetch(
+        `${API_URL}/translation/glossary?source_lang=${src}&target_lang=${tgt}`,
+        { method: 'POST', body: formData }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Upload failed');
+      }
+      const data = await res.json();
+
+      setGlossaryId(data.glossary_id);
+      glossaryRef.current = { id: data.glossary_id, fileName: file.name, fileSize: file.size, base64 };
+      glossaryTouchedRef.current = true;
+      setGlossaryFileBase64(base64);
+      await setPendingUpload('glossary', {
+        id: data.glossary_id, fileName: file.name, fileSize: file.size, base64,
+      });
+
+      if (existingDocumentId) {
+        await saveDocumentState(existingDocumentId, {
+          glossaryFileName: file.name,
+          glossaryFileSize: file.size || null,
+          glossaryId: data.glossary_id,
+          glossaryFileBase64: base64,
+        });
+      }
+    } catch (e) {
+      console.error('Glossary upload failed:', e);
+      alert('فشل رفع ملف المصطلحات');
+      setGlossaryFile(null);
+      setGlossaryFileName('');
+      setGlossaryFileSize(null);
+      setGlossaryId(null);
+      setGlossaryFileBase64(null);
+      if (glossaryInputRef.current) glossaryInputRef.current.value = '';
+    } finally {
+      setGlossaryUploading(false);
+    }
+    })();
+    glossaryUploadPromiseRef.current = uploadPromise;
+    await uploadPromise;
+  };
+
+  // Same as uploadGlossaryFile, for TMX translation memory files.
+  const uploadTmFile = async (file, existingDocumentId) => {
+    if (!file) return;
+    const uploadPromise = (async () => {
+    setTmUploading(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const sourceLangObj = Sourcelanguages.find((l) => l.englishName === sourceLang);
+      const targetLangObj = Targetlanguages.find((l) => l.englishName === targetLang);
+      const src = sourceLangObj?.code || 'en';
+      const tgt = targetLangObj?.code || 'ar';
+
+      const formData = new FormData();
+      formData.append('tm_file', file);
+
+      const res = await fetch(
+        `${API_URL}/translation/tm?source_lang=${src}&target_lang=${tgt}`,
+        { method: 'POST', body: formData }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Upload failed');
+      }
+      const data = await res.json();
+
+      setTmId(data.tm_id);
+      tmRef.current = { id: data.tm_id, fileName: file.name, fileSize: file.size, base64 };
+      tmTouchedRef.current = true;
+      setTmFileBase64(base64);
+      await setPendingUpload('tm', {
+        id: data.tm_id, fileName: file.name, fileSize: file.size, base64,
+      });
+
+      if (existingDocumentId) {
+        await saveDocumentState(existingDocumentId, {
+          tmFileName: file.name,
+          tmFileSize: file.size || null,
+          tmId: data.tm_id,
+          tmFileBase64: base64,
+        });
+      }
+    } catch (e) {
+      console.error('TM upload failed:', e);
+      alert('فشل رفع ملف ذاكرة الترجمة');
+      setTmFile(null);
+      setTmFileName('');
+      setTmFileSize(null);
+      setTmId(null);
+      setTmFileBase64(null);
+      if (tmInputRef.current) tmInputRef.current.value = '';
+    } finally {
+      setTmUploading(false);
+    }
+    })();
+    tmUploadPromiseRef.current = uploadPromise;
+    await uploadPromise;
   };
 
   const handleFileChange = (e) => {
@@ -259,7 +394,11 @@ const Torgman = () => {
     }
     if (!isValidSelection && glossaryInputRef.current) {
       glossaryInputRef.current.value = '';
+      return;
     }
+    // Upload right away — works whether this happens before translation
+    // starts, or after it's already done (attaches to activeDocumentId).
+    uploadGlossaryFile(file, activeDocumentId);
   };
 
   const handleTmChange = (e) => {
@@ -270,7 +409,9 @@ const Torgman = () => {
     }
     if (!isValidSelection && tmInputRef.current) {
       tmInputRef.current.value = '';
+      return;
     }
+    uploadTmFile(file, activeDocumentId);
   };
 
   const handleTrySamplePdf = async () => {
@@ -303,7 +444,9 @@ const Torgman = () => {
     const { jobId, fileType, fileName: metaFileName, fileSize, sourceLang: metaSourceLang,
             targetLang: metaTargetLang, glossaryFileName: metaGlossaryFileName,
             glossaryFileSize: metaGlossaryFileSize, glossaryId: metaGlossaryId,
+            glossaryFileBase64: metaGlossaryFileBase64,
             tmFileName: metaTmFileName, tmFileSize: metaTmFileSize, tmId: metaTmId,
+            tmFileBase64: metaTmFileBase64,
             translationStartTs, thisId } = meta;
 
     const isCancelled = () => translationIdRef.current !== thisId;
@@ -449,8 +592,18 @@ const Torgman = () => {
 
       if (isCancelled()) return;
 
-      const resolvedGlossaryId = finalData.glossary_id || metaGlossaryId || null;
-      const resolvedTmId = finalData.tm_id || metaTmId || null;
+      const resolvedGlossaryId = glossaryTouchedRef.current
+        ? glossaryRef.current.id
+        : (finalData.glossary_id || metaGlossaryId || null);
+      const resolvedTmId = tmTouchedRef.current
+        ? tmRef.current.id
+        : (finalData.tm_id || metaTmId || null);
+      const resolvedGlossaryFileName = glossaryTouchedRef.current ? glossaryRef.current.fileName : metaGlossaryFileName;
+      const resolvedGlossaryFileSize = glossaryTouchedRef.current ? glossaryRef.current.fileSize : metaGlossaryFileSize;
+      const resolvedGlossaryFileBase64 = glossaryTouchedRef.current ? glossaryRef.current.base64 : (metaGlossaryFileBase64 || null);
+      const resolvedTmFileName = tmTouchedRef.current ? tmRef.current.fileName : metaTmFileName;
+      const resolvedTmFileSize = tmTouchedRef.current ? tmRef.current.fileSize : metaTmFileSize;
+      const resolvedTmFileBase64 = tmTouchedRef.current ? tmRef.current.base64 : (metaTmFileBase64 || null);
       console.log('Persisting document with glossaryId:', resolvedGlossaryId, 'tmId:', resolvedTmId);
 
       const persistedDocumentId = await createDocument({
@@ -460,12 +613,14 @@ const Torgman = () => {
         targetLang: metaTargetLang,
         fileType: fileType,
         fileName: metaFileName,
-        glossaryFileName: metaGlossaryFileName,
-        glossaryFileSize: metaGlossaryFileSize,
+        glossaryFileName: resolvedGlossaryFileName,
+        glossaryFileSize: resolvedGlossaryFileSize,
         glossaryId: resolvedGlossaryId,
-        tmFileName: metaTmFileName,
-        tmFileSize: metaTmFileSize,
+        glossaryFileBase64: resolvedGlossaryFileBase64,
+        tmFileName: resolvedTmFileName,
+        tmFileSize: resolvedTmFileSize,
         tmId: resolvedTmId,
+        tmFileBase64: resolvedTmFileBase64,
       });
 
       if (isCancelled()) return;
@@ -473,6 +628,12 @@ const Torgman = () => {
       setActiveDocumentId(persistedDocumentId);
       setGlossaryId(resolvedGlossaryId);
       setTmId(resolvedTmId);
+
+      // Now that the glossary/TM live on the persisted document record,
+      // the standalone "pending" cache (used before any document existed)
+      // is no longer needed.
+      await clearPendingUpload('glossary');
+      await clearPendingUpload('tm');
 
       clearLegacySessionStorage();
 
@@ -573,9 +734,11 @@ const Torgman = () => {
           setGlossaryFileName(savedJob.glossaryFileName || '');
           setGlossaryFileSize(savedJob.glossaryFileSize || null);
           setGlossaryId(savedJob.glossaryId || null);
+          setGlossaryFileBase64(savedJob.glossaryFileBase64 || null);
           setTmFileName(savedJob.tmFileName || '');
           setTmFileSize(savedJob.tmFileSize || null);
           setTmId(savedJob.tmId || null);
+          setTmFileBase64(savedJob.tmFileBase64 || null);
           setIsTranslating(true);
           setActiveAction(savedJob.segmentOnly ? 'segment' : 'translate');
           setIsPreparingSample(false);
@@ -588,7 +751,27 @@ const Torgman = () => {
         }
 
         const documentId = await getActiveDocumentId();
-        if (!documentId) return;
+        if (!documentId) {
+          // No job, no document yet — restore any glossary/TM the user picked
+          // before starting a translation, so it survives a tab close too.
+          if (!cancelled) {
+            const pendingGlossary = await getPendingUpload('glossary');
+            if (pendingGlossary?.id) {
+              setGlossaryFileName(pendingGlossary.fileName || '');
+              setGlossaryFileSize(pendingGlossary.fileSize || null);
+              setGlossaryId(pendingGlossary.id);
+              setGlossaryFileBase64(pendingGlossary.base64 || null);
+            }
+            const pendingTm = await getPendingUpload('tm');
+            if (pendingTm?.id) {
+              setTmFileName(pendingTm.fileName || '');
+              setTmFileSize(pendingTm.fileSize || null);
+              setTmId(pendingTm.id);
+              setTmFileBase64(pendingTm.base64 || null);
+            }
+          }
+          return;
+        }
 
         const savedDocument = await loadDocument(documentId);
         if (!savedDocument || !savedDocument.translatedContents) return;
@@ -604,9 +787,11 @@ const Torgman = () => {
           setGlossaryFileName(savedDocument.glossaryFileName || '');
           setGlossaryFileSize(savedDocument.glossaryFileSize || null);
           setGlossaryId(savedDocument.glossaryId || null);
+          setGlossaryFileBase64(savedDocument.glossaryFileBase64 || null);
           setTmFileName(savedDocument.tmFileName || '');
           setTmFileSize(savedDocument.tmFileSize || null);
           setTmId(savedDocument.tmId || null);
+          setTmFileBase64(savedDocument.tmFileBase64 || null);
           setDownloadUrl('indexeddb');
           setIsTranslating(false);
           setActiveAction(null);
@@ -616,23 +801,6 @@ const Torgman = () => {
           setStatus('‫تمت الترجمة بنجاح!');
         }
 
-        if (!cancelled && !savedDocument.glossaryFileName) {
-          const savedGlossaryName = sessionStorage.getItem('translation_glossary_name') || '';
-          const savedGlossarySize = sessionStorage.getItem('translation_glossary_size');
-          if (savedGlossaryName) {
-            setGlossaryFileName(savedGlossaryName);
-            setGlossaryFileSize(savedGlossarySize ? Number(savedGlossarySize) : null);
-          }
-        }
-
-        if (!cancelled && !savedDocument.tmFileName) {
-          const savedTmName = sessionStorage.getItem('translation_tm_name') || '';
-          const savedTmSize = sessionStorage.getItem('translation_tm_size');
-          if (savedTmName) {
-            setTmFileName(savedTmName);
-            setTmFileSize(savedTmSize ? Number(savedTmSize) : null);
-          }
-        }
       } catch (e) {
         console.error('Failed to restore translation data from IndexedDB:', e);
       }
@@ -658,6 +826,30 @@ const Torgman = () => {
       return;
     }
 
+    // If a glossary/TM upload is still in flight (e.g. the user picked a
+    // file and immediately hit "Translate"), wait for it so glossaryId/tmId
+    // are actually set before we build the request — otherwise the
+    // translation would silently go out without the attached TB/TM.
+    if (glossaryUploadPromiseRef.current) {
+      await glossaryUploadPromiseRef.current.catch(() => {});
+    }
+    if (tmUploadPromiseRef.current) {
+      await tmUploadPromiseRef.current.catch(() => {});
+    }
+
+    // Fresh translation run — reset "touched" tracking and seed the refs
+    // with whatever glossary/TM is currently attached, so mid-flight
+    // uploads/removals during *this* run can be told apart from the ones
+    // that were already baked into the request below.
+    glossaryTouchedRef.current = false;
+    tmTouchedRef.current = false;
+    glossaryRef.current = {
+      id: glossaryId, fileName: glossaryFileName, fileSize: glossaryFileSize, base64: glossaryFileBase64,
+    };
+    tmRef.current = {
+      id: tmId, fileName: tmFileName, fileSize: tmFileSize, base64: tmFileBase64,
+    };
+
     const thisId = crypto.randomUUID();
     translationIdRef.current = thisId;
 
@@ -676,12 +868,9 @@ const Torgman = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      if (glossaryFile) {
-        formData.append('glossary', glossaryFile);
-      }
-      if (tmFile) {
-        formData.append('translation_memory', tmFile);
-      }
+      // Glossary/TM are uploaded immediately on selection (see uploadGlossaryFile/
+      // uploadTmFile), so by the time translation starts we already have ids —
+      // pass those instead of re-sending the raw files.
 
       const endpoints = {
         'pdf': '/translation/pdf',
@@ -697,6 +886,12 @@ const Torgman = () => {
       let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
       if (segmentOnly) {
         queryParams += `&segment_only=true`;
+      }
+      if (glossaryId) {
+        queryParams += `&glossary_id=${encodeURIComponent(glossaryId)}`;
+      }
+      if (tmId) {
+        queryParams += `&tm_id=${encodeURIComponent(tmId)}`;
       }
       if (hasStyleGuideData(styleGuideData) && isStyleGuideActive) {
         const styleGuideXML = formatStyleGuideToXML(styleGuideData);
@@ -751,9 +946,11 @@ const Torgman = () => {
         glossaryFileName,
         glossaryFileSize,
         glossaryId: glossary_id || null,
+        glossaryFileBase64,
         tmFileName,
         tmFileSize,
         tmId: tm_id || null,
+        tmFileBase64,
         translationStartTs,
         thisId,
         segmentOnly,
@@ -927,8 +1124,22 @@ const Torgman = () => {
                       setSelectedFile(null);
                       setGlossaryFileName('');
                       setGlossaryFile(null);
+                      setGlossaryFileSize(null);
+                      setGlossaryId(null);
+                      setGlossaryFileBase64(null);
                       setTmFileName('');
                       setTmFile(null);
+                      setTmFileSize(null);
+                      setTmId(null);
+                      setTmFileBase64(null);
+                      await clearPendingUpload('glossary');
+                      await clearPendingUpload('tm');
+                      glossaryUploadPromiseRef.current = null;
+                      tmUploadPromiseRef.current = null;
+                      glossaryRef.current = { id: null, fileName: '', fileSize: null, base64: null };
+                      tmRef.current = { id: null, fileName: '', fileSize: null, base64: null };
+                      glossaryTouchedRef.current = false;
+                      tmTouchedRef.current = false;
                       resetTranslationUiState();
                       if (fileInputRef.current) fileInputRef.current.value = '';
                       if (glossaryInputRef.current) glossaryInputRef.current.value = '';
@@ -955,6 +1166,7 @@ const Torgman = () => {
                     type="button"
                     className="glossary-upload-btn"
                     onClick={() => glossaryInputRef.current.click()}
+                    disabled={glossaryUploading}
                   >
                     أضف ملف مصطلحات (TBX)
                   </button>
@@ -962,19 +1174,29 @@ const Torgman = () => {
                   <div className="glossary-chip">
                     <span className="glossary-chip-icon">📘</span>
                     <span className="glossary-chip-name" title={glossaryFileName}>
-                      {glossaryFileName}
+                      {glossaryUploading ? `جارٍ الرفع... ${glossaryFileName}` : glossaryFileName}
                     </span>
                     
                     <button
                       type="button"
                       className="glossary-chip-remove"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         setGlossaryFileName('');
                         setGlossaryFile(null);
                         setGlossaryFileSize(null);
-                        sessionStorage.removeItem('translation_glossary_name');
-                        sessionStorage.removeItem('translation_glossary_size');
+                        setGlossaryId(null);
+                        setGlossaryFileBase64(null);
+                        glossaryRef.current = { id: null, fileName: '', fileSize: null, base64: null };
+                        glossaryTouchedRef.current = true;
+                        glossaryUploadPromiseRef.current = null;
+                        await clearPendingUpload('glossary');
+                        if (activeDocumentId) {
+                          await saveDocumentState(activeDocumentId, {
+                            glossaryFileName: '', glossaryFileSize: null,
+                            glossaryId: null, glossaryFileBase64: null,
+                          });
+                        }
                         if (glossaryInputRef.current) {
                           glossaryInputRef.current.value = '';
                         }
@@ -1000,6 +1222,7 @@ const Torgman = () => {
                     type="button"
                     className="glossary-upload-btn"
                     onClick={() => tmInputRef.current.click()}
+                    disabled={tmUploading}
                   >
                     أضف ذاكرة ترجمة (TMX)
                   </button>
@@ -1007,19 +1230,29 @@ const Torgman = () => {
                   <div className="glossary-chip">
                     <span className="glossary-chip-icon">📘</span>
                     <span className="glossary-chip-name" title={tmFileName}>
-                      {tmFileName}
+                      {tmUploading ? `جارٍ الرفع... ${tmFileName}` : tmFileName}
                     </span>
 
                     <button
                       type="button"
                       className="glossary-chip-remove"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         setTmFileName('');
                         setTmFile(null);
                         setTmFileSize(null);
-                        sessionStorage.removeItem('translation_tm_name');
-                        sessionStorage.removeItem('translation_tm_size');
+                        setTmId(null);
+                        setTmFileBase64(null);
+                        tmRef.current = { id: null, fileName: '', fileSize: null, base64: null };
+                        tmTouchedRef.current = true;
+                        tmUploadPromiseRef.current = null;
+                        await clearPendingUpload('tm');
+                        if (activeDocumentId) {
+                          await saveDocumentState(activeDocumentId, {
+                            tmFileName: '', tmFileSize: null,
+                            tmId: null, tmFileBase64: null,
+                          });
+                        }
                         if (tmInputRef.current) {
                           tmInputRef.current.value = '';
                         }
@@ -1074,7 +1307,7 @@ const Torgman = () => {
                 <button
                   className="translate-btn segment-only-btn"
                   onClick={() => handleTranslateFile(true)}
-                  disabled={!selectedFile || isTranslating}
+                  disabled={!selectedFile || isTranslating || glossaryUploading || tmUploading}
                   title="تقسيم المستند إلى فقرات دون ترجمتها"
                 >
                   {isTranslating && activeAction === 'segment'
@@ -1084,7 +1317,7 @@ const Torgman = () => {
                 <button 
                   className="translate-btn"
                   onClick={() => handleTranslateFile(false)}
-                  disabled={!selectedFile || isTranslating}
+                  disabled={!selectedFile || isTranslating || glossaryUploading || tmUploading}
                 >
                   {isTranslating && activeAction === 'translate'
                     ? (totalBlocks > 0 ? '‫قيد الترجمة...' : '‫قيد التحميل...')

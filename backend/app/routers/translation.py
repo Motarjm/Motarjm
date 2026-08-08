@@ -182,6 +182,94 @@ def _parse_tm(tm_file: UploadFile, tm_bytes: bytes, source_lang: str, target_lan
     return store_tm(entries)
 
 
+def _resolve_glossary(
+    file: Optional[UploadFile],
+    file_bytes: Optional[bytes],
+    existing_id: Optional[str],
+    source_lang: str,
+    target_lang: str,
+) -> Tuple[dict, Optional[str]]:
+    """Use an uploaded TBX file if provided, otherwise look up by an existing glossary_id."""
+    if file and file_bytes:
+        return _parse_glossary(file, file_bytes, source_lang, target_lang)
+    if existing_id:
+        terms = get_glossary(existing_id)
+        if terms is None:
+            raise HTTPException(status_code=404, detail="Unknown or expired glossary_id")
+        return terms, existing_id
+    return {}, None
+
+
+def _resolve_tm(
+    file: Optional[UploadFile],
+    file_bytes: Optional[bytes],
+    existing_id: Optional[str],
+    source_lang: str,
+    target_lang: str,
+) -> Optional[str]:
+    """Use an uploaded TMX file if provided, otherwise look up by an existing tm_id."""
+    if file and file_bytes:
+        return _parse_tm(file, file_bytes, source_lang, target_lang)
+    if existing_id:
+        entries = get_tm(existing_id)
+        if entries is None:
+            raise HTTPException(status_code=404, detail="Unknown or expired tm_id")
+        return existing_id
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Independent TB/TM upload endpoints — parse & store immediately, return an id.
+# Lets the frontend attach a glossary/TM before, during, or after translation
+# without re-sending the raw file each time.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.post("/glossary")
+async def upload_glossary(
+    glossary: UploadFile = File(...),
+    source_lang: str = Query("en"),
+    target_lang: str = Query("ar"),
+):
+    if not glossary.filename.endswith(".tbx"):
+        raise HTTPException(status_code=400, detail="Only .tbx glossary files are allowed")
+    try:
+        tbx_bytes = await glossary.read()
+    except Exception:
+        logger.exception(f"failed to read TBX glossary: {glossary.filename}")
+        raise HTTPException(status_code=400, detail="Failed to read TBX file")
+
+    glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+    return {
+        "glossary_id": glossary_id,
+        "terms_count": len(glossary_dict) if glossary_dict else 0,
+        "source_lang": source_lang,
+        "target_lang": target_lang,
+    }
+
+
+@router.post("/tm")
+async def upload_tm(
+    tm_file: UploadFile = File(...),
+    source_lang: str = Query("en"),
+    target_lang: str = Query("ar"),
+):
+    if not tm_file.filename.lower().endswith(".tmx"):
+        raise HTTPException(status_code=400, detail="Only .tmx translation memory files are allowed")
+    try:
+        tmx_bytes = await tm_file.read()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Failed to read TMX file")
+
+    resolved_tm_id = _parse_tm(tm_file, tmx_bytes, source_lang, target_lang)
+    entry_count = len(get_tm(resolved_tm_id)) if resolved_tm_id else 0
+    return {
+        "tm_id": resolved_tm_id,
+        "entry_count": entry_count,
+        "source_lang": source_lang,
+        "target_lang": target_lang,
+    }
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # "Start job" endpoints — validate input, kick off background work, return
 # immediately with a job_id. These no longer stream anything themselves.
@@ -192,6 +280,8 @@ async def translate_pdf_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
+    glossary_id: Optional[str] = Query(None),
+    tm_id: Optional[str] = Query(None),
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
@@ -210,23 +300,11 @@ async def translate_pdf_file(
         logger.exception(f"failed to read uploaded PDF: {file.filename}")
         raise HTTPException(status_code=400, detail="Failed to read PDF file")
 
-    glossary_dict = {}
-    glossary_id = None
-    if glossary:
-        try:
-            tbx_bytes = await glossary.read()
-        except Exception:
-            logger.exception(f"failed to read TBX glossary: {glossary.filename}")
-            raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+    glossary_bytes = await glossary.read() if glossary else None
+    glossary_dict, glossary_id = _resolve_glossary(glossary, glossary_bytes, glossary_id, source_lang, target_lang)
 
-    tm_id = None
-    if translation_memory:
-        try:
-            tmx_bytes = await translation_memory.read()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Failed to read TMX file")
-        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+    tm_bytes = await translation_memory.read() if translation_memory else None
+    tm_id = _resolve_tm(translation_memory, tm_bytes, tm_id, source_lang, target_lang)
 
     clear_doc_summary_cache()
 
@@ -241,6 +319,8 @@ async def translate_xliff_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
+    glossary_id: Optional[str] = Query(None),
+    tm_id: Optional[str] = Query(None),
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
@@ -256,23 +336,11 @@ async def translate_xliff_file(
         logger.exception(f"failed to read uploaded XLIFF: {file.filename}")
         raise HTTPException(status_code=400, detail="Failed to read XLIFF file")
 
-    glossary_dict = {}
-    glossary_id = None
-    if glossary:
-        try:
-            tbx_bytes = await glossary.read()
-        except Exception:
-            logger.exception(f"failed to read TBX glossary: {glossary.filename}")
-            raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+    glossary_bytes = await glossary.read() if glossary else None
+    glossary_dict, glossary_id = _resolve_glossary(glossary, glossary_bytes, glossary_id, source_lang, target_lang)
 
-    tm_id = None
-    if translation_memory:
-        try:
-            tmx_bytes = await translation_memory.read()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Failed to read TMX file")
-        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+    tm_bytes = await translation_memory.read() if translation_memory else None
+    tm_id = _resolve_tm(translation_memory, tm_bytes, tm_id, source_lang, target_lang)
 
     clear_doc_summary_cache()
 
@@ -287,6 +355,8 @@ async def translate_docx_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
+    glossary_id: Optional[str] = Query(None),
+    tm_id: Optional[str] = Query(None),
     source_lang: str = Query("en"),
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
@@ -302,23 +372,11 @@ async def translate_docx_file(
         logger.exception(f"failed to read uploaded DOCX: {file.filename}")
         raise HTTPException(status_code=400, detail="Failed to read DOCX file")
 
-    glossary_dict = {}
-    glossary_id = None
-    if glossary:
-        try:
-            tbx_bytes = await glossary.read()
-        except Exception:
-            logger.exception(f"failed to read TBX glossary: {glossary.filename}")
-            raise HTTPException(status_code=400, detail="Failed to read TBX file")
-        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+    glossary_bytes = await glossary.read() if glossary else None
+    glossary_dict, glossary_id = _resolve_glossary(glossary, glossary_bytes, glossary_id, source_lang, target_lang)
 
-    tm_id = None
-    if translation_memory:
-        try:
-            tmx_bytes = await translation_memory.read()
-        except Exception:
-            raise HTTPException(status_code=400, detail="Failed to read TMX file")
-        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+    tm_bytes = await translation_memory.read() if translation_memory else None
+    tm_id = _resolve_tm(translation_memory, tm_bytes, tm_id, source_lang, target_lang)
 
     clear_doc_summary_cache()
 
