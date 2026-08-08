@@ -7,6 +7,8 @@ const CHATS_STORE = 'chats';
 const META_STORE = 'meta';
 const ACTIVE_DOCUMENT_KEY = 'activeDocumentId';
 const ACTIVE_TRANSLATION_JOB_KEY = 'activeTranslationJob';
+const PENDING_GLOSSARY_KEY = 'pendingGlossary';
+const PENDING_TM_KEY = 'pendingTm';
 
 // Generates a unique ID for persisted document records.
 // Use it when creating a new translation session/document entry.
@@ -186,6 +188,60 @@ export const clearChatsForDocument = async (documentId) => {
   }
 
   await tx.done;
+};
+
+// ── TB/TM caching helpers ──
+// Backend glossary/TM stores are in-memory (glossary: 7d TTL, TM: 24h TTL) and
+// are wiped on server restart. To make attached TB/TM genuinely durable across
+// refreshes and tab closes, we cache the *original file* (as base64) alongside
+// its id in IndexedDB. If the id is ever gone server-side (404), the caller can
+// re-POST the cached base64 to mint a fresh id transparently.
+
+// Converts a File/Blob into a base64 string for IndexedDB storage.
+export const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(reader.result.split(',')[1]);
+  reader.onerror = () => reject(new Error('Failed to read file'));
+  reader.readAsDataURL(file);
+});
+
+// Rebuilds a File from a cached base64 string, e.g. to re-upload it.
+export const base64ToFile = (base64, fileName, mimeType = 'application/octet-stream') => {
+  const byteChars = atob(base64);
+  const byteNumbers = new Array(byteChars.length);
+  for (let i = 0; i < byteChars.length; i += 1) {
+    byteNumbers[i] = byteChars.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new File([byteArray], fileName, { type: mimeType });
+};
+
+// Persists the pre-translation glossary/TM pick (file + id) in IndexedDB meta,
+// so it survives a full tab close — not just a refresh (sessionStorage doesn't).
+// `kind` is 'glossary' | 'tm'.
+export const setPendingUpload = async (kind, { id, fileName, fileSize, base64 }) => {
+  const db = await getDb();
+  const key = kind === 'tm' ? PENDING_TM_KEY : PENDING_GLOSSARY_KEY;
+  await db.put(META_STORE, {
+    key,
+    value: { id, fileName, fileSize, base64 },
+    updatedAt: nowIso(),
+  });
+};
+
+// Reads back the cached pre-translation glossary/TM pick, if any.
+export const getPendingUpload = async (kind) => {
+  const db = await getDb();
+  const key = kind === 'tm' ? PENDING_TM_KEY : PENDING_GLOSSARY_KEY;
+  const item = await db.get(META_STORE, key);
+  return item?.value || null;
+};
+
+// Clears the cached pre-translation glossary/TM pick (e.g. user removed it).
+export const clearPendingUpload = async (kind) => {
+  const db = await getDb();
+  const key = kind === 'tm' ? PENDING_TM_KEY : PENDING_GLOSSARY_KEY;
+  await db.delete(META_STORE, key);
 };
 
 // Hard-resets all persisted app data (documents, chats, and metadata).

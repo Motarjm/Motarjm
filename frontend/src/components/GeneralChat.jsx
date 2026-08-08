@@ -63,6 +63,12 @@ const GeneralChat = ({
   glossary,
   activeSegmentSource,
   tmId,
+  glossaryFileName,
+  tmFileName,
+  glossaryUploading,
+  tmUploading,
+  onUploadGlossary,
+  onUploadTm,
   // ── Segment-scope props (all optional — panel degrades gracefully
   // to an empty state if no segment is active) ──
   activeSegmentId,        // "pageIndex-blockIndex" of the currently active segment, or null
@@ -84,6 +90,8 @@ const GeneralChat = ({
   const [model, setModel] = useState('claude');
   const [width, setWidth] = useState(470);
   const [isResizing, setIsResizing] = useState(false);
+  const tmUploadInputRef = useRef();
+  const glossaryUploadInputRef = useRef();
   // ── Two-tier scope: which top-level context the panel is showing ──
   const [scope, setScope] = useState('document'); // 'document' | 'segment'
   // ── Sub-tab within Segment scope ──
@@ -914,15 +922,62 @@ const GeneralChat = ({
               {segmentTab === 'tm' && (
                 <div key="tm" className="tm-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
                   {tmId ? (
-                    <TranslationMemoryTab
-                      tmId={tmId}
-                      activeSegmentSource={activeSegmentSource}
-                      segmentMatches={tmSegmentMatches}
-                      loadingSegment={tmLoading}
-                    />
+                    <>
+                      {/* <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 8px' }}>
+                        <button
+                          type="button"
+                          className="glossary-chip-remove"
+                          disabled={tmUploading}
+                          onClick={() => tmUploadInputRef.current?.click()}
+                          title={tmFileName ? `Replace ${tmFileName}` : 'Replace TM'}
+                        >
+                          {tmUploading ? 'Uploading…' : 'Replace TM'}
+                        </button>
+                        <input
+                          type="file"
+                          ref={tmUploadInputRef}
+                          style={{ display: 'none' }}
+                          accept=".tmx"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file && onUploadTm) onUploadTm(file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </div> */}
+                      <TranslationMemoryTab
+                        tmId={tmId}
+                        activeSegmentSource={activeSegmentSource}
+                        segmentMatches={tmSegmentMatches}
+                        loadingSegment={tmLoading}
+                      />
+                    </>
                   ) : (
                     <div className="segment-tab-content">
-                      <div className="tab-empty-state">No translation memory attached to this document.</div>
+                      <div className="tab-empty-state">
+                        No translation memory attached to this document.
+                        <div style={{ marginTop: 10 }}>
+                          <button
+                            type="button"
+                            className="glossary-upload-btn"
+                            disabled={tmUploading}
+                            onClick={() => tmUploadInputRef.current?.click()}
+                          >
+                            {tmUploading ? 'Uploading…' : 'Attach TMX'}
+                          </button>
+                          <input
+                            type="file"
+                            ref={tmUploadInputRef}
+                            style={{ display: 'none' }}
+                            accept=".tmx"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file && onUploadTm) onUploadTm(file);
+                              e.target.value = '';
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -931,13 +986,60 @@ const GeneralChat = ({
               {segmentTab === 'termbase' && (
                 <div key="termbase" className="termbase-wrapper" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
                   {glossary && Object.keys(glossary).length > 0 ? (
-                    <TermbaseTab
-                      glossary={glossary}
-                      activeSegmentSource={activeSegmentSource}
-                    />
+                    <>
+                      {/* <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 8px' }}>
+                        <button
+                          type="button"
+                          className="glossary-chip-remove"
+                          disabled={glossaryUploading}
+                          onClick={() => glossaryUploadInputRef.current?.click()}
+                          title={glossaryFileName ? `Replace ${glossaryFileName}` : 'Replace glossary'}
+                        >
+                          {glossaryUploading ? 'Uploading…' : 'Replace glossary'}
+                        </button>
+                        <input
+                          type="file"
+                          ref={glossaryUploadInputRef}
+                          style={{ display: 'none' }}
+                          accept=".tbx"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file && onUploadGlossary) onUploadGlossary(file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </div> */}
+                      <TermbaseTab
+                        glossary={glossary}
+                        activeSegmentSource={activeSegmentSource}
+                      />
+                    </>
                   ) : (
                     <div className="segment-tab-content">
-                      <div className="tab-empty-state">No glossary attached to this document.</div>
+                      <div className="tab-empty-state">
+                        No glossary attached to this document.
+                        <div style={{ marginTop: 10 }}>
+                          <button
+                            type="button"
+                            className="glossary-upload-btn"
+                            disabled={glossaryUploading}
+                            onClick={() => glossaryUploadInputRef.current?.click()}
+                          >
+                            {glossaryUploading ? 'Uploading…' : 'Attach TBX'}
+                          </button>
+                          <input
+                            type="file"
+                            ref={glossaryUploadInputRef}
+                            style={{ display: 'none' }}
+                            accept=".tbx"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file && onUploadGlossary) onUploadGlossary(file);
+                              e.target.value = '';
+                            }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
