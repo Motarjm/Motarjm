@@ -553,27 +553,28 @@ const Torgman = () => {
 
       let newFileContent = null;
 
-      if (fileType === 'pdf') {
-        translationPhase = 'building_pdf_output';
-        const blob = new Blob(
-          [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
-          { type: 'application/pdf' }
-        );
-        const url = URL.createObjectURL(blob);
-        setTranslatedContents(finalData.translated_contents);
-        newFileContent = finalData.original_pdf_base64 || null;
-        setFileContent(newFileContent);
-        setDownloadUrl(url);
-      } else if (fileType === 'xliff') {
-        translationPhase = 'building_xliff_output';
-        const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
-        const url = URL.createObjectURL(blob);
-        setTranslatedContents(finalData.translated_contents);
-        newFileContent = finalData.xliff;
-        setFileContent(finalData.xliff);
-        setDownloadUrl(url);
+      // if (fileType === 'pdf') {
+      //   translationPhase = 'building_pdf_output';
+      //   const blob = new Blob(
+      //     [Uint8Array.from(atob(finalData.pdf), c => c.charCodeAt(0))],
+      //     { type: 'application/pdf' }
+      //   );
+      //   const url = URL.createObjectURL(blob);
+      //   setTranslatedContents(finalData.translated_contents);
+      //   newFileContent = finalData.original_pdf_base64 || null;
+      //   setFileContent(newFileContent);
+      //   setDownloadUrl(url);
+      // } 
+        if (fileType === 'xliff') {
+          translationPhase = 'building_xliff_output';
+          const blob = new Blob([finalData.xliff], { type: 'application/xliff+xml' });
+          const url = URL.createObjectURL(blob);
+          setTranslatedContents(finalData.translated_contents);
+          newFileContent = finalData.xliff;
+          setFileContent(finalData.xliff);
+          setDownloadUrl(url);
       }
-      else if (fileType === 'docx') {
+      else if (fileType === 'docx' || fileType === 'pdf') {
         translationPhase = 'building_docx_output';
         const blob = new Blob(
                 [Uint8Array.from(atob(finalData.original_docx_base64), c => c.charCodeAt(0))],
@@ -873,7 +874,7 @@ const Torgman = () => {
       // pass those instead of re-sending the raw files.
 
       const endpoints = {
-        'pdf': '/translation/pdf',
+        'pdf': '/translation/pdf-as-docx',
         'docx': '/translation/docx',
         'xliff': '/translation/xliff'
       };
