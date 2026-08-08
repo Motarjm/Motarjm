@@ -9,6 +9,8 @@ from typing import List, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List
 
+from app.core.llms import MAX_TOOL_CALLS
+
 #TODO: terminoloy agent takes as arg 'document' with keys 'text' because the document is coming from the backend
 # but in the frontend the document is coming from the frontend with keys 'original_text' and 'translated_text' so we need to unify this
 # this is apparent in terminology agent and stream_reviewer functions
@@ -266,7 +268,11 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
     page_context_str = "\n\n".join(page_context)
     
     
-    sys_prompt_content = CHATBOT_SYS_PROMPT
+    sys_prompt_content = CHATBOT_SYS_PROMPT.format(
+        source_lang=source_lang,
+        target_lang=target_lang,
+        MAX_TOOL_CALLS=MAX_TOOL_CALLS
+    )
     
     # if there is style guide, dont use doc summary
     if style_guide:
@@ -530,7 +536,11 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
     """
     provider_key = f"general_chatbot_{model}"
 
-    sys_prompt_content = GENERAL_CHATBOT_SYS_PROMPT
+    sys_prompt_content = GENERAL_CHATBOT_SYS_PROMPT.format(
+        source_lang=source_lang,
+        target_lang=target_lang,
+        MAX_TOOL_CALLS=MAX_TOOL_CALLS
+    )
     doc_source = []
     for page in doc_context:
         current_page_blocks = []

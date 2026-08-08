@@ -54,13 +54,12 @@ def exa_search(query: str,
     # You can transform/validate the query here before it hits Exa
     # query = f"{query} site:arxiv.org OR site:nature.com"  # force domain
     raw = search_tool._run(query,
-                           num_results = 5,
+                           num_results = 3,
                             highlights = True,
                             include_domains = include_domains,
                             exclude_domains = exclude_domains,
-                            text_contents_options={"max_characters": 1000},  # Limit text length
-                            type="auto")
-
+                            text_contents_options={"max_characters": 5000},  # Limit text length
+                            type="auto") 
     # Exa may return an object with `.results` or a plain list depending on version.
     # Normalize to a small JSON blob so downstream code (and the LLM) can rely on
     # a fixed shape: {"query": ..., "results": [{"title", "url", "text"}, ...]}
