@@ -13,6 +13,9 @@ from app.services.pdf_service import build_translated_pdf_base64
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
 from app.core.simple_calls import clear_doc_summary_cache
 from app.state.job_store import job_store
+import tempfile
+import os
+from pdf2docx import Converter
 
 logger = logging.getLogger(__name__)
 
@@ -181,12 +184,30 @@ def _parse_tm(tm_file: UploadFile, tm_bytes: bytes, source_lang: str, target_lan
         return None
     return store_tm(entries)
 
+def _convert_pdf_to_docx_bytes(pdf_bytes: bytes) -> bytes:
+    """Convert PDF bytes to DOCX bytes using pdf2docx."""
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_tmp:
+        pdf_tmp.write(pdf_bytes)
+        pdf_path = pdf_tmp.name
+
+    docx_path = pdf_path.replace(".pdf", ".docx")
+    try:
+        cv = Converter(pdf_path)
+        cv.convert(docx_path, start=0, end=None)
+        cv.close()
+        with open(docx_path, "rb") as f:
+            return f.read()
+    finally:
+        os.unlink(pdf_path)
+        if os.path.exists(docx_path):
+            os.unlink(docx_path)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # "Start job" endpoints — validate input, kick off background work, return
 # immediately with a job_id. These no longer stream anything themselves.
 # ─────────────────────────────────────────────────────────────────────────────
 
+# NOT USED FOR NOW
 @router.post("/pdf")
 async def translate_pdf_file(
     file: UploadFile = File(...),
@@ -325,6 +346,65 @@ async def translate_docx_file(
     job_id = job_store.create_job()
     logger.info(f"[docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
     asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
+
+@router.post("/pdf-as-docx")
+async def translate_pdf_as_docx(
+    file: UploadFile = File(...),
+    glossary: UploadFile = File(None),
+    translation_memory: UploadFile = File(None),
+    source_lang: str = Query("en"),
+    target_lang: str = Query("ar"),
+    style_guide: str = Query(None),
+    segment_only: bool = Query(False),
+):
+    if not file.filename.endswith(".pdf"):
+        logger.warning(f"rejected non-pdf upload: {file.filename}")
+        raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
+    if file.content_type != "application/pdf":
+        logger.warning(f"rejected upload with bad content_type: {file.content_type}")
+        raise HTTPException(status_code=400, detail="Invalid file type. Expected application/pdf")
+
+    try:
+        pdf_bytes = await file.read()
+    except Exception:
+        logger.exception(f"failed to read uploaded PDF: {file.filename}")
+        raise HTTPException(status_code=400, detail="Failed to read PDF file")
+
+    # ── PDF → DOCX conversion ──
+    try:
+        docx_bytes = await asyncio.to_thread(_convert_pdf_to_docx_bytes, pdf_bytes)
+    except Exception as exc:
+        logger.exception("pdf2docx conversion failed")
+        raise HTTPException(status_code=500, detail=f"PDF to DOCX conversion failed: {exc}")
+
+    # ── everything below is identical to your /docx endpoint ──
+    glossary_dict = {}
+    glossary_id = None
+    if glossary:
+        try:
+            tbx_bytes = await glossary.read()
+        except Exception:
+            logger.exception(f"failed to read TBX glossary: {glossary.filename}")
+            raise HTTPException(status_code=400, detail="Failed to read TBX file")
+        glossary_dict, glossary_id = _parse_glossary(glossary, tbx_bytes, source_lang, target_lang)
+
+    tm_id = None
+    if translation_memory:
+        try:
+            tmx_bytes = await translation_memory.read()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Failed to read TMX file")
+        tm_id = _parse_tm(translation_memory, tmx_bytes, source_lang, target_lang)
+
+    clear_doc_summary_cache()
+
+    job_id = job_store.create_job()
+    logger.info(f"[pdf-as-docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
+    asyncio.create_task(
+        run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide,
+                     glossary_dict, glossary_id=glossary_id, no_translation=segment_only)
+    )
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 

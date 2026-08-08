@@ -553,7 +553,7 @@ const CompareInterface = () => {
         ),
       };
 
-      if (fileType === 'docx' && originalFile) {
+      if ((fileType === 'docx' || fileType === 'pdf') && originalFile) {
         requestBody.original_docx = originalFile;
       }
 
