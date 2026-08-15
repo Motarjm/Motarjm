@@ -460,20 +460,59 @@ const Torgman = () => {
       return Math.min(100, Math.max(0, Math.round((latestProgressCompleted / latestTotalBlocks) * 100)));
     };
 
-    try {
-      const response = await fetch(
-        `${API_URL}/translation/stream/${jobId}`,
-        { signal: controller.signal }
-      );
-      if (!response.ok) {
-        throw new Error('تعذر فتح تدفق متابعة الترجمة');
-      }
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_BASE_DELAY_MS = 3000; // exponential backoff: 1s, 2s, 4s, 8s, 16s
+    let reconnectAttempt = 0;
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let finalData = null;
-      let backendErrorDetail = null;  // ← CHANGED: track backend error messages
+    let finalData = null;
+    let backendErrorDetail = null;
+
+    // isRecoverableStreamError: connection dropped mid-stream (proxy idle
+    // timeout, wifi blip, etc.), not a real application error. The job is
+    // still alive server-side in job_store, so we just re-open the stream
+    // instead of failing the whole translation.
+    const isRecoverableStreamError = (error) => {
+      const msg = String(error?.message || '').toLowerCase();
+      return error instanceof TypeError && (
+        msg.includes('network error') ||
+        msg.includes('failed to fetch') ||
+        msg.includes('load failed') ||
+        msg.includes('error in input stream')
+      );
+    };
+
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    try {
+      streamLoop:
+      while (true) {
+        if (isCancelled()) return;
+
+        let response;
+        try {
+          response = await fetch(
+            `${API_URL}/translation/stream/${jobId}`,
+            { signal: controller.signal }
+          );
+        } catch (fetchError) {
+          if (fetchError.name === 'AbortError') return;
+          if (isRecoverableStreamError(fetchError) && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+            reconnectAttempt += 1;
+            translationPhase = 'reconnecting_stream';
+            setStatus('‫جارٍ إعادة الاتصال...');
+            await sleep(RECONNECT_BASE_DELAY_MS * 2 ** (reconnectAttempt - 1));
+            continue streamLoop;
+          }
+          throw fetchError;
+        }
+
+        if (!response.ok) {
+          throw new Error('تعذر فتح تدفق متابعة الترجمة');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
       const processLines = (lines) => {
         for (const line of lines) {
@@ -517,7 +556,7 @@ const Torgman = () => {
                   target_lang: metaTargetLang,
                   endpoint: `/translation/stream/${jobId}`,
                   translation_phase: 'sse_parse',
-                  elapsed_ms: Date.now() - translationStartTs,
+                  elapsed_ms: (Date.now() - translationStartTs) / 1000,
                   progress_percent: getProgressPercent(),
                   sse_line_preview: trimmed.substring(0, 300),
                 });
@@ -527,25 +566,63 @@ const Torgman = () => {
         }
       };
 
-      while (true) {
-        if (isCancelled()) break;
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop();
-        processLines(lines);
-      }
+        let streamDroppedMidRead = false;
+        try {
+          while (true) {
+            if (isCancelled()) return;
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop();
+            processLines(lines);
+          }
+        } catch (readError) {
+          if (isCancelled()) return;
+          if (isRecoverableStreamError(readError) && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+            streamDroppedMidRead = true;
+          } else {
+            throw readError;
+          }
+        }
 
-      if (!isCancelled() && buffer.trim()) {
-        processLines(buffer.split('\n\n'));
-      }
+        if (streamDroppedMidRead) {
+          // Connection died mid-read (e.g. proxy idle timeout). The job is
+          // still running server-side — back off, then re-open the stream.
+          // Progress already parsed (latestProgressCompleted/latestTotalBlocks)
+          // is preserved across the reconnect since it lives in the outer scope.
+          reconnectAttempt += 1;
+          translationPhase = 'reconnecting_stream';
+          setStatus('‫جارٍ إعادة الاتصال...');
+          await sleep(RECONNECT_BASE_DELAY_MS * 2 ** (reconnectAttempt - 1));
+          continue streamLoop;
+        }
+
+        if (!isCancelled() && buffer.trim()) {
+          processLines(buffer.split('\n\n'));
+        }
+
+        if (isCancelled()) return;
+
+        // Stream ended cleanly (reader done) without a terminal event —
+        // treat like a drop and retry rather than failing outright, since
+        // some proxies close the connection right at the tail end.
+        if (!finalData && !backendErrorDetail && reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempt += 1;
+          translationPhase = 'reconnecting_stream';
+          setStatus('‫جارٍ إعادة الاتصال...');
+          await sleep(RECONNECT_BASE_DELAY_MS * 2 ** (reconnectAttempt - 1));
+          continue streamLoop;
+        }
+
+        break; // got finalData, a backend error, or exhausted retries
+      } // end streamLoop
 
       if (isCancelled()) return;
 
       if (!finalData) {
         translationPhase = 'missing_final_event';
-        const errorMessage = backendErrorDetail  // ← CHANGED: use captured backend error
+        const errorMessage = backendErrorDetail
           ? `Translation failed: ${backendErrorDetail}`
           : 'لم يتم استلام نتيجة الترجمة';
         throw new Error(errorMessage);
@@ -689,9 +766,12 @@ const Torgman = () => {
             elapsed_ms: elapsedMs,
             progress_percent: getProgressPercent(),
             browser_stream_error_message: error?.message || null,
+            recovery_attempted: reconnectAttempt > 0,
+            recovery_success: false, // reaching this catch means all reconnects failed
+            reconnect_attempts: reconnectAttempt,
           },
         });
-        setStatus('حدث خطأ أثناء الاتصال بالخادم');
+        setStatus('حدث خطأ أثناء الاتصال بالخادم. تم فقدان الاتصال بعد عدة محاولات');
 
       } else if (isMaxSegmentsError) {
         trackNetworkError(error, {
