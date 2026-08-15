@@ -656,6 +656,8 @@ const Torgman = () => {
         errorMessageLower.includes('failed to fetch') ||
         errorMessageLower.includes('load failed')
       );
+      const isMaxSegmentsError = errorMessageLower.includes('max segments exceeded') || errorMessageLower.includes('exceeded maximum number of segments');
+      const isSourceLanguageError = errorMessageLower.includes('does not match provided source language');
 
       if (isTimeoutError) {
         trackNetworkError(error, {
@@ -672,6 +674,7 @@ const Torgman = () => {
             progress_percent: getProgressPercent(),
           }
         });
+        setStatus('حدث خطأ أثناء الاتصال بالخادم');
       } else if (isStreamNetworkError) {
         trackNetworkError(error, {
           errorType: 'stream_interrupted',
@@ -688,7 +691,46 @@ const Torgman = () => {
             browser_stream_error_message: error?.message || null,
           },
         });
-      } else {
+        setStatus('حدث خطأ أثناء الاتصال بالخادم');
+
+      } else if (isMaxSegmentsError) {
+        trackNetworkError(error, {
+          errorType: 'max_segments_exceeded',
+          endpoint: `/translation/stream/${jobId}`,
+          timeout: 30000,
+          context: {
+            file_name: metaFileName,
+            file_size: fileSize,
+            source_lang: metaSourceLang,
+            target_lang: metaTargetLang,
+            translation_phase: translationPhase,
+            elapsed_ms: elapsedMs,
+            progress_percent: getProgressPercent(),
+            browser_stream_error_message: error?.message || null,
+          },
+        });
+        setStatus('ملف الترجمة كبير جدًا. يرجى تقسيمه إلى ملفات أصغر');
+      } else if (isSourceLanguageError) {
+        trackNetworkError(error, {
+          errorType: 'source_language_mismatch',
+          endpoint: `/translation/stream/${jobId}`,
+          timeout: 30000,
+          context: {
+            file_name: metaFileName,
+            file_size: fileSize,
+            source_lang: metaSourceLang,
+            target_lang: metaTargetLang,
+            translation_phase: translationPhase,
+            elapsed_ms: elapsedMs,
+            progress_percent: getProgressPercent(),
+            browser_stream_error_message: error?.message || null,
+          },
+        });
+        setStatus('لغة المصدر لا تتطابق مع ملف الترجمة');
+      }
+      
+      
+      else {
         trackTranslationError(error, {
           file_name: metaFileName,
           file_size: fileSize,
@@ -702,9 +744,10 @@ const Torgman = () => {
           status_text: error.statusText,
           error_message: error.message,
         });
+        setStatus('حدث خطأ أثناء الاتصال بالخادم');
+
       }
 
-      setStatus('حدث خطأ أثناء الاتصال بالخادم');
     } finally {
       if (!isCancelled()) {
         setIsTranslating(false);

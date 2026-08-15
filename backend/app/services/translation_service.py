@@ -9,7 +9,9 @@ from app.core.workflow import graph
 from app.core.simple_calls import terminology_agent
 from app.services.build_pdf import ArabicPDFBuilder
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from langdetect import detect
 
+MAX_NUM_SEGMENTS = 200
 
 def is_image_based(pdf_bytes: bytes, sample_pages: int = 5) -> bool:
     """
@@ -86,6 +88,7 @@ def translate_file_content_pdf_streaming(
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
+    max_num_segments: int = MAX_NUM_SEGMENTS
 ) -> Generator[dict, None, None]:
     """
     Translates all text blocks in a PDF, yielding progress and done events.
@@ -101,7 +104,12 @@ def translate_file_content_pdf_streaming(
     """
     
     content = extract_text_from_pdf(pdf_bytes)
-    # doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    if len(content) > max_num_segments:
+        raise ValueError(f"max segments exceeded: {len(content)} > {max_num_segments}")    # doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    
+    detection_text = "\n".join([segment["text"] for segment in content[0]])
+    if detect(detection_text) != source_lang:
+        raise ValueError(f"Detected source language '{detect(detection_text)}' does not match provided source language '{source_lang}'.")
     # builder = ArabicPDFBuilder()
 
     # for page_index, page_blocks in enumerate(content):
@@ -161,6 +169,7 @@ def translate_file_content_xliff_streaming(
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
+    max_num_segments: int = MAX_NUM_SEGMENTS
 ) -> Generator[dict, None, None]:
     """
     Translates all text segments in an XLIFF file, yielding progress and done events.
@@ -183,6 +192,13 @@ def translate_file_content_xliff_streaming(
     # Extract segments from XLIFF file
     segments = extract_text_from_xliff(xliff_bytes)
     
+    if len(segments) > max_num_segments:
+        raise ValueError(f"max segments exceeded: {len(segments)} > {max_num_segments}")
+
+    detection_text = "\n".join([segment["text"] for segment in segments])
+    if detect(detection_text) != source_lang:
+        raise ValueError(f"Detected source language '{detect(detection_text)}' does not match provided source language '{source_lang}'.")
+
     total_segments = len(segments)
     completed_segments = 0
     translated_content = [None] * total_segments
@@ -226,6 +242,7 @@ def translate_file_content_docx_streaming(
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
+    max_num_segments: int = MAX_NUM_SEGMENTS
 ) -> Generator[dict, None, None]:
     """
     Translates all text segments in an DOCX file, yielding progress and done events.
@@ -248,6 +265,15 @@ def translate_file_content_docx_streaming(
     # Extract segments from DOCX file
     _, segments = get_docx_blocks(docx_bytes)
     
+    if len(segments) > max_num_segments:
+        raise ValueError(f"max segments exceeded: {len(segments)} > {max_num_segments}")    # doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
+    
+    # ToDo: This wont work with dialects
+    detection_text = "\n".join([segment["text"] for segment in segments])
+    if detect(detection_text) != source_lang:
+        raise ValueError(f"Detected source language '{detect(detection_text)}' does not match provided source language '{source_lang}'.")
+
+
     total_segments = len(segments)
     completed_segments = 0
     translated_content = [None] * total_segments
