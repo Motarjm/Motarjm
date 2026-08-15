@@ -153,7 +153,7 @@ agent_deepseek = create_agent(deepseek,
 
 
 
-providers = {"translator": [claude_haiku_4_5,
+providers = {"translator": [gemini_3_1_flash_lite,
                             deepseek],
                                 # deepseek,
              
