@@ -79,7 +79,7 @@ async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_la
     try:
         await asyncio.to_thread(_run_pdf_job_sync, job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id, no_translation)
     except Exception as exc:
-        logger.exception(f"[pdf_job {job_id}] failed")
+        logger.exception(f"[pdf_job {job_id}] failed\n\n Error: {str(exc)}")
         job_store.mark_error(job_id, str(exc))
 
 
@@ -115,7 +115,7 @@ async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, targe
     try:
         await asyncio.to_thread(_run_xliff_job_sync, job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id, no_translation)
     except Exception as exc:
-        logger.exception(f"[xliff_job {job_id}] failed")
+        logger.exception(f"[xliff_job {job_id}] failed\n\n Error: {str(exc)}")
         job_store.mark_error(job_id, str(exc))
 
 
@@ -153,7 +153,7 @@ async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_
     try:
         await asyncio.to_thread(_run_docx_job_sync, job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id, no_translation)
     except Exception as exc:
-        logger.exception(f"[docx_job {job_id}] failed")
+        logger.exception(f"[docx_job {job_id}] failed\n\n Error: {str(exc)}")
         job_store.mark_error(job_id, str(exc))
 
 
