@@ -58,18 +58,45 @@ jobs:
     needs: build_and_push
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.LIGHTSAIL_HOST }}
+          username: ubuntu
+          key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "/home/ubuntu/turjman-deploy"
+
       - name: Deploy to Lightsail via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
+          username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
+          command_timeout: 30m
+          envs: IMAGE_TAG,GH_TOKEN,GH_ACTOR,DB_PASSWORD,DATABASE_URL
           script: |
-            cd /opt/turjman   # wherever docker-compose.yml lives on the VPS
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            export IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
+            cd /home/ubuntu/turjman-deploy
+
+            # Regenerate .env from secrets on every deploy — never committed to git
+            cat > .env <<EOF
+            IMAGE_TAG=${IMAGE_TAG}
+            DB_PASSWORD=${DB_PASSWORD}
+            DATABASE_URL=${DATABASE_URL}
+            EOF
+            chmod 600 .env
+
+            echo "${GH_TOKEN}" | docker login ghcr.io -u "${GH_ACTOR}" --password-stdin
             docker compose pull app
             docker compose exec -T db pg_dump -U turjman mydb > backup_$(date +%Y%m%d%H%M%S).sql
             docker compose run --rm app alembic upgrade head
             docker compose up -d
             docker image prune -f
+        env:
+          IMAGE_TAG: ${{ needs.build_and_push.outputs.image_tag }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_ACTOR: ${{ github.actor }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
