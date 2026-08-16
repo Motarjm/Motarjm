@@ -20,9 +20,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdk-pixbuf-2.0-0 \
     libffi8 \
     shared-mime-info \
-    fonts-noto \
-    fonts-noto-core \
-    fonts-noto-naskh-arabic \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
