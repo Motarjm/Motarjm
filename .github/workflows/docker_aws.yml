@@ -76,7 +76,7 @@ jobs:
           username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           command_timeout: 30m
-          envs: IMAGE_TAG,GH_TOKEN,GH_ACTOR,DB_PASSWORD,DATABASE_URL
+          envs: IMAGE_TAG,GH_TOKEN,GH_ACTOR,DB_PASSWORD,DATABASE_URL,HUGGINGFACE_API_KEY,OPENAI_API_KEY,GEMINI_API_KEY,LANGSMITH_API_KEY,VITE_POSTHOG_API_KEY,EXA_API_KEY,LANGSMITH_TRACING,DISABLE_MODEL_SOURCE_CHECK
           script: |
             cd /home/ubuntu/turjman-deploy
 
