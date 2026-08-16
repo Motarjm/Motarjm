@@ -147,14 +147,14 @@ const CompareInterface = () => {
       const file = base64ToFile(base64, fileName, 'application/xml');
       const formData = new FormData();
       formData.append('glossary', file);
-      const res = await fetch(`${API_URL}/translation/glossary?source_lang=en&target_lang=ar`, {
+      const res = await fetch(`${API_URL}/glossary?source_lang=en&target_lang=ar`, {
         method: 'POST', body: formData,
       });
       if (!res.ok) return null;
       const data = await res.json();
       setGlossaryId(data.glossary_id);
       if (docId) await saveDocumentState(docId, { glossaryId: data.glossary_id });
-      const termsRes = await fetch(`${API_URL}/translation/glossary/${data.glossary_id}`);
+      const termsRes = await fetch(`${API_URL}/glossary/${data.glossary_id}`);
       return termsRes.ok ? await termsRes.json() : null;
     } catch (e) {
       console.warn('Failed to re-upload cached glossary:', e);
@@ -167,7 +167,7 @@ const CompareInterface = () => {
       const file = base64ToFile(base64, fileName, 'application/xml');
       const formData = new FormData();
       formData.append('tm_file', file);
-      const res = await fetch(`${API_URL}/translation/tm?source_lang=en&target_lang=ar`, {
+      const res = await fetch(`${API_URL}/tm?source_lang=en&target_lang=ar`, {
         method: 'POST', body: formData,
       });
       if (!res.ok) return null;
@@ -190,7 +190,7 @@ const CompareInterface = () => {
       const base64 = await fileToBase64(file);
       const formData = new FormData();
       formData.append('glossary', file);
-      const res = await fetch(`${API_URL}/translation/glossary?source_lang=en&target_lang=ar`, {
+      const res = await fetch(`${API_URL}/glossary?source_lang=en&target_lang=ar`, {
         method: 'POST', body: formData,
       });
       if (!res.ok) {
@@ -202,7 +202,7 @@ const CompareInterface = () => {
       setGlossaryFileBase64(base64);
       setGlossaryFileName(file.name);
 
-      const termsRes = await fetch(`${API_URL}/translation/glossary/${data.glossary_id}`);
+      const termsRes = await fetch(`${API_URL}/glossary/${data.glossary_id}`);
       if (termsRes.ok) {
         const termsData = await termsRes.json();
         setGlossary(termsData.terms);
@@ -224,7 +224,7 @@ const CompareInterface = () => {
       const base64 = await fileToBase64(file);
       const formData = new FormData();
       formData.append('tm_file', file);
-      const res = await fetch(`${API_URL}/translation/tm?source_lang=en&target_lang=ar`, {
+      const res = await fetch(`${API_URL}/tm?source_lang=en&target_lang=ar`, {
         method: 'POST', body: formData,
       });
       if (!res.ok) {
@@ -303,7 +303,7 @@ const CompareInterface = () => {
         setTmFileName(documentRecord.tmFileName || '');
 
         if (documentRecord.glossaryId) {
-          fetch(`${API_URL}/translation/glossary/${documentRecord.glossaryId}`)
+          fetch(`${API_URL}/glossary/${documentRecord.glossaryId}`)
             .then(async (res) => {
               if (res.ok) return res.json();
               // Backend store expired/restarted — if we cached the original
@@ -323,7 +323,7 @@ const CompareInterface = () => {
         }
 
         if (documentRecord.tmId) {
-          fetch(`${API_URL}/translation/tm/${documentRecord.tmId}`)
+          fetch(`${API_URL}/tm/${documentRecord.tmId}`)
             .then((res) => {
               if (res.ok || !(documentRecord.tmFileBase64 && documentRecord.tmFileName)) return;
               if (res.status === 404) {

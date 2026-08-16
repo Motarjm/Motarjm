@@ -22,7 +22,7 @@ const TranslationMemoryTab = ({ tmId, activeSegmentSource, segmentMatches, loadi
     setLoading(true);
     try {
       const res = await fetch(
-        `${API_URL}/translation/tm/search?tm_id=${encodeURIComponent(tmId)}&query=${encodeURIComponent(query)}&top_k=5&mode=${mode}`
+        `${API_URL}/tm/search?tm_id=${encodeURIComponent(tmId)}&query=${encodeURIComponent(query)}&top_k=5&mode=${mode}`
       );
       if (!res.ok) throw new Error('TM search failed');
       const data = await res.json();
