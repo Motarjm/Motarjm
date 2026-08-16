@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
-from app.routers import translation, generation, segment, document
+from app.routers import translation, generation, segment, document, glossary, tm, jobs
 
 
 # 1. Initialize root logging configuration (Change WARNING to INFO or DEBUG)
@@ -30,6 +30,9 @@ app.include_router(translation.router)
 app.include_router(generation.router)
 app.include_router(segment.router)
 app.include_router(document.router)
+app.include_router(glossary.router)
+app.include_router(tm.router)
+app.include_router(jobs.router)
 
 # get absolute path to backend/app folder
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
