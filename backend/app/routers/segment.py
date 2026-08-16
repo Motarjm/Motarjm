@@ -25,7 +25,7 @@ router = APIRouter(prefix="/segment", tags=["Segment"])
 @router.post("/explanation")
 async def explanation(request: ExplanationRequest):
     try:
-        result = get_explanation(request.block, request.page_blocks)
+        result = await get_explanation(request.block, request.page_blocks)
         return {"explanation": result}
     except Exception:
         logger.exception("failed to get segment explanation")
@@ -35,7 +35,7 @@ async def explanation(request: ExplanationRequest):
 @router.post("/suggestions")
 async def suggestions(request: SuggestionsRequest, style_guide: str = Query(None)):
     try:
-        result = get_suggestions(
+        result = await get_suggestions(
             request.source_text,
             request.sourceLang,
             request.translation,
@@ -52,7 +52,7 @@ async def suggestions(request: SuggestionsRequest, style_guide: str = Query(None
 @router.post("/backtranslation")
 async def backtranslation(request: BacktranslationRequest):
     try:
-        result = get_backtranslation(
+        result = await get_backtranslation(
             request.target_text,
             request.source_lang,
             request.target_lang,
