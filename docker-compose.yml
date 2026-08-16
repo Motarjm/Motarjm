@@ -19,8 +19,7 @@ services:
   app:
     image: ghcr.io/motarjm/motarjm:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://turjman:${DB_PASSWORD}@db:5432/mydb
+    env_file: .env
     ports:
       - "8000:8000"
     depends_on:
