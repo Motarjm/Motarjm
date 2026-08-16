@@ -32,14 +32,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend ./backend
 
-# Copy built frontend assets from the frontend-build stage.
-# Adjust the destination path to wherever app.main mounts static files
-# (e.g. StaticFiles(directory="frontend/dist")).
-COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+# Copy built frontend assets from the frontend-build stage, into backend/
+# so it's reachable relative to the app's runtime working directory (/app/backend).
+# Adjust if app.main mounts static files from a different relative path.
+COPY --from=frontend-build /app/frontend/dist ./backend/frontend/dist
 
 # Pre-download OCR/layout models at build-time to avoid first-request latency
 # WORKDIR /app/backend
 # RUN python -c "from app.services.extract_text import _get_yolo_model, _get_ocr_model; _get_yolo_model('cpu'); _get_ocr_model('cpu'); print('Model warmup complete')"
+
+# Run the app from inside backend/, where app.main actually lives
+WORKDIR /app/backend
 
 EXPOSE 8000
 
