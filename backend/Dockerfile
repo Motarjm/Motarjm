@@ -32,10 +32,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend ./backend
 
-# Copy built frontend assets from the frontend-build stage, into backend/
-# so it's reachable relative to the app's runtime working directory (/app/backend).
-# Adjust if app.main mounts static files from a different relative path.
-COPY --from=frontend-build /app/frontend/dist ./backend/frontend/dist
+# Copy built frontend assets from the frontend-build stage.
+# app/main.py resolves this via __file__ as ../../frontend/dist from app/main.py,
+# i.e. BASE_DIR (backend/app) -> backend -> /app/frontend/dist. Must land here exactly.
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
 
 # Pre-download OCR/layout models at build-time to avoid first-request latency
 # WORKDIR /app/backend
