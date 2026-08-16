@@ -17,7 +17,7 @@ services:
       retries: 10
 
   app:
-    image: ghcr.io/motarjm/turjman:${IMAGE_TAG:-latest}
+    image: ghcr.io/motarjm/motarjm:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://turjman:${DB_PASSWORD}@db:5432/mydb
