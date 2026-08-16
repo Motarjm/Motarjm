@@ -2,18 +2,12 @@
 Translation Memory service: TMX parsing, in-memory storage, and fuzzy search.
 Mirrors glossary_service's storage pattern but keyed by tm_id.
 """
-import uuid
-import time
 from typing import Optional, List, Dict
 from lxml import etree
 from rapidfuzz import process, fuzz
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.glossary_service import _lang_matches
-# ── In-memory store ──
-# tm_id -> {"entries": [(source, target), ...], "created_at": ts}
-_tm_store: Dict[str, dict] = {}
-
-TM_TTL_SECONDS = 24 * 60 * 60  # 24h, same spirit as glossary store
-
+from app.repositories import tm_repo
 
 
 def parse_tmx(tmx_bytes: bytes, source_lang: str, target_lang: str) -> List[tuple]:
@@ -52,31 +46,37 @@ def parse_tmx(tmx_bytes: bytes, source_lang: str, target_lang: str) -> List[tupl
     return entries
 
 
-def store_tm(entries: List[tuple]) -> str:
-    """Store parsed TM entries in memory, return a tm_id."""
-    tm_id = str(uuid.uuid4())
-    _tm_store[tm_id] = {"entries": entries, "created_at": time.time()}
-    return tm_id
+async def store_tm(
+    db: AsyncSession,
+    entries: List[tuple],
+    source_lang: str,
+    target_lang: str,
+    file_name: Optional[str] = None,
+    user_id: Optional[str] = None,
+) -> str:
+    tm_obj = await tm_repo.create_tm(
+        db,
+        entries=entries,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        file_name=file_name,
+        user_id=user_id,
+    )
+    return str(tm_obj.id)
 
 
-def get_tm(tm_id: str) -> Optional[List[tuple]]:
-    entry = _tm_store.get(tm_id)
-    if entry is None:
-        return None
-    if time.time() - entry["created_at"] > TM_TTL_SECONDS:
-        _tm_store.pop(tm_id, None)
-        return None
-    return entry["entries"]
+async def get_tm(db: AsyncSession, tm_id: str) -> Optional[List[tuple]]:
+    return await tm_repo.get_tm_entries(db, tm_id)
 
 
-def search_tm(tm_id: str, query: str, top_k: int = 5, min_score: float = 60.0) -> List[dict]:
-    """
-    Return top_k matches for `query` against the stored TM's source segments,
-    scored with RapidFuzz token_sort_ratio (0-100), filtered by min_score.
-    Good for segment-level matching where word order / minor rephrasing shouldn't
-    tank the score.
-    """
-    entries = get_tm(tm_id)
+async def search_tm(
+    db: AsyncSession,
+    tm_id: str,
+    query: str,
+    top_k: int = 5,
+    min_score: float = 60.0,
+) -> List[dict]:
+    entries = await get_tm(db, tm_id)
     if not entries or not query or not query.strip():
         return []
 
@@ -97,16 +97,14 @@ def search_tm(tm_id: str, query: str, top_k: int = 5, min_score: float = 60.0) -
     return matches
 
 
-def search_tm_char(tm_id: str, query: str, top_k: int = 5, min_score: float = 60.0) -> List[dict]:
-    """
-    Return top_k matches scored purely on character-level edit distance
-    (RapidFuzz fuzz.ratio, which is a normalized Levenshtein similarity).
-    Unlike search_tm, this does NOT tokenize/reorder words first — it compares
-    raw character sequences, so typos/partial strings score by literal
-    character overlap rather than word-level similarity. Used for manual
-    free-text search.
-    """
-    entries = get_tm(tm_id)
+async def search_tm_char(
+    db: AsyncSession,
+    tm_id: str,
+    query: str,
+    top_k: int = 5,
+    min_score: float = 60.0,
+) -> List[dict]:
+    entries = await get_tm(db, tm_id)
     if not entries or not query or not query.strip():
         return []
 
@@ -124,3 +122,35 @@ def search_tm_char(tm_id: str, query: str, top_k: int = 5, min_score: float = 60
             "score": score,
         })
     return matches
+
+
+async def _parse_tm(db: AsyncSession, file_name: Optional[str], tm_bytes: bytes, source_lang: str, target_lang: str) -> Optional[str]:
+    """Parse a TMX file and store it in Postgres, returning the term dict and tm_id."""
+
+    entries = parse_tmx(tm_bytes, source_lang=source_lang, target_lang=target_lang)
+    if not entries:
+        return None
+    
+    return await store_tm(db, entries, source_lang, target_lang, file_name=file_name)
+
+
+
+async def _resolve_tm(
+    db: AsyncSession,
+    file_name: Optional[str],
+    file_bytes: Optional[bytes],
+    existing_id: Optional[str],
+    source_lang: str,
+    target_lang: str,
+) -> Optional[str]:
+    """Use an uploaded TMX file if provided, otherwise look up by an existing tm_id."""
+    if file_bytes:
+        return await _parse_tm(db, file_name, file_bytes, source_lang, target_lang)
+    
+    if existing_id:
+        entries = await get_tm(db, existing_id)
+        if entries is None:
+            raise ValueError(f"Unknown or expired tm_id: {existing_id}")
+        return existing_id
+    return None
+

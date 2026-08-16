@@ -1,17 +1,20 @@
-import requests
-from typing import Dict, Generator, List, Optional
+import asyncio
+from typing import AsyncGenerator, Dict, List, Optional
 import pymupdf
-from app.services.pdf_extract_text import extract_text_from_pdf
+from app.services.pdf_service import extract_text_from_pdf
 from app.services.docx_service import get_docx_blocks
 from app.services.xliff_service import extract_text_from_xliff
 from app.core.graph_models import State
 from app.core.workflow import graph
 from app.core.simple_calls import terminology_agent
-from app.services.build_pdf import ArabicPDFBuilder
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from langdetect import detect
+import httpx
 
 MAX_NUM_SEGMENTS = 200
+
+# Same cap as the old ThreadPoolExecutor(max_workers=5) — bounds how many
+# translate_one() calls are in flight concurrently.
+TRANSLATE_CONCURRENCY = 5
 
 def is_image_based(pdf_bytes: bytes, sample_pages: int = 5) -> bool:
     """
@@ -30,58 +33,48 @@ def is_image_based(pdf_bytes: bytes, sample_pages: int = 5) -> bool:
     doc.close()
     return text_found == 0  # True = image-based
 
-def translate_text(
-    text: str,
-    prev_text: str,
-    source_lang: str,
-    target_lang: str,
-    style_guide: str = "",
-    glossary: Optional[Dict[str, str]] = None,
-    terminology: Optional[str] = None,
-) -> str:
+
+async def translate_one(i: int, page: List[dict], no_translation: bool, source_lang: str, 
+                        target_lang: str, style_guide: str, glossary: Optional[Dict[str, str]], 
+                        terminology: Optional[str]) -> tuple[int, str]:
     """
     Translates a single text segment using the LangGraph pipeline.
-    """
-    state = State(
-        source_text=text,
-        source_lang=source_lang,
-        target_lang=target_lang,
-        max_iterations=2,
-        prev_context=prev_text,
-        style_guide=style_guide,
-        glossary=glossary or {},
-        terminology=terminology or "",
-    )
 
-    try:
-        response = graph.invoke(state)
-    except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"Network or HTTP error during translation: {e}")
-    except ValueError as e:
-        raise RuntimeError(f"Failed to parse API response: {e}")
-
-    return response["current_translation"]
-
-
-def translate_one(i, page, no_translation, source_lang, target_lang, style_guide, glossary, terminology):
-    """
     i is the index
     page is a list of blocks: list[dict]
+    no_translation: if True, skip translation and return empty string
+    source_lang and target_lang are language codes
+    style_guide is a string for translation style
+    glossary is a dict of source->target terms
+    terminology is a string of extracted terminology for the document
     """
     prev_text = page[i - 1]["text"] if i > 0 else ""
     
     if no_translation:
         return i, ""
     
-    translated = translate_text(
-        page[i]["text"], prev_text, source_lang, target_lang,
-        style_guide, glossary=glossary, terminology=terminology
-    )
+    state = State(
+            source_text=page[i]["text"],
+            source_lang=source_lang,
+            target_lang=target_lang,
+            max_iterations=1,
+            prev_context=prev_text,
+            style_guide=style_guide,
+            glossary=glossary or {},
+            terminology=terminology or "",
+        )
     
-    return i, translated
+    try:
+        response = await graph.ainvoke(state)
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"Network or HTTP error during translation: {e}")
+    except ValueError as e:
+        raise RuntimeError(f"Failed to parse API response: {e}")
+
+    return i, response["current_translation"]
+
     
-    
-def translate_file_content_pdf_streaming(
+async def translate_file_content_pdf_streaming(
     pdf_bytes: bytes,
     source_lang: str,
     target_lang: str,
@@ -89,7 +82,7 @@ def translate_file_content_pdf_streaming(
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
     max_num_segments: int = MAX_NUM_SEGMENTS
-) -> Generator[dict, None, None]:
+) -> AsyncGenerator[dict, None]:
     """
     Translates all text blocks in a PDF, yielding progress and done events.
     If no_translation is True, the file is only segmented/extracted and the
@@ -124,7 +117,7 @@ def translate_file_content_pdf_streaming(
     translated_content = []
     terminology = {}
     if not no_translation:
-        terminology = terminology_agent(document=content, 
+        terminology = await terminology_agent(document=content, 
                                     source_lang=source_lang, 
                                     target_lang=target_lang,
                                     style_guide=style_guide, 
@@ -132,37 +125,44 @@ def translate_file_content_pdf_streaming(
 
     for page_num, page in enumerate(content):
         translated_blocks = [None] * len(page)
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {executor.submit(translate_one, i, page ,no_translation, source_lang, target_lang, style_guide, glossary, terminology): i for i, _ in enumerate(page)}
-            
-            for future in as_completed(futures):
-                i = futures[future]
+        semaphore = asyncio.Semaphore(TRANSLATE_CONCURRENCY)
+
+        async def _bounded_translate_one(i, _page=page):
+            # Catch here (not after as_completed) so the index i is always
+            # known on failure — same as the original's `futures[future]`
+            # lookup working even when future.result() raised.
+            async with semaphore:
                 try:
-                    _, translated_text = future.result()
+                    return await translate_one(i, _page, no_translation, source_lang, target_lang, style_guide, glossary, terminology)
                 except Exception as e:
                     print(f"Page {page_num} | Block {i} failed: {e}")
-                    translated_text = ""
-                    
-                block = page[i]
-                
-                translated_blocks[i] = {
-                    "original_text": block["text"],
-                    "translated_text": translated_text,
-                    "bbox": block["bbox"],
-                    "type": block.get("type", "Text"),
-                    "info": block.get("info", {}),
-                    }
-                
-                completed_blocks += 1
-                
-                yield {"type": "progress", 
-                       "completed": completed_blocks,
-                       "total": total_blocks}
-                
+                    return i, ""
+
+        tasks = [asyncio.ensure_future(_bounded_translate_one(i)) for i, _ in enumerate(page)]
+
+        for coro in asyncio.as_completed(tasks):
+            i, translated_text = await coro
+
+            block = page[i]
+
+            translated_blocks[i] = {
+                "original_text": block["text"],
+                "translated_text": translated_text,
+                "bbox": block["bbox"],
+                "type": block.get("type", "Text"),
+                "info": block.get("info", {}),
+                }
+
+            completed_blocks += 1
+
+            yield {"type": "progress",
+                   "completed": completed_blocks,
+                   "total": total_blocks}
+
         translated_content.append(translated_blocks)
     yield {"type": "done", "translated_contents": translated_content}
     
-def translate_file_content_xliff_streaming(
+async def translate_file_content_xliff_streaming(
     xliff_bytes: bytes,
     source_lang: str,
     target_lang: str,
@@ -170,7 +170,7 @@ def translate_file_content_xliff_streaming(
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
     max_num_segments: int = MAX_NUM_SEGMENTS
-) -> Generator[dict, None, None]:
+) -> AsyncGenerator[dict, None]:
     """
     Translates all text segments in an XLIFF file, yielding progress and done events.
     
@@ -205,37 +205,41 @@ def translate_file_content_xliff_streaming(
 
     terminology = {}
     if not no_translation:
-        terminology = terminology_agent(document=segments,
+        terminology = await terminology_agent(document=segments,
                                         source_lang=source_lang,
                                         target_lang=target_lang,
                                         style_guide=style_guide,
                                         glossary=glossary)
 
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(translate_one, i, segments ,no_translation, source_lang, target_lang, style_guide, glossary, terminology): i for i, _ in enumerate(segments)}
-        
-        for future in as_completed(futures):
-            i = futures[future]
+    semaphore = asyncio.Semaphore(TRANSLATE_CONCURRENCY)
+
+    async def _bounded_translate_one(i):
+        async with semaphore:
             try:
-                _, translated_text = future.result()
-            except Exception as e:
-                translated_text = ""
-                
-            segment = segments[i]
-            
-            translated_content[i] = {
-                "original_text": segment["text"],
-                "translated_text": translated_text,
-                "id": segment["id"],
-                }
-    
-            completed_segments += 1
-            yield {"type": "progress", "completed": completed_segments, "total": total_segments}
-            
+                return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology)
+            except Exception:
+                return i, ""
+
+    tasks = [asyncio.ensure_future(_bounded_translate_one(i)) for i, _ in enumerate(segments)]
+
+    for coro in asyncio.as_completed(tasks):
+        i, translated_text = await coro
+
+        segment = segments[i]
+
+        translated_content[i] = {
+            "original_text": segment["text"],
+            "translated_text": translated_text,
+            "id": segment["id"],
+            }
+
+        completed_segments += 1
+        yield {"type": "progress", "completed": completed_segments, "total": total_segments}
+
     yield {"type": "done", "translated_contents": translated_content}
 
 
-def translate_file_content_docx_streaming(
+async def translate_file_content_docx_streaming(
     docx_bytes: bytes,
     source_lang: str,
     target_lang: str,
@@ -243,7 +247,7 @@ def translate_file_content_docx_streaming(
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
     max_num_segments: int = MAX_NUM_SEGMENTS
-) -> Generator[dict, None, None]:
+) -> AsyncGenerator[dict, None]:
     """
     Translates all text segments in an DOCX file, yielding progress and done events.
 
@@ -280,34 +284,37 @@ def translate_file_content_docx_streaming(
 
     terminology = {}
     if not no_translation:
-        terminology = terminology_agent(document=segments,
+        terminology = await terminology_agent(document=segments,
                                         source_lang=source_lang,
                                         target_lang=target_lang,
                                         style_guide=style_guide,
                                         glossary=glossary)
 
-    
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(translate_one, i, segments ,no_translation, source_lang, target_lang, style_guide, glossary, terminology): i for i, _ in enumerate(segments)}
-        
-        for future in as_completed(futures):
-            i = futures[future]
+    semaphore = asyncio.Semaphore(TRANSLATE_CONCURRENCY)
+
+    async def _bounded_translate_one(i):
+        async with semaphore:
             try:
-                _, translated_text = future.result()
-            except Exception as e:
-                translated_text = ""
-                
-            segment = segments[i]
-            
-            translated_content[i] = {    
-                "original_text": segment["text"],
-                "translated_text": translated_text,
-                "id": segment.get("id"),       # ← NEW
-                "type": segment.get("type", "Text"),
-                "info": segment.get("info", {}),
-                }
-    
-            completed_segments += 1
-            yield {"type": "progress", "completed": completed_segments, "total": total_segments}
+                return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology)
+            except Exception:
+                return i, ""
+
+    tasks = [asyncio.ensure_future(_bounded_translate_one(i)) for i, _ in enumerate(segments)]
+
+    for coro in asyncio.as_completed(tasks):
+        i, translated_text = await coro
+
+        segment = segments[i]
+
+        translated_content[i] = {
+            "original_text": segment["text"],
+            "translated_text": translated_text,
+            "id": segment.get("id"),       # ← NEW
+            "type": segment.get("type", "Text"),
+            "info": segment.get("info", {}),
+            }
+
+        completed_segments += 1
+        yield {"type": "progress", "completed": completed_segments, "total": total_segments}
 
     yield {"type": "done", "translated_contents": translated_content}
