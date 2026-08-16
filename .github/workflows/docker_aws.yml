@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # needed to push to GHCR
+      packages: write
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
       image_name: ${{ steps.lowercase.outputs.image_name }}
@@ -60,13 +60,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy docker-compose.yml to server
+      - name: Generate .env file
+        run: |
+          cat > .env.deploy <<EOF
+          IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          HUGGINGFACE_API_KEY=${{ secrets.HUGGINGFACE_API_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          LANGSMITH_API_KEY=${{ secrets.LANGSMITH_API_KEY }}
+          VITE_POSTHOG_API_KEY=${{ secrets.VITE_POSTHOG_API_KEY }}
+          EXA_API_KEY=${{ secrets.EXA_API_KEY }}
+          LANGSMITH_TRACING=true
+          DISABLE_MODEL_SOURCE_CHECK=True
+          EOF
+
+      - name: Copy files to server
         uses: appleboy/scp-action@v1
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
           username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
-          source: "docker-compose.yml"
+          source: "docker-compose.yml,.env.deploy"
           target: "/home/ubuntu/turjman-deploy"
 
       - name: Deploy to Lightsail via SSH
@@ -76,43 +92,27 @@ jobs:
           username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           command_timeout: 30m
-          envs: IMAGE_TAG,GH_TOKEN,GH_ACTOR,DB_PASSWORD,DATABASE_URL,HUGGINGFACE_API_KEY,OPENAI_API_KEY,GEMINI_API_KEY,LANGSMITH_API_KEY,VITE_POSTHOG_API_KEY,EXA_API_KEY,LANGSMITH_TRACING,DISABLE_MODEL_SOURCE_CHECK
           script: |
             cd /home/ubuntu/turjman-deploy
 
-            # Regenerate .env from secrets on every deploy — never committed to git
-            cat > .env <<EOF
-            IMAGE_TAG=${IMAGE_TAG}
-            DB_PASSWORD=${DB_PASSWORD}
-            DATABASE_URL=${DATABASE_URL}
-            HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
-            OPENAI_API_KEY=${OPENAI_API_KEY}
-            GEMINI_API_KEY=${GEMINI_API_KEY}
-            LANGSMITH_API_KEY=${LANGSMITH_API_KEY}
-            VITE_POSTHOG_API_KEY=${VITE_POSTHOG_API_KEY}
-            EXA_API_KEY=${EXA_API_KEY}
-            LANGSMITH_TRACING=true
-            DISABLE_MODEL_SOURCE_CHECK=True
-            EOF
+            # Atomically replace .env with the new one shipped from GitHub
+            mv .env.deploy .env
             chmod 600 .env
 
-            echo "${GH_TOKEN}" | docker login ghcr.io -u "${GH_ACTOR}" --password-stdin
+            # Log in to GHCR to pull the private image
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            # Pull the new app image
             docker compose pull app
-            docker compose exec -T db pg_dump -U turjman mydb > backup_$(date +%Y%m%d%H%M%S).sql
+
+            # Backup database before migrating
+            docker compose exec -T db pg_dump -U turjman turjman > backup_$(date +%Y%m%d%H%M%S).sql || true
+
+            # Run migrations
             docker compose run --rm app alembic upgrade head
-            docker compose up -d
+
+            # Recreate containers so they pick up the new .env and new image
+            docker compose up -d --force-recreate
+
+            # Clean up old images
             docker image prune -f
-        env:
-          IMAGE_TAG: ${{ needs.build_and_push.outputs.image_tag }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_ACTOR: ${{ github.actor }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
-          VITE_POSTHOG_API_KEY: ${{ secrets.VITE_POSTHOG_API_KEY }}
-          EXA_API_KEY: ${{ secrets.EXA_API_KEY }}
-          LANGSMITH_TRACING: true
-          DISABLE_MODEL_SOURCE_CHECK: True
