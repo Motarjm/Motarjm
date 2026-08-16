@@ -75,6 +75,59 @@ def provider_invoke(role, prompt, max_retries=2):
         ) from last_error
 
 
+@traceable(run_type="chain")
+async def provider_ainvoke(role, prompt, max_retries=2):
+  """
+  Async twin of provider_invoke — identical provider list, retry count,
+  fallback order, and exception behavior. Only .invoke() -> .ainvoke() differs.
+
+  Arguments:
+    - role, str: takes as input 'role' of the agent: 'translator', 'evaluator', 'advisor', etc.
+    - prompt, list: list of langchain messages
+    - max_retries, int: number of retry attempts per provider (default: 2)
+    
+  Returns:
+    - response: output of '.ainvoke()'
+    
+  Raises:
+    - Exception: if all providers fail
+  """
+  provider_list = providers.get(role, [])
+
+  if not provider_list:
+    raise ValueError(f"No providers found for role: {role}")
+
+  last_error = None
+
+  for provider_idx, provider in enumerate(provider_list):
+    for attempt in range(max_retries + 1):
+      try:
+        print(f"[{role}] Attempting provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
+
+        response = await provider.ainvoke(prompt)
+
+        print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
+        print(response.response_metadata["model_name"])
+
+        return response
+
+      except Exception as e:
+        last_error = e
+        print(f"[{role}] Provider {provider_idx + 1} attempt {attempt + 1} failed: {str(e)}")
+
+        if attempt < max_retries:
+          continue
+
+        if provider_idx < len(provider_list) - 1:
+          print(f"[{role}] Falling back to next provider...")
+          break
+
+        raise RuntimeError(
+          f"All {len(provider_list)} providers failed for role '{role}' after {max_retries + 1} attempts each. "
+          f"Last error: {str(last_error)}"
+        ) from last_error
+
+
 def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None):
   """
   Streams model response tokens based on available providers with retry logic.
@@ -153,7 +206,7 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
         ) from last_error
 
 
-def translator_agent(state: State) -> dict:
+async def translator_agent(state: State) -> dict:
   """
   Translates the given text and returns output translation
   """
@@ -213,7 +266,7 @@ def translator_agent(state: State) -> dict:
   prompt = [sys_prompt, user_prompt]
 
 #  translation = translator.invoke(prompt).content
-  translation = provider_invoke("translator", prompt).content
+  translation = (await provider_ainvoke("translator", prompt)).content
   if not isinstance(translation, str):
     translation = translation[0]["text"]
 
@@ -221,7 +274,7 @@ def translator_agent(state: State) -> dict:
           "current_translation": translation}
 
 
-def evaluator_agent(state: State):
+async def evaluator_agent(state: State):
   """
   Evaluates the translation using source text and the translation
   """
@@ -258,7 +311,7 @@ def evaluator_agent(state: State):
   prompt = [sys_prompt, user_prompt]
 
   # response = evaluator.invoke(prompt).content
-  response = provider_invoke("evaluator", prompt).content
+  response = (await provider_ainvoke("evaluator", prompt)).content
   
   if not isinstance(response, str):
     if len(response) > 1:
@@ -286,7 +339,7 @@ def evaluator_agent(state: State):
           "current_score": score}
 
 
-def advisor_agent(state: State):
+async def advisor_agent(state: State):
   """suggest revisions on the translation"""
 
   source_text = state.source_text
@@ -330,7 +383,7 @@ def advisor_agent(state: State):
   prompt = [sys_prompt] + history + [user_prompt]
 
   # advice = advisor.invoke(prompt).content
-  advice = provider_invoke("advisor", prompt).content
+  advice = (await provider_ainvoke("advisor", prompt)).content
   
   # grok output is in a list of dicts format, we need to extract the text from it
   if not isinstance(advice, str):

@@ -8,11 +8,11 @@ from app.core.simple_calls import (
 )
 
 
-def get_explanation(source_text: str, page_context: List[str]) -> str:
-    return generate_explanation(source_text, page_context)
+async def get_explanation(source_text: str, page_context: List[str]) -> str:
+    return await generate_explanation(source_text, page_context)
 
 
-def get_suggestions(
+async def get_suggestions(
     source_text: str,
     source_lang: str,
     translation: str,
@@ -20,16 +20,16 @@ def get_suggestions(
     page_context: List[str],
     style_guide: str = "",
 ) -> dict:
-    return generate_suggestions(source_text, source_lang, translation, target_lang, page_context, style_guide)
+    return await generate_suggestions(source_text, source_lang, translation, target_lang, page_context, style_guide)
 
 
-def get_backtranslation(
+async def get_backtranslation(
     target_text: str,
     source_lang: str,
     target_lang: str,
     page_context: List[str],
 ) -> str:
-    return generate_backtranslation(target_text, source_lang, target_lang, page_context)
+    return await generate_backtranslation(target_text, source_lang, target_lang, page_context)
 
 
 def stream_chat_response(

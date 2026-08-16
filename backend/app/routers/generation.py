@@ -1,10 +1,8 @@
 import base64
 import logging
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from io import BytesIO
-from app.services.pdf_service import build_translated_pdf
 from app.services.xliff_service import build_xliff, build_xliff_from_scratch
 from app.services.docx_service import build_docx_from_scratch, build_docx
 from app.schemas.generation import GenerateDocxRequest, GenerateEditedPDFRequest, GenerateXliffRequest
@@ -14,29 +12,29 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/generation", tags=["Generation"])
 
 
-@router.post("/pdf")
-async def generate_edited_pdf(request: GenerateEditedPDFRequest):
-    try:
-        original_pdf_bytes = base64.b64decode(request.original_pdf)
-        # Convert Pydantic models to plain dicts for the PDF builder
-        translated_contents = [
-            [block.model_dump() for block in page]
-            for page in request.translated_contents
-        ]
-        pdf_bytes = build_translated_pdf(translated_contents, original_pdf_bytes)
-    except Exception:
-        logger.exception("failed to generate edited PDF")
-        raise
+# @router.post("/pdf")
+# async def generate_edited_pdf(request: GenerateEditedPDFRequest):
+#     try:
+#         original_pdf_bytes = base64.b64decode(request.original_pdf)
+#         # Convert Pydantic models to plain dicts for the PDF builder
+#         translated_contents = [
+#             [block.model_dump() for block in page]
+#             for page in request.translated_contents
+#         ]
+#         pdf_bytes = build_translated_pdf(translated_contents, original_pdf_bytes)
+#     except Exception:
+#         logger.exception("failed to generate edited PDF")
+#         raise
 
-    return StreamingResponse(
-        BytesIO(pdf_bytes),
-        media_type="application/pdf",
-            headers={
-            "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
+#     return StreamingResponse(
+#         BytesIO(pdf_bytes),
+#         media_type="application/pdf",
+#             headers={
+#             "X-Accel-Buffering": "no",    # disables buffering in Nginx AND Cloudflare
+#             "Cache-Control": "no-cache",
+#             "Connection": "keep-alive",
+#         }
+#     )
 
 
 @router.post("/xliff")

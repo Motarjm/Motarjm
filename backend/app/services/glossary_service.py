@@ -1,11 +1,7 @@
-import time
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
-from uuid import uuid4
-
-TTL_SECONDS = 7 * 24 * 60 * 60
-# TODO: MUST BE MIGRATED TO DATABASE
-_GLOSSARY_STORE: Dict[str, Dict[str, object]] = {}
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.repositories import glossary_repo
 
 
 def _get_local_name(tag: str) -> str:
@@ -166,31 +162,63 @@ def parse_tbx_basic(
 
 
 
+async def store_glossary(db: AsyncSession, 
+                         glossary: Dict[str, str],
+                         source_lang: str,
+                         target_lang: str,
+                         file_name: Optional[str] = None,
+                         user_id: Optional[str] = None
+                         ) -> str:
+    """Persist glossary to Postgres. Returns glossary_id."""
+    glossary_obj = await glossary_repo.create_glossary(
+        db,
+        terms=glossary,
+        source_lang=source_lang,
+        target_lang=target_lang,
+        file_name=file_name,
+        user_id=user_id,
+    )
+    return str(glossary_obj.id)
 
-def store_glossary(glossary: Dict[str, str]) -> Tuple[str, int]:
-    _purge_expired()
-    glossary_id = str(uuid4())
-    expires_at = int(time.time()) + TTL_SECONDS
-    _GLOSSARY_STORE[glossary_id] = {
-        "terms": glossary,
-        "expires_at": expires_at,
-    }
-    return glossary_id, expires_at
+
+async def get_glossary(db: AsyncSession, glossary_id: str) -> Optional[Dict[str, str]]:
+    """Fetch glossary terms from Postgres."""
+    return await glossary_repo.get_glossary_terms(db, glossary_id)
+
+async def _parse_glossary(db: AsyncSession, 
+                          file_name: Optional[str],
+                          glossary_bytes: bytes, 
+                          source_lang: str, 
+                          target_lang: str) -> Tuple[dict, Optional[str]]:
+    """Parse a TBX glossary file and store it in Postgres, returning the term dict and glossary_id."""
+    
+    glossary_dict = parse_tbx_basic(glossary_bytes, source_lang=source_lang, target_lang=target_lang)
+    
+    glossary_dict = glossary_dict or {}
+    glossary_id = None
+    if glossary_dict:
+        glossary_id =  await store_glossary(db, glossary_dict,
+                                     source_lang=source_lang,
+                                     target_lang=target_lang,
+                                     file_name = file_name)
+    return glossary_dict, glossary_id
 
 
-def get_glossary(glossary_id: str) -> Optional[Dict[str, str]]:
-    _purge_expired()
-    entry = _GLOSSARY_STORE.get(glossary_id)
-    if not entry:
-        return None
-    return entry.get("terms")
+async def _resolve_glossary(
+    db: AsyncSession,
+    file_name: Optional[str],
+    file_bytes: Optional[bytes],
+    existing_id: Optional[str],
+    source_lang: str,
+    target_lang: str,
+) -> Tuple[dict, Optional[str]]:
+    """Use an uploaded TBX file if provided, otherwise look up by an existing glossary_id."""
+    if file_bytes:
+        return await _parse_glossary(db, file_name, file_bytes, source_lang, target_lang)
+    if existing_id:
+        terms = await get_glossary(db, existing_id)
+        if terms is None:
+            raise ValueError(f"Unknown or expired glossary_id: {existing_id}")
+        return terms, existing_id
+    return {}, None
 
-
-def _purge_expired() -> None:
-    now = int(time.time())
-    expired_ids = [
-        gid for gid, entry in _GLOSSARY_STORE.items()
-        if entry.get("expires_at", 0) <= now
-    ]
-    for glossary_id in expired_ids:
-        _GLOSSARY_STORE.pop(glossary_id, None)

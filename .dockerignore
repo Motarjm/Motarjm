@@ -1,0 +1,66 @@
+# Git and local metadata
+.git
+.gitignore
+.vscode
+.idea
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+venv/
+.env
+
+# Node artifacts
+**/node_modules/
+frontend/dist/
+
+# Build and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+coverage/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Python
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/**/*.pyo
+backend/.venv/
+backend/venv/
+backend/antenv/
+**/*.egg-info/
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Env files (never bake secrets into the image)
+.env
+.env.*
+!.env.example
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+
+# Docs, CI, misc
+README.md
+.github/
+docker-compose.yml

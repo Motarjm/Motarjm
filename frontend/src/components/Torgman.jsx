@@ -275,7 +275,7 @@ const Torgman = () => {
       formData.append('glossary', file);
 
       const res = await fetch(
-        `${API_URL}/translation/glossary?source_lang=${src}&target_lang=${tgt}`,
+        `${API_URL}/glossary?source_lang=${src}&target_lang=${tgt}`,
         { method: 'POST', body: formData }
       );
       if (!res.ok) {
@@ -333,7 +333,7 @@ const Torgman = () => {
       formData.append('tm_file', file);
 
       const res = await fetch(
-        `${API_URL}/translation/tm?source_lang=${src}&target_lang=${tgt}`,
+        `${API_URL}/tm?source_lang=${src}&target_lang=${tgt}`,
         { method: 'POST', body: formData }
       );
       if (!res.ok) {
@@ -491,7 +491,7 @@ const Torgman = () => {
         let response;
         try {
           response = await fetch(
-            `${API_URL}/translation/stream/${jobId}`,
+            `${API_URL}/stream/${jobId}`,
             { signal: controller.signal }
           );
         } catch (fetchError) {
@@ -554,7 +554,7 @@ const Torgman = () => {
                   file_size: fileSize,
                   source_lang: metaSourceLang,
                   target_lang: metaTargetLang,
-                  endpoint: `/translation/stream/${jobId}`,
+                  endpoint: `/stream/${jobId}`,
                   translation_phase: 'sse_parse',
                   elapsed_ms: (Date.now() - translationStartTs) / 1000,
                   progress_percent: getProgressPercent(),
@@ -739,7 +739,7 @@ const Torgman = () => {
       if (isTimeoutError) {
         trackNetworkError(error, {
           errorType: 'timeout',
-          endpoint: `/translation/stream/${jobId}`,
+          endpoint: `/stream/${jobId}`,
           timeout: 30000,
           context: {
             file_name: metaFileName,
@@ -755,7 +755,7 @@ const Torgman = () => {
       } else if (isStreamNetworkError) {
         trackNetworkError(error, {
           errorType: 'stream_interrupted',
-          endpoint: `/translation/stream/${jobId}`,
+          endpoint: `/stream/${jobId}`,
           timeout: 30000,
           context: {
             file_name: metaFileName,
@@ -776,7 +776,7 @@ const Torgman = () => {
       } else if (isMaxSegmentsError) {
         trackNetworkError(error, {
           errorType: 'max_segments_exceeded',
-          endpoint: `/translation/stream/${jobId}`,
+          endpoint: `/stream/${jobId}`,
           timeout: 30000,
           context: {
             file_name: metaFileName,
@@ -793,7 +793,7 @@ const Torgman = () => {
       } else if (isSourceLanguageError) {
         trackNetworkError(error, {
           errorType: 'source_language_mismatch',
-          endpoint: `/translation/stream/${jobId}`,
+          endpoint: `/stream/${jobId}`,
           timeout: 30000,
           context: {
             file_name: metaFileName,
@@ -816,7 +816,7 @@ const Torgman = () => {
           file_size: fileSize,
           source_lang: metaSourceLang,
           target_lang: metaTargetLang,
-          endpoint: `/translation/stream/${jobId}`,
+          endpoint: `/stream/${jobId}`,
           translation_phase: translationPhase,
           elapsed_ms: elapsedMs,
           progress_percent: getProgressPercent(),
@@ -1239,7 +1239,7 @@ const Torgman = () => {
                     onClick={async (e) => {
                       const saved = await getActiveTranslationJob();
                       if (saved?.jobId) {
-                        fetch(`${API_URL}/translation/cancel/${saved.jobId}`, { method: 'POST' });
+                        fetch(`${API_URL}/cancel/${saved.jobId}`, { method: 'POST' });
                       }
                       await clearActiveTranslationJob();
                       cancelTranslation();

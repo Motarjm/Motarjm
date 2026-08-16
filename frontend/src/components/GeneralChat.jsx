@@ -205,7 +205,7 @@ const GeneralChat = ({
     }
     setTmLoading(true);
     fetch(
-      `${API_URL}/translation/tm/search?tm_id=${encodeURIComponent(tmId)}&query=${encodeURIComponent(activeSegmentSource)}&top_k=5&mode=token`
+      `${API_URL}/tm/search?tm_id=${encodeURIComponent(tmId)}&query=${encodeURIComponent(activeSegmentSource)}&top_k=5&mode=token`
     )
       .then((res) => {
         if (!res.ok) throw new Error('TM search failed');
