@@ -62,7 +62,7 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.LIGHTSAIL_HOST }}
-          username: ${{ secrets.LIGHTSAIL_USER }}
+          username: ubuntu
           key: ${{ secrets.LIGHTSAIL_SSH_KEY }}
           script: |
             cd /opt/turjman   # wherever docker-compose.yml lives on the VPS
