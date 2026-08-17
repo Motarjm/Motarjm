@@ -30,3 +30,15 @@ node_modules
 .amplify
 amplify_outputs*
 amplifyconfiguration*
+
+*.png
+*.jpg
+*.jpeg
+*.pdf
+*.docx
+*.tmx
+*.tbx
+*.xliff
+*.sdlxliff
+*.txt
+*.md
