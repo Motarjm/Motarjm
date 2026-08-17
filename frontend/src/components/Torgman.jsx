@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import '../assets/Torgman.css';
 import { API_URL } from '../apiConfig';
 import StyleGuidePanel from './StyleGuidePanel';
+import TranslatorProfilePanel from './TranslatorProfilePanel';
 import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
 import {
   trackFileSelected,
@@ -88,6 +89,10 @@ const Torgman = () => {
   const [isStyleGuideActive, setIsStyleGuideActive] = useState(false);
   const [activeDocumentId, setActiveDocumentId] = useState(null);
   const [isPreparingSample, setIsPreparingSample] = useState(false);
+  const [isToolsDrawerOpen, setIsToolsDrawerOpen] = useState(false);
+  const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
+  const [profileData, setProfileData] = useState({});
+  const [isProfileActive, setIsProfileActive] = useState(false);
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
   const tmInputRef = useRef();
@@ -1145,6 +1150,46 @@ const Torgman = () => {
     setIsStyleGuideOpen(false);
   };
 
+  const handleProfileConfirm = (data) => {
+    setProfileData(data);
+    setIsProfileActive(true);
+    setIsProfilePanelOpen(false);
+  };
+
+  const handleProfileCancel = () => {
+    setIsProfilePanelOpen(false);
+  };
+
+  const handleProfileToggle = () => {
+    setIsProfileActive(prev => !prev);
+  };
+
+  const handleExtractFromSkillFile = async (file) => {
+    try {
+      const text = await file.text();
+      if (file.name.toLowerCase().endsWith('.json')) {
+        const parsed = JSON.parse(text);
+        return {
+          role: typeof parsed.role === 'string' ? parsed.role : '',
+          preferences: Array.isArray(parsed.preferences) ? parsed.preferences : '',
+        };
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const profileHasContent = !!(
+    isProfileActive &&
+    (profileData.role?.trim() || (profileData.preferences && profileData.preferences.length > 0))
+  );
+
+  const activeToolsCount =
+    (glossaryFileName ? 1 : 0) +
+    (tmFileName ? 1 : 0) +
+    (profileHasContent ? 1 : 0);
+
   return (
     <div className="torgman-page">
       <div className="top-bar">
@@ -1283,55 +1328,153 @@ const Torgman = () => {
             accept=".pdf,.xliff,.xlf,.sdlxliff,.mqxliff,.docx"
           />
 
-          <div className="uploads-row">
-          <div className="glossary-upload">
-                {!glossaryFileName ? (
-                  <button
-                    type="button"
-                    className="glossary-upload-btn"
-                    onClick={() => glossaryInputRef.current.click()}
-                    disabled={glossaryUploading}
-                  >
-                    أضف ملف مصطلحات (TBX)
-                  </button>
-                ) : (
-                  <div className="glossary-chip">
-                    <span className="glossary-chip-icon">📘</span>
-                    <span className="glossary-chip-name" title={glossaryFileName}>
-                      {glossaryUploading ? `جارٍ الرفع... ${glossaryFileName}` : glossaryFileName}
-                    </span>
-                    
-                    <button
-                      type="button"
-                      className="glossary-chip-remove"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setGlossaryFileName('');
-                        setGlossaryFile(null);
-                        setGlossaryFileSize(null);
-                        setGlossaryId(null);
-                        setGlossaryFileBase64(null);
-                        glossaryRef.current = { id: null, fileName: '', fileSize: null, base64: null };
-                        glossaryTouchedRef.current = true;
-                        glossaryUploadPromiseRef.current = null;
-                        await clearPendingUpload('glossary');
-                        if (activeDocumentId) {
-                          await saveDocumentState(activeDocumentId, {
-                            glossaryFileName: '', glossaryFileSize: null,
-                            glossaryId: null, glossaryFileBase64: null,
-                          });
-                        }
-                        if (glossaryInputRef.current) {
-                          glossaryInputRef.current.value = '';
-                        }
-                      }}
-                      aria-label="إزالة ملف المصطلحات"
-                    >
-                      ✕
-                    </button>
+          {/* Tools Drawer Toggle */}
+          <button
+            type="button"
+            className={`tools-drawer-toggle ${isToolsDrawerOpen ? 'is-open' : ''}`}
+            onClick={() => setIsToolsDrawerOpen(v => !v)}
+          >
+            <span className="tools-drawer-toggle-icon">🛠</span>
+            <span className="tools-drawer-toggle-label">أدوات الترجمة</span>
+            {activeToolsCount > 0 && (
+              <span className="tools-drawer-badge">{activeToolsCount}</span>
+            )}
+            <span className="tools-drawer-caret">▾</span>
+          </button>
+
+          {/* Tools Drawer Body */}
+          {isToolsDrawerOpen && (
+            <div className="tools-drawer-body">
+              <div className="tools-drawer-grid">
+                {/* Glossary Cell */}
+                <div className={`tools-drawer-cell ${glossaryFileName ? 'has-content' : ''}`}>
+                  <div className="tools-drawer-cell-header">
+                    <span className="tools-drawer-cell-icon">📘</span>
+                    <span className="tools-drawer-cell-title">مصطلحات (TBX)</span>
                   </div>
-                )}
+                  <div className="tools-drawer-cell-body">
+                    {!glossaryFileName ? (
+                      <button
+                        type="button"
+                        className="glossary-upload-btn"
+                        onClick={() => glossaryInputRef.current.click()}
+                        disabled={glossaryUploading}
+                      >
+                        أضف ملف مصطلحات
+                      </button>
+                    ) : (
+                      <div className="glossary-chip">
+                        <span className="glossary-chip-icon">📘</span>
+                        <span className="glossary-chip-name" title={glossaryFileName}>
+                          {glossaryUploading ? `جارٍ الرفع...` : glossaryFileName}
+                        </span>
+                        <button
+                          type="button"
+                          className="glossary-chip-remove"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setGlossaryFileName('');
+                            setGlossaryFile(null);
+                            setGlossaryFileSize(null);
+                            setGlossaryId(null);
+                            setGlossaryFileBase64(null);
+                            glossaryRef.current = { id: null, fileName: '', fileSize: null, base64: null };
+                            glossaryTouchedRef.current = true;
+                            glossaryUploadPromiseRef.current = null;
+                            await clearPendingUpload('glossary');
+                            if (activeDocumentId) {
+                              await saveDocumentState(activeDocumentId, {
+                                glossaryFileName: '', glossaryFileSize: null,
+                                glossaryId: null, glossaryFileBase64: null,
+                              });
+                            }
+                            if (glossaryInputRef.current) {
+                              glossaryInputRef.current.value = '';
+                            }
+                          }}
+                          aria-label="إزالة ملف المصطلحات"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* TM Cell */}
+                <div className={`tools-drawer-cell ${tmFileName ? 'has-content' : ''}`}>
+                  <div className="tools-drawer-cell-header">
+                    <span className="tools-drawer-cell-icon">🗂</span>
+                    <span className="tools-drawer-cell-title">ذاكرة ترجمة (TMX)</span>
+                  </div>
+                  <div className="tools-drawer-cell-body">
+                    {!tmFileName ? (
+                      <button
+                        type="button"
+                        className="glossary-upload-btn"
+                        onClick={() => tmInputRef.current.click()}
+                        disabled={tmUploading}
+                      >
+                        أضف ذاكرة ترجمة
+                      </button>
+                    ) : (
+                      <div className="glossary-chip">
+                        <span className="glossary-chip-icon">🗂</span>
+                        <span className="glossary-chip-name" title={tmFileName}>
+                          {tmUploading ? `جارٍ الرفع...` : tmFileName}
+                        </span>
+                        <button
+                          type="button"
+                          className="glossary-chip-remove"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            setTmFileName('');
+                            setTmFile(null);
+                            setTmFileSize(null);
+                            setTmId(null);
+                            setTmFileBase64(null);
+                            tmRef.current = { id: null, fileName: '', fileSize: null, base64: null };
+                            tmTouchedRef.current = true;
+                            tmUploadPromiseRef.current = null;
+                            await clearPendingUpload('tm');
+                            if (activeDocumentId) {
+                              await saveDocumentState(activeDocumentId, {
+                                tmFileName: '', tmFileSize: null,
+                                tmId: null, tmFileBase64: null,
+                              });
+                            }
+                            if (tmInputRef.current) {
+                              tmInputRef.current.value = '';
+                            }
+                          }}
+                          aria-label="إزالة ملف ذاكرة الترجمة"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Profile Cell */}
+                <div
+                  className={`tools-drawer-cell profile-cell ${profileHasContent ? 'is-active' : ''}`}
+                  onClick={() => setIsProfilePanelOpen(true)}
+                >
+                  <div className="tools-drawer-cell-header">
+                    <span className="tools-drawer-cell-icon">🧑‍🏫</span>
+                    <span className="tools-drawer-cell-title">شخصية المترجم</span>
+                  </div>
+                  <div className="tools-drawer-cell-body">
+                    <span className="tools-drawer-cell-profile-status">
+                      {profileHasContent ? 'مُفعّل' : 'اضغط للإعداد'}
+                    </span>
+                  </div>
+                </div>
               </div>
+            </div>
+          )}
+
           <input
             type="file"
             ref={glossaryInputRef}
@@ -1339,55 +1482,6 @@ const Torgman = () => {
             onChange={handleGlossaryChange}
             accept=".tbx"
           />
-
-          <div className="glossary-upload">
-                {!tmFileName ? (
-                  <button
-                    type="button"
-                    className="glossary-upload-btn"
-                    onClick={() => tmInputRef.current.click()}
-                    disabled={tmUploading}
-                  >
-                    أضف ذاكرة ترجمة (TMX)
-                  </button>
-                ) : (
-                  <div className="glossary-chip">
-                    <span className="glossary-chip-icon">📘</span>
-                    <span className="glossary-chip-name" title={tmFileName}>
-                      {tmUploading ? `جارٍ الرفع... ${tmFileName}` : tmFileName}
-                    </span>
-
-                    <button
-                      type="button"
-                      className="glossary-chip-remove"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        setTmFileName('');
-                        setTmFile(null);
-                        setTmFileSize(null);
-                        setTmId(null);
-                        setTmFileBase64(null);
-                        tmRef.current = { id: null, fileName: '', fileSize: null, base64: null };
-                        tmTouchedRef.current = true;
-                        tmUploadPromiseRef.current = null;
-                        await clearPendingUpload('tm');
-                        if (activeDocumentId) {
-                          await saveDocumentState(activeDocumentId, {
-                            tmFileName: '', tmFileSize: null,
-                            tmId: null, tmFileBase64: null,
-                          });
-                        }
-                        if (tmInputRef.current) {
-                          tmInputRef.current.value = '';
-                        }
-                      }}
-                      aria-label="إزالة ملف ذاكرة الترجمة"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-              </div>
           <input
             type="file"
             ref={tmInputRef}
@@ -1395,7 +1489,18 @@ const Torgman = () => {
             onChange={handleTmChange}
             accept=".tmx,.csv,.xlsx"
           />
-          </div>
+
+          {/* Translator Profile Panel */}
+          {isProfilePanelOpen && (
+            <TranslatorProfilePanel
+              onConfirm={handleProfileConfirm}
+              onCancel={handleProfileCancel}
+              initialData={profileData}
+              isActive={isProfileActive}
+              onToggleActive={handleProfileToggle}
+              onExtractFromFile={handleExtractFromSkillFile}
+            />
+          )}
 
           {/* Pre-translate hint — appears when main file is ready but no glossary/TM yet */}
           {selectedFile && !isTranslating && !downloadUrl && !glossaryFileName && !tmFileName && (
@@ -1480,7 +1585,7 @@ const Torgman = () => {
 
       </div>
     </div>
-  </div>
+    </div>
   );
 };
 
