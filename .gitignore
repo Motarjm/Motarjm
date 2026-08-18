@@ -41,4 +41,5 @@ amplifyconfiguration*
 *.xliff
 *.sdlxliff
 *.txt
+!requirements.txt
 *.md
