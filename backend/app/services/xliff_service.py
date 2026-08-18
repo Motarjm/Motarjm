@@ -2,10 +2,7 @@ import io
 import re
 from typing import Dict, List, Tuple
 
-try:
-    from lxml import etree
-except ImportError:
-    raise ImportError("lxml is required: pip install lxml")
+from lxml import etree
 
 
 # ---------------------------------------------------------------------------

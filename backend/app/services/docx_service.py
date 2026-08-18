@@ -13,46 +13,145 @@ from io import BytesIO
 
 NUM_OF_SENTENCES_PER_SEGMENT = 1
 
-ABBREVIATIONS = {
-    "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "vs", "etc",
-    "e.g", "i.e", "approx", "dept", "est", "fig", "govt",
-    "inc", "ltd", "no", "p", "pp", "vol", "jan", "feb",
-    "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
-}
+def protect_false_periods(text: str) -> str:
+    
+    # Titles — always protect their period (always followed by a name)
+    TITLES = {
+        "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st",
+        "sgt", "rev", "hon", "capt", "lt", "col", "gen",
+    }
+
+    # Non-title abbreviations — protect only when followed by lowercase/digit
+    # (clearly mid-sentence). When followed by a capital they MAY end the
+    # sentence, so we leave the period unprotected.
+    SOFT_ABBREVS = {
+        "etc", "e.g", "i.e", "vs", "approx", "dept", "est", "fig", "govt",
+        "inc", "ltd", "no", "p", "pp", "vol",
+        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+    }
+
+    # Known URL / file-extension TLDs
+    URL_TLDS = {
+        "com", "org", "net", "edu", "gov", "io", "co", "info", "biz",
+        "pdf", "txt", "py", "js", "html", "htm", "csv", "json", "xml", "md",
+    }
+    
+    # 1. Decimals and version numbers — e.g. 3.14, $4.99, 1,200.50, v1.2.3
+    #    The multi-segment pattern catches 1.2.3 (which the old (\d)\.(\d)
+    #    one-pass pattern missed because re.sub moves past the first match).
+    text = re.sub(r'(\d+(?:\.\d+)+)',
+                  lambda m: m.group(1).replace('.', '<<<DOT>>>'), text)
+
+    # 1b. Email addresses — e.g. john.doe@example.com
+    #     The internal dots between local-part labels must be protected,
+    #     otherwise the no-whitespace splitter (pattern 2d) would split them.
+    text = re.sub(r'\b([\w]+(?:\.[\w]+)*@[\w]+(?:\.[\w]+)+)\b',
+                  lambda m: m.group(1).replace('.', '<<<DOT>>>'), text)
+
+    # 2. URLs and file extensions — e.g. example.com, report.pdf
+    tld_alt = '|'.join(re.escape(t) for t in URL_TLDS)
+    text = re.sub(r'(\w)\.(' + tld_alt + r')\b', r'\1<<<DOT>>>\2', text)
+
+    # 3. Title abbreviations — period always protected when followed by whitespace
+    title_pat = r'\b(' + '|'.join(TITLES) + r')\.(?=\s)'
+    text = re.sub(title_pat,
+                  lambda m: m.group(0).replace('.', '<<<DOT>>>'),
+                  text, flags=re.IGNORECASE)
+
+    # 4a. Single-letter initial followed by another initial: "J. K."
+    text = re.sub(r'\b([A-Z])\.(?=\s[A-Z]\.)', r'\1<<<DOT>>>', text)
+
+    # 4b. Single-letter initial followed by a Capitalized word (a name):
+    #     "J. Rowling" — but NOT when preceded by '.' or '>' (which would
+    #     mean we're inside an already-protected acronym chain like U.S.).
+    text = re.sub(r'(?<![.>])\b([A-Z])\.(?=\s[A-Z][a-z])', r'\1<<<DOT>>>', text)
+
+    # 4c. Degree-style abbreviations: "Ph.D.", "M.D.", "B.A.", "M.S."
+    #     Must run BEFORE step 4d so both dots are protected together.
+    #     Protects BOTH dots so 'Ph.D. in physics' doesn't get split
+    #     internally by the no-whitespace splitter (pattern 2d) later.
+    text = re.sub(
+        r'\b([A-Z][a-z]{1,3})\.([A-Z])\.(?=\s|$|[,;:!?)\]])',
+        lambda m: m.group(0).replace('.', '<<<DOT>>>'),
+        text,
+    )
+
+    # 4d. Single-letter initial followed by lowercase (clearly mid-sentence):
+    #     "D. in physics" (the second half of Ph.D. after step 4c handles
+    #     the pair), "U.S. in the world"
+    text = re.sub(r'\b([A-Z])\.(?=\s[a-z])', r'\1<<<DOT>>>', text)
+
+    # 5. Acronym chains — protect dots BETWEEN single capital letters
+    #    (no space): "U.S.", "U.K.", "U.S.A." — but the trailing dot is
+    #    left unprotected so it can still end a sentence.
+    text = re.sub(r'\b([A-Z])\.(?=[A-Z])', r'\1<<<DOT>>>', text)
+
+    # 6. Words ending in a capital letter when followed by lowercase.
+    #    Covers ALL-CAPS words ("II. was", "NASA. was") AND mixed-case
+    #    abbreviations ending in a capital ("PhD. gave", "McDonald. has").
+    #    The heuristic: if the word's last letter is uppercase, it likely
+    #    behaves like an abbreviation that doesn't end a sentence.
+    text = re.sub(r'\b(\w*[A-Z])\.(?=\s[a-z])', r'\1<<<DOT>>>', text)
+
+    # 7. Soft abbreviations — protect only when followed by lowercase/digit.
+    #    IMPORTANT: use scoped (?i:...) so the abbreviation alternation is
+    #    case-insensitive (matches Apr, APR, apr) BUT the lookahead
+    #    (?=\s[a-z0-9]) stays case-sensitive — otherwise [a-z] would also
+    #    match capitals, and 'Apr. We' would be wrongly protected.
+    soft_pat = r'\b(?i:' + '|'.join(re.escape(a) for a in SOFT_ABBREVS) + r')\.(?=\s[a-z0-9])'
+    text = re.sub(soft_pat,
+                  lambda m: m.group(0).replace('.', '<<<DOT>>>'),
+                  text)
+
+    return text
+
 
 def split_sentences(text: str) -> list[str]:
-    # Step 1: Protect false periods with a placeholder
+    # Step 1: Protect false periods
     text = protect_false_periods(text)
 
-    # Step 2: Split on real sentence-ending periods
-    # Real period = followed by space + uppercase, or end of string
-    pattern = r'(?<=[.!?])\s+(?=[A-Z])'
-    sentences = re.split(pattern, text)
+    # Step 2: Insert '\n' at every true sentence boundary
 
-    # Step 3: Restore placeholders
-    sentences = [s.replace("<<<DOT>>>", ".") for s in sentences]
+    # 2a. Multi-dot terminator (... or …) — split only when next char is a
+    #     capital letter, digit, ¿/¡, accented capital, or CJK ideograph.
+    text = re.sub(
+        r'(\.{2,}|…+)(["\')\]\}]*)\s+'
+        r'(?=[A-Z0-9¿¡\u00C0-\u00DE\u4e00-\u9fff])',
+        lambda m: m.group(1) + m.group(2) + '\n',
+        text,
+    )
 
-    return [s.strip() for s in sentences if s.strip()]
+    # 2b. Single terminator (. ! ?) — not part of a multi-dot run — split
+    #     on any non-space successor. Closing quotes/brackets/parens after
+    #     the terminator are preserved on the prior sentence.
+    text = re.sub(
+        r'(?<![.\u2026])([.!?])(["\')\]\}]*)\s+(?=\S)',
+        lambda m: m.group(1) + m.group(2) + '\n',
+        text,
+    )
 
+    # 2c. CJK terminator (。！？) — split without requiring whitespace
+    text = re.sub(
+        r'([。！？])\s*(?=\S)',
+        lambda m: m.group(1) + '\n',
+        text,
+    )
 
-def protect_false_periods(text: str) -> str:
-    # 1. Protect ellipsis
-    text = re.sub(r'\.{2,}', lambda m: "<<<DOT>>>" * m.group().count('.'), text)
+    # 2d. No-whitespace split: word-char + terminator + word-char
+    #     Handles cases like "Hello.World" and "Wow!Amazing" where the
+    #     writer forgot to put a space after the sentence-ending punctuation.
+    text = re.sub(
+        r'(?<=\w)([.!?])(?=\w)',
+        lambda m: m.group(1) + '\n',
+        text,
+    )
 
-    # 2. Protect decimals and numbers: 3.14, $4.99, 1,200.50
-    text = re.sub(r'(\d)\.(\d)', r'\1<<<DOT>>>\2', text)
-
-    # 3. Protect known abbreviations (case-insensitive)
-    abbrev_pattern = r'\b(' + '|'.join(re.escape(a) for a in ABBREVIATIONS) + r')\.(?=\s)'
-    text = re.sub(abbrev_pattern, lambda m: m.group(0).replace('.', '<<<DOT>>>'), text, flags=re.IGNORECASE)
-
-    # 4. Protect single uppercase initials: J. K. Rowling
-    text = re.sub(r'\b([A-Z])\.(?=\s[A-Z])', r'\1<<<DOT>>>', text)
-
-    # 5. Protect URLs and file extensions
-    text = re.sub(r'(\w)\.(com|org|net|pdf|txt|py|js|html|csv|json)\b', r'\1<<<DOT>>>\2', text)
-
-    return text    
+    # Step 3: Split on newline and restore protected dots.
+    # Filter out fragments that contain no alphanumeric character
+    # (e.g. pure-punctuation fragments like '...' or '.').
+    sentences = text.split('\n')
+    sentences = [s.replace('<<<DOT>>>', '.').strip() for s in sentences]
+    return [s for s in sentences if s and any(c.isalnum() for c in s)]
 
 
 def iter_unique_cells_table(table):
