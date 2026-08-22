@@ -1027,24 +1027,23 @@ const Torgman = () => {
       const sourceLangCode = sourceLangObj?.code || 'en';
       const targetLangCode = targetLangObj?.code || 'ar';
 
-      let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
-      if (segmentOnly) {
-        queryParams += `&segment_only=true`;
-      }
-      if (glossaryId) {
-        queryParams += `&glossary_id=${encodeURIComponent(glossaryId)}`;
-      }
-      if (tmId) {
-        queryParams += `&tm_id=${encodeURIComponent(tmId)}`;
-      }
+      // let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
+      // if (segmentOnly) {
+      //   queryParams += `&no_translation=true`;
+      // }
+      // if (glossaryId) {
+      //   queryParams += `&glossary_id=${encodeURIComponent(glossaryId)}`;
+      // }
+      // if (tmId) {
+      //   queryParams += `&tm_id=${encodeURIComponent(tmId)}`;
+      // }
+      let styleGuideXML = null;
       if (hasStyleGuideData(styleGuideData) && isStyleGuideActive) {
         const styleGuideXML = formatStyleGuideToXML(styleGuideData);
-        const encodedStyleGuide = encodeURIComponent(styleGuideXML);
-        queryParams += `&style_guide=${encodedStyleGuide}`;
+        // const encodedStyleGuide = encodeURIComponent(styleGuideXML);
+        // queryParams += `&style_guide=${encodedStyleGuide}`;
 
         console.log('%c=== SENDING STYLE GUIDE TO BACKEND ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
-        console.log('XML:', styleGuideXML);
-        console.log('URL-encoded param:', `style_guide=${encodedStyleGuide}`);
       } else if (hasStyleGuideData(styleGuideData) && !isStyleGuideActive) {
         console.log('%c=== STYLE GUIDE SAVED BUT DEACTIVATED - NOT SENDING TO BACKEND ===', 'color: #FF9500; font-weight: bold; font-size: 14px;');
       }
@@ -1052,19 +1051,33 @@ const Torgman = () => {
       // role/preferences go in the FormData body (not the query string) —
       // the backend now reads them as Form fields, keeping a verbose
       // translator profile off the URL alongside style_guide/glossary_id/tm_id.
-      if (profileHasContent) {
-        if (profileData.role?.trim()) {
-          formData.append('role', profileData.role.trim());
-        }
-        if (profileData.preferences?.length > 0) {
-          formData.append('preferences', JSON.stringify(profileData.preferences));
-        }
-      }
+      // if (profileHasContent) {
+      //   if (profileData.role?.trim()) {
+      //     formData.append('role', profileData.role.trim());
+      //   }
+      //   if (profileData.preferences?.length > 0) {
+      //     formData.append('preferences', JSON.stringify(profileData.preferences));
+      //   }
+      // }
+
+      const translationPayload = {
+      source_lang: sourceLangCode,
+      target_lang: targetLangCode,
+      no_translation: Boolean(segmentOnly),
+      glossary_id: glossaryId || null,
+      tm_id: tmId || null,
+      style_guide: styleGuideXML,
+      role: profileHasContent && profileData.role?.trim() ? profileData.role.trim() : null,
+      preferences: profileHasContent && profileData.preferences?.length > 0 ? profileData.preferences : []
+    };
+
+    // 3. Append the JSON string to FormData under the field name 'request'
+    formData.append('request', JSON.stringify(translationPayload));
 
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
 
       const startResponse = await fetch(
-        `${API_URL}${endpoint}?${queryParams}`,
+        `${API_URL}${endpoint}`,
         {
           method: 'POST',
           body: formData,
