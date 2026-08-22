@@ -194,7 +194,8 @@ providers = {"translator": [gemini_3_1_flash_lite,
              "general_chatbot_gemini": [agent_gemini_3_1_flash_lite],
              "general_chatbot_deepseek": [agent_deepseek],
              "general_chatbot_grok": [grok],
-             "general_chatbot_claude": [agent_claude_haiku_4_5]
+             "general_chatbot_claude": [agent_claude_haiku_4_5],
+             "translator_profile": [claude_haiku_4_5, deepseek],             
 
              }
 

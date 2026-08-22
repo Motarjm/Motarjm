@@ -146,6 +146,21 @@ const Torgman = () => {
       setIsStyleGuideActive(JSON.parse(savedStyleGuideActive));
     }
   }, []);
+
+    useEffect(() => {
+    const savedProfile = sessionStorage.getItem('translation_translator_profile');
+    const savedProfileActive = sessionStorage.getItem('translation_translator_profile_active');
+    if (savedProfile) {
+      try {
+        setProfileData(JSON.parse(savedProfile));
+      } catch (e) {
+        console.error('Failed to parse saved translator profile:', e);
+      }
+    }
+    if (savedProfileActive) {
+      setIsProfileActive(JSON.parse(savedProfileActive));
+    }
+  }, []);
   
   const Sourcelanguages = [
     { code: 'en', name: 'English', englishName: 'English' },
@@ -1033,6 +1048,18 @@ const Torgman = () => {
       } else if (hasStyleGuideData(styleGuideData) && !isStyleGuideActive) {
         console.log('%c=== STYLE GUIDE SAVED BUT DEACTIVATED - NOT SENDING TO BACKEND ===', 'color: #FF9500; font-weight: bold; font-size: 14px;');
       }
+      
+      // role/preferences go in the FormData body (not the query string) —
+      // the backend now reads them as Form fields, keeping a verbose
+      // translator profile off the URL alongside style_guide/glossary_id/tm_id.
+      if (profileHasContent) {
+        if (profileData.role?.trim()) {
+          formData.append('role', profileData.role.trim());
+        }
+        if (profileData.preferences?.length > 0) {
+          formData.append('preferences', JSON.stringify(profileData.preferences));
+        }
+      }
 
       trackTranslationStarted(fileType, selectedFile.size, sourceLang, targetLang);
 
@@ -1150,34 +1177,47 @@ const Torgman = () => {
     setIsStyleGuideOpen(false);
   };
 
-  const handleProfileConfirm = (data) => {
+  // Autosave callback from TranslatorProfilePanel — fires debounced on every
+  // edit. Deliberately does NOT touch isProfileActive or close the panel:
+  // saving text and activating it for use in translations are separate
+  // decisions (see handleProfileToggle), and the panel now closes only via
+  // the drawer cell, not as a side effect of saving.
+    const handleProfileSave = (data) => {
     setProfileData(data);
-    setIsProfileActive(true);
-    setIsProfilePanelOpen(false);
-  };
-
-  const handleProfileCancel = () => {
-    setIsProfilePanelOpen(false);
+    sessionStorage.setItem('translation_translator_profile', JSON.stringify(data));
   };
 
   const handleProfileToggle = () => {
-    setIsProfileActive(prev => !prev);
+    setIsProfileActive(prev => {
+      const next = !prev;
+      sessionStorage.setItem('translation_translator_profile_active', JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleExtractFromSkillFile = async (file) => {
-    try {
-      const text = await file.text();
-      if (file.name.toLowerCase().endsWith('.json')) {
-        const parsed = JSON.parse(text);
-        return {
-          role: typeof parsed.role === 'string' ? parsed.role : '',
-          preferences: Array.isArray(parsed.preferences) ? parsed.preferences : '',
-        };
-      }
-      return null;
-    } catch {
-      return null;
+    if (!file.name.toLowerCase().endsWith('.md') && !file.name.toLowerCase().endsWith('.txt')) {
+      throw new Error('Only .md or .txt files are supported');
     }
+
+    const formData = new FormData();
+    formData.append('skill_file', file);
+
+    const res = await fetch(`${API_URL}/translator-profile`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to extract profile');
+    }
+
+    const data = await res.json();
+    return {
+      role: typeof data.role === 'string' ? data.role : '',
+      preferences: Array.isArray(data.preferences) ? data.preferences : [],
+    };
   };
 
   const profileHasContent = !!(
@@ -1459,7 +1499,7 @@ const Torgman = () => {
                 {/* Profile Cell */}
                 <div
                   className={`tools-drawer-cell profile-cell ${profileHasContent ? 'is-active' : ''}`}
-                  onClick={() => setIsProfilePanelOpen(true)}
+                  onClick={() => setIsProfilePanelOpen(v => !v)}
                 >
                   <div className="tools-drawer-cell-header">
                     <span className="tools-drawer-cell-icon">🧑‍🏫</span>
@@ -1493,8 +1533,7 @@ const Torgman = () => {
           {/* Translator Profile Panel */}
           {isProfilePanelOpen && (
             <TranslatorProfilePanel
-              onConfirm={handleProfileConfirm}
-              onCancel={handleProfileCancel}
+              onSave={handleProfileSave}
               initialData={profileData}
               isActive={isProfileActive}
               onToggleActive={handleProfileToggle}

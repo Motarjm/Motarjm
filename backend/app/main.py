@@ -34,6 +34,7 @@ app.include_router(document.router)
 app.include_router(glossary.router)
 app.include_router(tm.router)
 app.include_router(jobs.router)
+app.include_router(translator_profile.router)
 
 # get absolute path to backend/app folder
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

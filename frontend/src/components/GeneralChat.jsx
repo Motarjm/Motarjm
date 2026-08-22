@@ -45,6 +45,22 @@ function stripStreamingJsonBlock(text) {
   return result.trim();
 }
 
+const getActiveProfile = () => {
+  try {
+    const savedProfile = sessionStorage.getItem('translation_translator_profile');
+    const savedIsActive = sessionStorage.getItem('translation_translator_profile_active');
+    const isActive = savedIsActive ? JSON.parse(savedIsActive) : false;
+    if (!isActive || !savedProfile) return null;
+    const parsed = JSON.parse(savedProfile);
+    return {
+      role: typeof parsed.role === 'string' ? parsed.role.trim() : '',
+      preferences: Array.isArray(parsed.preferences) ? parsed.preferences : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
 const GeneralChat = ({
   documentId,
   translatedContents,
@@ -296,8 +312,17 @@ const GeneralChat = ({
         setMessages(prev => [...prev, { role: 'user', text: userText }]);
       }
     }
+
+    const profile = getActiveProfile();
+    const chatParams = new URLSearchParams();
+    if (profile?.role) chatParams.set('role', profile.role);
+    if (profile?.preferences?.length) chatParams.set('preferences', JSON.stringify(profile.preferences));
+    const chatUrl = chatParams.toString()
+      ? `${API_URL}/document/chat?${chatParams.toString()}`
+      : `${API_URL}/document/chat`;
+
     try {
-      const response = await fetch(`${API_URL}/document/chat`, {
+      const response = await fetch(chatUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,

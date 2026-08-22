@@ -31,3 +31,6 @@ class ChatRequest(BaseModel):
     chat_history: List[ChatMessage] = []
     model: Literal["deepseek", "gemini", "grok", "claude"] = "claude"
     doc_context: List[List[str]] = []
+    style_guide: str = ""
+    role: Optional[str] = ""
+    preferences: List[str] = None

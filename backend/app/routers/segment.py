@@ -1,6 +1,5 @@
 import json
 import logging
-
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
@@ -65,7 +64,7 @@ async def backtranslation(request: BacktranslationRequest):
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest, style_guide: str = Query(None)):
+async def chat(request: ChatRequest):
     chat_history = [msg.model_dump() for msg in request.chat_history]
 
     def event_stream():
@@ -79,7 +78,9 @@ async def chat(request: ChatRequest, style_guide: str = Query(None)):
                 chat_history=chat_history,
                 model=request.model,
                 doc_context=request.doc_context,
-                style_guide=style_guide or "",
+                style_guide=request.style_guide or "",
+                user_role=request.role,
+                user_preferences=request.preferences,
             ):
                 if isinstance(chunk, dict):
                     yield f"data: {json.dumps(chunk)}\n\n"

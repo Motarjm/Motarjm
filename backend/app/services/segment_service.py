@@ -1,4 +1,4 @@
-from typing import List, Generator
+from typing import List, Generator, Optional
 
 from app.core.simple_calls import (
     generate_explanation,
@@ -42,6 +42,8 @@ def stream_chat_response(
     model: str,
     doc_context: List[List[str]],
     style_guide: str = "",
+    user_role: str = "",
+    user_preferences: Optional[List[str]] = None,
 ) -> Generator[str, None, None]:
     return stream_chatbot(
         source_text=source_text,
@@ -53,4 +55,7 @@ def stream_chat_response(
         model=model,
         doc_context=doc_context,
         style_guide=style_guide,
+        user_role =user_role,
+        user_preferences=user_preferences,
+        
     )

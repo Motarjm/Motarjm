@@ -79,6 +79,22 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
   );
 };
 
+const getActiveProfile = () => {
+  try {
+    const savedProfile = sessionStorage.getItem('translation_translator_profile');
+    const savedIsActive = sessionStorage.getItem('translation_translator_profile_active');
+    const isActive = savedIsActive ? JSON.parse(savedIsActive) : false;
+    if (!isActive || !savedProfile) return null;
+    const parsed = JSON.parse(savedProfile);
+    return {
+      role: typeof parsed.role === 'string' ? parsed.role.trim() : '',
+      preferences: Array.isArray(parsed.preferences) ? parsed.preferences : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
 
 const FocusChatPanel = ({
   documentId,
@@ -209,8 +225,13 @@ const FocusChatPanel = ({
 
     try {
       abortRef.current = new AbortController();
-      const chatEndpoint = styleGuideQueryValue
-        ? `${API_URL}/segment/chat?style_guide=${styleGuideQueryValue}`
+      const profile = getActiveProfile();
+      const chatParams = new URLSearchParams();
+      if (styleGuideQueryValue) chatParams.set('style_guide', styleGuideQueryValue);
+      if (profile?.role) chatParams.set('role', profile.role);
+      if (profile?.preferences?.length) chatParams.set('preferences', JSON.stringify(profile.preferences));
+      const chatEndpoint = chatParams.toString()
+        ? `${API_URL}/segment/chat?${chatParams.toString()}`
         : `${API_URL}/segment/chat`;
 
       const response = await fetch(chatEndpoint, {

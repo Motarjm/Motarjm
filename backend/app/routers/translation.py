@@ -1,8 +1,9 @@
 import base64
 import asyncio
-from typing import Optional, Tuple
+import json
+from typing import List, Optional, Tuple
 import logging
-from fastapi import APIRouter, File, HTTPException, UploadFile, Query, Request
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Query, Request
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming, is_image_based, translate_file_content_docx_streaming
@@ -20,6 +21,21 @@ from app.services.pdf_service import _convert_pdf_to_docx_bytes
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/translation", tags=["Translation"])
+
+
+def _parse_preferences(preferences: Optional[str]) -> List[str]:
+    """
+    Parses the `preferences` field (a JSON-encoded array of strings, same
+    shape returned by the translator-profile extraction endpoint) into a
+    plain list. Falls back to an empty list on anything malformed.
+    """
+    if not preferences:
+        return []
+    try:
+        parsed = json.loads(preferences)
+        return [p for p in parsed if isinstance(p, str) and p.strip()] if isinstance(parsed, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
 
 #TODO: I should isolate the reading of the file from the translation, cuz tranlsation function is the same
 #TODO: the structure of translated contents is different at different stages for pdf and xliff, it should be unified.
@@ -43,12 +59,13 @@ router = APIRouter(prefix="/translation", tags=["Translation"])
 # cross-thread session hand-off needed.
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False, user_role: str = "", user_preferences: Optional[List[str]] = None):
     logger.info(f"[pdf_job {job_id}] starting: {source_lang}->{target_lang}, {len(pdf_bytes)} bytes, no_translation={no_translation}")
     async with AsyncSessionLocal() as db:
         try:
             async for event in translate_file_content_pdf_streaming(
                 pdf_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
+                user_role=user_role, user_preferences=user_preferences,
             ):
                 if await job_repo.is_cancelled(db, job_id):
                     logger.info(f"[pdf_job {job_id}] cancelled")
@@ -74,12 +91,13 @@ async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_la
             await job_repo.mark_error(db, job_id, str(exc))
 
 
-async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False, user_role: str = "", user_preferences: Optional[List[str]] = None):
     logger.info(f"[xliff_job {job_id}] starting: {source_lang}->{target_lang}, {len(xliff_bytes)} bytes, no_translation={no_translation}")
     async with AsyncSessionLocal() as db:
         try:
             async for event in translate_file_content_xliff_streaming(
                 xliff_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
+                user_role=user_role, user_preferences=user_preferences,
             ):
                 if await job_repo.is_cancelled(db, job_id):
                     logger.info(f"[xliff_job {job_id}] cancelled")
@@ -107,12 +125,13 @@ async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, targe
             await job_repo.mark_error(db, job_id, str(exc))
 
 
-async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False, user_role: str = "", user_preferences: Optional[List[str]] = None):
     logger.info(f"[docx_job {job_id}] starting: {source_lang}->{target_lang}, {len(docx_bytes)} bytes, no_translation={no_translation}")
     async with AsyncSessionLocal() as db:
         try:
             async for event in translate_file_content_docx_streaming(
                 BytesIO(docx_bytes), source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
+                user_role=user_role, user_preferences=user_preferences,
             ):
                 if await job_repo.is_cancelled(db, job_id):
                     logger.info(f"[docx_job {job_id}] cancelled")
@@ -146,6 +165,14 @@ async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_
 # ─────────────────────────────────────────────────────────────────────────────
 # "Start job" endpoints — validate input, kick off background work, return
 # immediately with a job_id. These no longer stream anything themselves.
+#
+# NOTE on role/preferences: these were previously `Query(None)`, meaning the
+# frontend had to cram them into the URL query string alongside style_guide,
+# glossary_id, and tm_id. For a verbose translator profile this risks
+# hitting proxy/URL length limits (Nginx default ~8KB) and failing with an
+# opaque 414. Since these endpoints already accept multipart/form-data
+# (they take File uploads), `Form(None)` puts role/preferences in the
+# request body instead — same multipart request, no URL size pressure.
 # ─────────────────────────────────────────────────────────────────────────────
 
 # NOT USED FOR NOW
@@ -160,6 +187,8 @@ async def translate_pdf_file(
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
     segment_only: bool = Query(False),
+    role: str = Form(None),
+    preferences: str = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     if not file.filename.endswith(".pdf"):
@@ -208,7 +237,7 @@ async def translate_pdf_file(
 
     job_id = await job_repo.create_job(db, file_type="pdf", source_lang=source_lang, target_lang=target_lang)
     logger.info(f"[pdf_job {job_id}] created for {file.filename}, segment_only={segment_only}")
-    asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only, user_role=role or "", user_preferences=_parse_preferences(preferences)))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
@@ -223,6 +252,8 @@ async def translate_xliff_file(
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
     segment_only: bool = Query(False),
+    role: str = Form(None),
+    preferences: str = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf") and not file.filename.endswith(".sdlxliff") and not file.filename.endswith(".mqxliff"):
@@ -268,7 +299,7 @@ async def translate_xliff_file(
 
     job_id = await job_repo.create_job(db, file_type="xliff", source_lang=source_lang, target_lang=target_lang)
     logger.info(f"[xliff_job {job_id}] created for {file.filename}, segment_only={segment_only}")
-    asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only, user_role=role or "", user_preferences=_parse_preferences(preferences)))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
@@ -283,6 +314,8 @@ async def translate_docx_file(
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
     segment_only: bool = Query(False),
+    role: str = Form(None),
+    preferences: str = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     if not file.filename.endswith(".docx"):
@@ -327,7 +360,7 @@ async def translate_docx_file(
 
     job_id = await job_repo.create_job(db, file_type="docx", source_lang=source_lang, target_lang=target_lang)
     logger.info(f"[docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
-    asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only, user_role=role or "", user_preferences=_parse_preferences(preferences)))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 @router.post("/pdf-as-docx")
@@ -341,6 +374,8 @@ async def translate_pdf_as_docx(
     target_lang: str = Query("ar"),
     style_guide: str = Query(None),
     segment_only: bool = Query(False),
+    role: str = Form(None),
+    preferences: str = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     if not file.filename.endswith(".pdf"):
@@ -398,7 +433,7 @@ async def translate_pdf_as_docx(
     logger.info(f"[pdf-as-docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
     asyncio.create_task(
         run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide,
-                     glossary_dict, glossary_id=glossary_id, no_translation=segment_only)
+                     glossary_dict, glossary_id=glossary_id, no_translation=segment_only,
+                     user_role=role or "", user_preferences=_parse_preferences(preferences))
     )
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
-
