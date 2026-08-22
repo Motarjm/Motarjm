@@ -464,7 +464,6 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
 def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
                            chat_history: List[dict],  doc_context: List[List[dict]], 
                            style_guide: str = "", review_results: List[dict] = [],
-                           glossary: dict = None,
                            user_role: str = "", user_preferences: Optional[List[str]] = None):
     """
     Streams chatbot response tokens for a general document-level chat.
@@ -596,7 +595,6 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
         "source_lang": source_lang,
         "target_lang": target_lang,
         "style_guide": style_guide,
-        "glossary": glossary,
     }
 
     for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"],
