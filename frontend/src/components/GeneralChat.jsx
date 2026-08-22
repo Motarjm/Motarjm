@@ -45,6 +45,22 @@ function stripStreamingJsonBlock(text) {
   return result.trim();
 }
 
+const getActiveProfile = () => {
+  try {
+    const savedProfile = sessionStorage.getItem('translation_translator_profile');
+    const savedIsActive = sessionStorage.getItem('translation_translator_profile_active');
+    const isActive = savedIsActive ? JSON.parse(savedIsActive) : false;
+    if (!isActive || !savedProfile) return null;
+    const parsed = JSON.parse(savedProfile);
+    return {
+      role: typeof parsed.role === 'string' ? parsed.role.trim() : '',
+      preferences: Array.isArray(parsed.preferences) ? parsed.preferences : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
 const GeneralChat = ({
   documentId,
   translatedContents,
@@ -85,6 +101,7 @@ const GeneralChat = ({
   onApplySuggestion,      // (text) => void
 }) => {
   const [messages, setMessages] = useState([]);
+  const [ephemeralError, setEphemeralError] = useState(null);
   const [messagesLoaded, setMessagesLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [model, setModel] = useState('claude');
@@ -276,6 +293,7 @@ const GeneralChat = ({
 
   const streamResponse = async (userText = null, { silent = false } = {}) => {
     if (loading) return;
+    setEphemeralError(null);
     setLoading(true);
 
     let botMessageId = null;
@@ -294,6 +312,9 @@ const GeneralChat = ({
         setMessages(prev => [...prev, { role: 'user', text: userText }]);
       }
     }
+
+    const profile = getActiveProfile();
+    
     try {
       const response = await fetch(`${API_URL}/document/chat`, {
         method: 'POST',
@@ -305,9 +326,11 @@ const GeneralChat = ({
           translated_contents: translatedContents,
           source_lang: sourceLang,
           target_lang: targetLang,
-          review_results: reviewContextDismissed ? null : (reviewResults || null),
-          glossary: glossary || {},
+          review_results: reviewContextDismissed ? [] : (reviewResults || []),
           model: model,
+          role: profile?.role || '',
+          preferences: profile?.preferences || [],
+
         }),
       });
       if (!response.ok) throw new Error('Chat request failed');
@@ -325,83 +348,85 @@ const GeneralChat = ({
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+          let payload;
           try {
-            const payload = JSON.parse(trimmedLine.slice(6));
-
-            if (payload.type === 'tool_start') {
-              // Only surface a visible "searching" chip for web search.
-              // extract_terminology is NOT a search and has no URLs to show;
-              // it later surfaces via file_ready as a bot message.
-              activeToolCall = { id: payload.id, name: payload.tool, args: { query: payload.query } };
-
-              if (payload.tool === 'exa_search') {
-                const toolMsgId = `tool-${payload.id || Date.now()}`;
-                activeToolCall.uiId = toolMsgId;
-                setMessages(prev => [...prev, {
-                  role: 'tool',
-                  id: toolMsgId,
-                  tool: payload.tool,
-                  query: payload.query || '',
-                  status: 'searching',
-                  urls: [],
-                }]);
-              }
-              // For extract_terminology we intentionally do NOT add a role:'tool'
-              // message, so SearchToolBlock never renders for it.
-
-            } else if (payload.type === 'tool_call') {
-              toolEntriesThisTurn.push({
-                role: 'tool',
-                tool_call_id: payload.id || activeToolCall?.id,
-                name: payload.tool,
-                args: activeToolCall?.args || { query: payload.query },
-                // Full tool output (titles, urls, and text snippets) — what the
-                // model actually read. The UI only ever gets `urls` for the chip.
-                content: payload.content || JSON.stringify({ query: payload.query, results: payload.urls || [] }),
-              });
-              const uiId = activeToolCall?.uiId;
-              setMessages(prev => prev.map(msg =>
-                msg.id === uiId
-                  ? { ...msg, status: 'done', urls: payload.urls || [], query: payload.query || msg.query }
-                  : msg
-              ));
-              activeToolCall = null;
-
-            } else if (payload.type === 'file_ready') {
-              // Model called extract_terminology — download the file it
-              // prepared, and drop a small confirmation into the chat.
-              toolEntriesThisTurn.push({
-                role: 'tool',
-                tool_call_id: payload.id,
-                name: 'extract_terminology',
-                args: {},
-                content: payload.content || JSON.stringify({ file_id: payload.file_id }),
-              });
-
-              if (payload.file_id) {
-                // Don't download automatically — surface a banner and let
-                // the user trigger the download themselves.
-                setPendingTermsFile({ fileId: payload.file_id });
-              }
-
-            } else if (payload.type === 'token') {
-              fullText += payload.content;
-              const displayText = stripStreamingJsonBlock(fullText);
-              if (!botMessageId) {
-                botMessageId = `bot-${Date.now()}`;
-                setMessages(prev => [...prev, { role: 'bot', text: displayText, id: botMessageId }]);
-              } else {
-                const targetId = botMessageId;
-                setMessages(prev =>
-                  prev.map(msg => msg.id === targetId ? { ...msg, text: displayText } : msg)
-                );
-              }
-
-            } else if (payload.type === 'error') {
-              throw new Error(payload.content);
-            }
+            payload = JSON.parse(trimmedLine.slice(6));
           } catch (parseError) {
             console.warn('Failed to parse SSE data:', parseError);
+            continue;
+          }
+
+          if (payload.type === 'tool_start') {
+            // Only surface a visible "searching" chip for web search.
+            // extract_terminology is NOT a search and has no URLs to show;
+            // it later surfaces via file_ready as a bot message.
+            activeToolCall = { id: payload.id, name: payload.tool, args: { query: payload.query } };
+
+            if (payload.tool === 'exa_search') {
+              const toolMsgId = `tool-${payload.id || Date.now()}`;
+              activeToolCall.uiId = toolMsgId;
+              setMessages(prev => [...prev, {
+                role: 'tool',
+                id: toolMsgId,
+                tool: payload.tool,
+                query: payload.query || '',
+                status: 'searching',
+                urls: [],
+              }]);
+            }
+            // For extract_terminology we intentionally do NOT add a role:'tool'
+            // message, so SearchToolBlock never renders for it.
+
+          } else if (payload.type === 'tool_call') {
+            toolEntriesThisTurn.push({
+              role: 'tool',
+              tool_call_id: payload.id || activeToolCall?.id,
+              name: payload.tool,
+              args: activeToolCall?.args || { query: payload.query },
+              // Full tool output (titles, urls, and text snippets) — what the
+              // model actually read. The UI only ever gets `urls` for the chip.
+              content: payload.content || JSON.stringify({ query: payload.query, results: payload.urls || [] }),
+            });
+            const uiId = activeToolCall?.uiId;
+            setMessages(prev => prev.map(msg =>
+              msg.id === uiId
+                ? { ...msg, status: 'done', urls: payload.urls || [], query: payload.query || msg.query }
+                : msg
+            ));
+            activeToolCall = null;
+
+          } else if (payload.type === 'file_ready') {
+            // Model called extract_terminology — download the file it
+            // prepared, and drop a small confirmation into the chat.
+            toolEntriesThisTurn.push({
+              role: 'tool',
+              tool_call_id: payload.id,
+              name: 'extract_terminology',
+              args: {},
+              content: payload.content || JSON.stringify({ file_id: payload.file_id }),
+            });
+
+            if (payload.file_id) {
+              // Don't download automatically — surface a banner and let
+              // the user trigger the download themselves.
+              setPendingTermsFile({ fileId: payload.file_id });
+            }
+
+          } else if (payload.type === 'token') {
+            fullText += payload.content;
+            const displayText = stripStreamingJsonBlock(fullText);
+            if (!botMessageId) {
+              botMessageId = `bot-${Date.now()}`;
+              setMessages(prev => [...prev, { role: 'bot', text: displayText, id: botMessageId }]);
+            } else {
+              const targetId = botMessageId;
+              setMessages(prev =>
+                prev.map(msg => msg.id === targetId ? { ...msg, text: displayText } : msg)
+              );
+            }
+
+          } else if (payload.type === 'error') {
+            throw new Error(payload.content);
           }
         }
       }
@@ -481,19 +506,10 @@ const GeneralChat = ({
         return;
       }
       console.error('General chat error:', error);
-      setMessages(prev => {
-        if (botMessageId && prev.some(msg => msg.id === botMessageId)) {
-          return prev.map(msg =>
-            msg.id === botMessageId ? { ...msg, text: '⚠️ Sorry, an error occurred. Please try again.' } : msg
-          );
-        }
-        if (botMessageId) {
-          // A bot message existed for this turn but isn't in `prev` anymore
-          // (e.g. Clear ran) — don't resurrect it.
-          return prev;
-        }
-        return [...prev, { role: 'bot', text: '⚠️ Sorry, an error occurred. Please try again.' }];
-      });
+      if (botMessageId) {
+        setMessages(prev => prev.filter(m => m.id !== botMessageId));
+      }
+      setEphemeralError('⚠️ An Error Occurred. Please try again.');
     } finally {
       setLoading(false);
       if (abortRef.current === controller) {
@@ -511,6 +527,7 @@ const GeneralChat = ({
   }, [reviewResults]);
 
   const handleSend = (text) => {
+    setEphemeralError(null);
     streamResponse(text);
   };
 
@@ -521,6 +538,7 @@ const GeneralChat = ({
   abortRef.current?.abort();
   abortRef.current = null;
   setLoading(false);
+  setEphemeralError(null);
 
   setMessages([{ ...WELCOME_MESSAGE }]);
   chatHistoryRef.current = [];
@@ -783,6 +801,7 @@ const GeneralChat = ({
             showModelSelect={true}
             placeholder="Ask about the document…"
             emptyStateText="Ask about terminology, style, or specific segments."
+            ephemeralError={ephemeralError}
             messagesEndRef={messagesEndRef}
           />
         </>

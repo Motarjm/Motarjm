@@ -14,6 +14,7 @@ os.environ["LANGSMITH_PROJECT"] = "Turjman"
 os.environ["LANGSMITH_ENDPOINT"] = "https://eu.api.smith.langchain.com"
 os.environ["EXA_API_KEY"] = os.getenv("EXA_API_KEY")
 os.environ['DATABASE_URL'] = os.getenv('DATABASE_URL')
+os.environ["LMNR_PROJECT_API_KEY"] = os.getenv("LMNR_PROJECT_API_KEY")
 # below line for testing
 # os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "1"
 # os.environ["DISABLE_MODEL_SOURCE_CHECK"] = "1"

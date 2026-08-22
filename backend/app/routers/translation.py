@@ -1,8 +1,8 @@
 import base64
 import asyncio
-from typing import Optional, Tuple
+from typing import Annotated, List, Optional, Tuple
 import logging
-from fastapi import APIRouter, File, HTTPException, UploadFile, Query, Request
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, Query, Request, Depends
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from app.services.translation_service import translate_file_content_pdf_streaming, translate_file_content_xliff_streaming, is_image_based, translate_file_content_docx_streaming
@@ -12,9 +12,9 @@ from app.services.xliff_service import build_xliff, build_xliff_from_scratch
 from app.core.simple_calls import clear_doc_summary_cache
 from app.db.session import AsyncSessionLocal, get_db
 from app.repositories import job_repo 
-from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.pdf_service import _convert_pdf_to_docx_bytes
+from app.schemas.translation import TranslationRequest
 
 
 logger = logging.getLogger(__name__)
@@ -43,12 +43,13 @@ router = APIRouter(prefix="/translation", tags=["Translation"])
 # cross-thread session hand-off needed.
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False, user_role: str = "", user_preferences: Optional[List[str]] = None):
     logger.info(f"[pdf_job {job_id}] starting: {source_lang}->{target_lang}, {len(pdf_bytes)} bytes, no_translation={no_translation}")
     async with AsyncSessionLocal() as db:
         try:
             async for event in translate_file_content_pdf_streaming(
                 pdf_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
+                user_role=user_role, user_preferences=user_preferences,
             ):
                 if await job_repo.is_cancelled(db, job_id):
                     logger.info(f"[pdf_job {job_id}] cancelled")
@@ -74,12 +75,13 @@ async def run_pdf_job(job_id: str, pdf_bytes: bytes, source_lang: str, target_la
             await job_repo.mark_error(db, job_id, str(exc))
 
 
-async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False, user_role: str = "", user_preferences: Optional[List[str]] = None):
     logger.info(f"[xliff_job {job_id}] starting: {source_lang}->{target_lang}, {len(xliff_bytes)} bytes, no_translation={no_translation}")
     async with AsyncSessionLocal() as db:
         try:
             async for event in translate_file_content_xliff_streaming(
                 xliff_bytes, source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
+                user_role=user_role, user_preferences=user_preferences,
             ):
                 if await job_repo.is_cancelled(db, job_id):
                     logger.info(f"[xliff_job {job_id}] cancelled")
@@ -107,12 +109,13 @@ async def run_xliff_job(job_id: str, xliff_bytes: bytes, source_lang: str, targe
             await job_repo.mark_error(db, job_id, str(exc))
 
 
-async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False):
+async def run_docx_job(job_id: str, docx_bytes: bytes, source_lang: str, target_lang: str, style_guide: str, glossary_dict: dict, glossary_id: Optional[str] = None, no_translation: bool = False, user_role: str = "", user_preferences: Optional[List[str]] = None):
     logger.info(f"[docx_job {job_id}] starting: {source_lang}->{target_lang}, {len(docx_bytes)} bytes, no_translation={no_translation}")
     async with AsyncSessionLocal() as db:
         try:
             async for event in translate_file_content_docx_streaming(
                 BytesIO(docx_bytes), source_lang, target_lang, style_guide or "", glossary=glossary_dict, no_translation=no_translation,
+                user_role=user_role, user_preferences=user_preferences,
             ):
                 if await job_repo.is_cancelled(db, job_id):
                     logger.info(f"[docx_job {job_id}] cancelled")
@@ -154,14 +157,24 @@ async def translate_pdf_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
-    glossary_id: Optional[str] = Query(None),
-    tm_id: Optional[str] = Query(None),
-    source_lang: str = Query("en"),
-    target_lang: str = Query("ar"),
-    style_guide: str = Query(None),
-    segment_only: bool = Query(False),
+    request: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
+    # Let Pydantic validate the raw JSON string natively
+    try:
+        request = TranslationRequest.model_validate_json(request)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid payload: {str(e)}")  
+    
+    glossary_id = request.glossary_id
+    tm_id = request.tm_id
+    source_lang = request.source_lang
+    target_lang = request.target_lang
+    style_guide = request.style_guide
+    no_translation = request.no_translation
+    role = request.role
+    preferences = request.preferences
+
     if not file.filename.endswith(".pdf"):
         logger.warning(f"rejected non-pdf upload: {file.filename}")
         raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
@@ -207,8 +220,8 @@ async def translate_pdf_file(
     clear_doc_summary_cache()
 
     job_id = await job_repo.create_job(db, file_type="pdf", source_lang=source_lang, target_lang=target_lang)
-    logger.info(f"[pdf_job {job_id}] created for {file.filename}, segment_only={segment_only}")
-    asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    logger.info(f"[pdf_job {job_id}] created for {file.filename}, no_translation={no_translation}")
+    asyncio.create_task(run_pdf_job(job_id, pdf_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=no_translation, user_role=role or "", user_preferences=preferences))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
@@ -217,14 +230,24 @@ async def translate_xliff_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
-    glossary_id: Optional[str] = Query(None),
-    tm_id: Optional[str] = Query(None),
-    source_lang: str = Query("en"),
-    target_lang: str = Query("ar"),
-    style_guide: str = Query(None),
-    segment_only: bool = Query(False),
+    request: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
+    # Let Pydantic validate the raw JSON string natively
+    try:
+        request = TranslationRequest.model_validate_json(request)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid payload: {str(e)}")
+        
+    glossary_id = request.glossary_id
+    tm_id = request.tm_id
+    source_lang = request.source_lang
+    target_lang = request.target_lang
+    style_guide = request.style_guide
+    no_translation = request.no_translation
+    role = request.role
+    preferences = request.preferences
+
     if not file.filename.endswith(".xliff") and not file.filename.endswith(".xlf") and not file.filename.endswith(".sdlxliff") and not file.filename.endswith(".mqxliff"):
         logger.warning(f"rejected non-xliff upload: {file.filename}")
         raise HTTPException(status_code=400, detail="Only .xliff or .xlf files are allowed")
@@ -267,8 +290,8 @@ async def translate_xliff_file(
     clear_doc_summary_cache()
 
     job_id = await job_repo.create_job(db, file_type="xliff", source_lang=source_lang, target_lang=target_lang)
-    logger.info(f"[xliff_job {job_id}] created for {file.filename}, segment_only={segment_only}")
-    asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    logger.info(f"[xliff_job {job_id}] created for {file.filename}, no_translation={no_translation}")
+    asyncio.create_task(run_xliff_job(job_id, xliff_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=no_translation, user_role=role or "", user_preferences=preferences))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 
@@ -277,14 +300,25 @@ async def translate_docx_file(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
-    glossary_id: Optional[str] = Query(None),
-    tm_id: Optional[str] = Query(None),
-    source_lang: str = Query("en"),
-    target_lang: str = Query("ar"),
-    style_guide: str = Query(None),
-    segment_only: bool = Query(False),
+    request: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
+    
+    # Let Pydantic validate the raw JSON string natively
+    try:
+        request = TranslationRequest.model_validate_json(request)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid payload: {str(e)}")
+    
+    glossary_id = request.glossary_id
+    tm_id = request.tm_id
+    source_lang = request.source_lang
+    target_lang = request.target_lang
+    style_guide = request.style_guide
+    no_translation = request.no_translation
+    role = request.role
+    preferences = request.preferences
+
     if not file.filename.endswith(".docx"):
         logger.warning(f"rejected non-docx upload: {file.filename}")
         raise HTTPException(status_code=400, detail="Only .docx files are allowed")
@@ -326,8 +360,8 @@ async def translate_docx_file(
     clear_doc_summary_cache()
 
     job_id = await job_repo.create_job(db, file_type="docx", source_lang=source_lang, target_lang=target_lang)
-    logger.info(f"[docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
-    asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=segment_only))
+    logger.info(f"[docx_job {job_id}] created for {file.filename}, no_translation={no_translation}")
+    asyncio.create_task(run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide, glossary_dict, glossary_id=glossary_id, no_translation=no_translation, user_role=role or "", user_preferences=preferences))
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
 
 @router.post("/pdf-as-docx")
@@ -335,14 +369,26 @@ async def translate_pdf_as_docx(
     file: UploadFile = File(...),
     glossary: UploadFile = File(None),
     translation_memory: UploadFile = File(None),
-    glossary_id: Optional[str] = Query(None),
-    tm_id: Optional[str] = Query(None),
-    source_lang: str = Query("en"),
-    target_lang: str = Query("ar"),
-    style_guide: str = Query(None),
-    segment_only: bool = Query(False),
+    request: str = Form(...),
     db: AsyncSession = Depends(get_db)
 ):
+    
+    # Let Pydantic validate the raw JSON string natively
+    try:
+        request = TranslationRequest.model_validate_json(request)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid payload: {str(e)}")
+    
+    glossary_id = request.glossary_id
+    tm_id = request.tm_id
+    source_lang = request.source_lang
+    target_lang = request.target_lang
+    style_guide = request.style_guide
+    no_translation = request.no_translation
+    role = request.role
+    preferences = request.preferences
+
+
     if not file.filename.endswith(".pdf"):
         logger.warning(f"rejected non-pdf upload: {file.filename}")
         raise HTTPException(status_code=400, detail="Only .pdf files are allowed")
@@ -395,10 +441,10 @@ async def translate_pdf_as_docx(
     clear_doc_summary_cache()
 
     job_id = await job_repo.create_job(db, file_type="docx", source_lang=source_lang, target_lang=target_lang)
-    logger.info(f"[pdf-as-docx_job {job_id}] created for {file.filename}, segment_only={segment_only}")
+    logger.info(f"[pdf-as-docx_job {job_id}] created for {file.filename}, no_translation={no_translation}")
     asyncio.create_task(
         run_docx_job(job_id, docx_bytes, source_lang, target_lang, style_guide,
-                     glossary_dict, glossary_id=glossary_id, no_translation=segment_only)
+                     glossary_dict, glossary_id=glossary_id, no_translation=no_translation,
+                     user_role=role or "", user_preferences=preferences)
     )
     return {"job_id": job_id, "glossary_id": glossary_id, "tm_id": tm_id}
-

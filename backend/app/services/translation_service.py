@@ -9,6 +9,7 @@ from app.core.workflow import graph
 from app.core.simple_calls import terminology_agent
 from langdetect import detect
 import httpx
+from lmnr import observe
 
 MAX_NUM_SEGMENTS = 200
 
@@ -34,9 +35,11 @@ def is_image_based(pdf_bytes: bytes, sample_pages: int = 5) -> bool:
     return text_found == 0  # True = image-based
 
 
+@observe(name="translate_one")
 async def translate_one(i: int, page: List[dict], no_translation: bool, source_lang: str, 
                         target_lang: str, style_guide: str, glossary: Optional[Dict[str, str]], 
-                        terminology: Optional[str]) -> tuple[int, str]:
+                        terminology: Optional[str], user_role: str = "", 
+                        user_preferences: Optional[List[str]] = None) -> tuple[int, str]:
     """
     Translates a single text segment using the LangGraph pipeline.
 
@@ -47,6 +50,7 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
     style_guide is a string for translation style
     glossary is a dict of source->target terms
     terminology is a string of extracted terminology for the document
+    user_role / user_preferences: optional translator profile to apply
     """
     prev_text = page[i - 1]["text"] if i > 0 else ""
     
@@ -57,11 +61,14 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
             source_text=page[i]["text"],
             source_lang=source_lang,
             target_lang=target_lang,
-            max_iterations=1,
+            max_iterations=2,
             prev_context=prev_text,
             style_guide=style_guide,
             glossary=glossary or {},
             terminology=terminology or "",
+            user_role=user_role or "",
+            user_preferences=user_preferences or [],
+
         )
     
     try:
@@ -73,7 +80,7 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
 
     return i, response["current_translation"]
 
-    
+@observe(name="translate_file_pdf")
 async def translate_file_content_pdf_streaming(
     pdf_bytes: bytes,
     source_lang: str,
@@ -81,7 +88,9 @@ async def translate_file_content_pdf_streaming(
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
-    max_num_segments: int = MAX_NUM_SEGMENTS
+    max_num_segments: int = MAX_NUM_SEGMENTS,
+    user_role: str = "",
+    user_preferences: Optional[List[str]] = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Translates all text blocks in a PDF, yielding progress and done events.
@@ -133,7 +142,7 @@ async def translate_file_content_pdf_streaming(
             # lookup working even when future.result() raised.
             async with semaphore:
                 try:
-                    return await translate_one(i, _page, no_translation, source_lang, target_lang, style_guide, glossary, terminology)
+                    return await translate_one(i, _page, no_translation, source_lang, target_lang, style_guide, glossary, terminology, user_role, user_preferences)
                 except Exception as e:
                     print(f"Page {page_num} | Block {i} failed: {e}")
                     return i, ""
@@ -162,6 +171,7 @@ async def translate_file_content_pdf_streaming(
         translated_content.append(translated_blocks)
     yield {"type": "done", "translated_contents": translated_content}
     
+@observe(name="translate_file_xliff")
 async def translate_file_content_xliff_streaming(
     xliff_bytes: bytes,
     source_lang: str,
@@ -169,7 +179,9 @@ async def translate_file_content_xliff_streaming(
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
-    max_num_segments: int = MAX_NUM_SEGMENTS
+    max_num_segments: int = MAX_NUM_SEGMENTS,
+    user_role: str = "",
+    user_preferences: Optional[List[str]] = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Translates all text segments in an XLIFF file, yielding progress and done events.
@@ -216,7 +228,7 @@ async def translate_file_content_xliff_streaming(
     async def _bounded_translate_one(i):
         async with semaphore:
             try:
-                return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology)
+                return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology, user_role, user_preferences)
             except Exception:
                 return i, ""
 
@@ -237,8 +249,8 @@ async def translate_file_content_xliff_streaming(
         yield {"type": "progress", "completed": completed_segments, "total": total_segments}
 
     yield {"type": "done", "translated_contents": translated_content}
-
-
+    
+@observe(name="translate_file_docx")
 async def translate_file_content_docx_streaming(
     docx_bytes: bytes,
     source_lang: str,
@@ -246,7 +258,9 @@ async def translate_file_content_docx_streaming(
     style_guide: str = "",
     glossary: Optional[Dict[str, str]] = None,
     no_translation: bool = False,
-    max_num_segments: int = MAX_NUM_SEGMENTS
+    max_num_segments: int = MAX_NUM_SEGMENTS,
+    user_role: str = "",
+    user_preferences: Optional[List[str]] = None,
 ) -> AsyncGenerator[dict, None]:
     """
     Translates all text segments in an DOCX file, yielding progress and done events.
@@ -295,7 +309,7 @@ async def translate_file_content_docx_streaming(
     async def _bounded_translate_one(i):
         async with semaphore:
             try:
-                return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology)
+                return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology, user_role, user_preferences)
             except Exception:
                 return i, ""
 

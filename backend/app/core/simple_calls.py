@@ -2,18 +2,20 @@ import asyncio
 import json
 import re
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 from langchain.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from app.core.prompts import *
 from app.core.agents import provider_invoke, provider_ainvoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
 from typing import List, Tuple
 from typing import List
-
 from app.core.llms import MAX_TOOL_CALLS
+from lmnr import observe
+
 
 #TODO: terminoloy agent takes as arg 'document' with keys 'text' because the document is coming from the backend
 # but in the frontend the document is coming from the frontend with keys 'original_text' and 'translated_text' so we need to unify this
 # this is apparent in terminology agent and stream_reviewer functions
+@observe(name="generate_explanation")
 async def generate_explanation(source_text: str, page_context: List):
     """
     Generates explanation for the given source text
@@ -38,6 +40,7 @@ async def generate_explanation(source_text: str, page_context: List):
     
     return response
 
+@observe(name="generate_suggestions")
 async def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
     sys_prompt_content = SUGGESTIONS_SYS_PROMPT
     if style_guide:
@@ -89,13 +92,14 @@ async def generate_suggestions(source_text: str, source_lang: str, translation: 
 
     return results
 
+@observe(name="generate_backtranslation")
 async def generate_backtranslation(target_text: str, source_lang: str, target_lang: str, page_context: List) -> str:
     """
     Generates a back-translation of the given target text.
     Translates from target_lang back to source_lang.
     """
     sys_prompt = SystemMessage(
-        content=TRANSLATOR_SYS_PROMPT,
+        content=TRANSLATOR_SYS_PROMPT.format(user_role=DEFAULT_TRANSLATOR_ROLE),
         agent="backtranslation"
     )
     
@@ -128,6 +132,7 @@ def _convert_to_hashable(pages_context: List[List[str]]) -> Tuple:
 
 
 @lru_cache(maxsize=1)
+@observe(name="generate_doc_summary")
 def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
     """
     Internal cached function that generates a summary for the given document text.
@@ -180,7 +185,8 @@ def clear_doc_summary_cache():
 
 
 def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
-                   page_context: List, chat_history: List[dict], model: str, doc_context: List[List[str]], style_guide: str = ""):
+                   page_context: List, chat_history: List[dict], model: str, doc_context: List[List[str]], style_guide: str = "",
+                   user_role: str = "", user_preferences: Optional[List[str]] = None):
     """
     Streams chatbot response tokens for a segment chat.
     
@@ -191,6 +197,7 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
         - page_context: list of page block texts for context
         - chat_history: list of {role: "user"|"bot", text: str}
         - model: "deepseek" | "gemini" | "grok"
+        - user_role / user_preferences: optional translator profile to adopt
     
     Yields:
         - str: text chunks
@@ -213,6 +220,10 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
     else:
         doc_summary = generate_doc_summary(doc_context)
         sys_prompt_content += f"\n\n{DOC_SUMMARY_ADD_ON.format(doc_summary=doc_summary)}"
+
+    if user_role or user_preferences:
+        user_preferences = "\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else ""
+        sys_prompt_content += f"\n\n{USER_PROFILE_ADD_ON.format(user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=user_preferences)}"
 
     
     sys_prompt = SystemMessage(
@@ -394,12 +405,13 @@ def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang:
             yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
             
 
+@observe(name="terminology_agent")
 async def terminology_agent(document, source_lang, target_lang, style_guide, glossary):
   """
   Extract key terminology and difficult words from the text
   """
   
-  sys_prompt_content = TRANSLATOR_SYS_PROMPT
+  sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(user_role=DEFAULT_TRANSLATOR_ROLE)
   if style_guide:
     sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
 
@@ -452,7 +464,7 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
 def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
                            chat_history: List[dict],  doc_context: List[List[dict]], 
                            style_guide: str = "", review_results: List[dict] = [],
-                           glossary: dict = None):
+                           user_role: str = "", user_preferences: Optional[List[str]] = None):
     """
     Streams chatbot response tokens for a general document-level chat.
     
@@ -461,6 +473,7 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
         have keys: "original_text" and "translated_text"
         - source_lang / target_lang: language pair
         - chat_history: list of {role: "user"|"bot", text: str}
+        - user_role / user_preferences: optional translator profile to adopt
 
     
     Yields:
@@ -488,6 +501,10 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
     else:
         doc_summary = generate_doc_summary(doc_source)
         sys_prompt_content += f"\n\n{DOC_SUMMARY_ADD_ON.format(doc_summary=doc_summary)}"
+
+    if user_role or user_preferences:
+        user_preferences = "\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else ""
+        sys_prompt_content += f"\n\n{USER_PROFILE_ADD_ON.format(user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=(user_preferences))}"
 
     
     sys_prompt = SystemMessage(
@@ -578,7 +595,6 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
         "source_lang": source_lang,
         "target_lang": target_lang,
         "style_guide": style_guide,
-        "glossary": glossary,
     }
 
     for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"],
@@ -675,3 +691,35 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
                 text = content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
                 if text:
                     yield text
+                    
+    
+@observe(name="extract_translator_profile")
+def extract_translator_profile(text: str) -> dict[str, Union[str, List]]:
+    """
+    Extracts translator profile a given SKILL.md or text file content.
+    Returns a dictionary with keys: 
+        "role": str
+        "preferences": List[str].
+    """
+    prompt = SystemMessage(
+        content=TRANSLATOR_PROFILE_PROMPT.format(
+                    input_text=text
+                ),
+        agent="translator_profile"
+    )
+    prompt = [prompt]
+    response = provider_invoke("translator_profile", prompt).content
+    if not isinstance(response, str):
+        response = response[0]["text"]
+        
+    try:
+        if matched := re.search(r'\{.*\}', response, re.DOTALL):
+          matched = matched.group(0)
+          return json.loads(matched)
+          
+        
+        else:
+            return {}
+          
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):        
+        return {}

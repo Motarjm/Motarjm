@@ -79,6 +79,22 @@ const DiffPreview = ({ oldText, newText, onApply, onDiscard }) => {
   );
 };
 
+const getActiveProfile = () => {
+  try {
+    const savedProfile = sessionStorage.getItem('translation_translator_profile');
+    const savedIsActive = sessionStorage.getItem('translation_translator_profile_active');
+    const isActive = savedIsActive ? JSON.parse(savedIsActive) : false;
+    if (!isActive || !savedProfile) return null;
+    const parsed = JSON.parse(savedProfile);
+    return {
+      role: typeof parsed.role === 'string' ? parsed.role.trim() : '',
+      preferences: Array.isArray(parsed.preferences) ? parsed.preferences : [],
+    };
+  } catch {
+    return null;
+  }
+};
+
 
 const FocusChatPanel = ({
   documentId,
@@ -179,6 +195,7 @@ const FocusChatPanel = ({
 
 
   const handleClear = () => {
+    setEphemeralError(null);
     setMessages([]);
     chatHistoryRef.current = [];
     if (documentId && segmentId) {
@@ -208,11 +225,8 @@ const FocusChatPanel = ({
 
     try {
       abortRef.current = new AbortController();
-      const chatEndpoint = styleGuideQueryValue
-        ? `${API_URL}/segment/chat?style_guide=${styleGuideQueryValue}`
-        : `${API_URL}/segment/chat`;
-
-      const response = await fetch(chatEndpoint, {
+      const profile = getActiveProfile();
+      const response = await fetch(`${API_URL}/segment/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortRef.current.signal,
@@ -225,6 +239,9 @@ const FocusChatPanel = ({
           chat_history: chatHistoryRef.current,
           model: selectedModel,
           doc_context: docContext,
+          style_guide: styleGuideQueryValue || '',     // ← ADD
+          role: profile?.role || '',                    // ← ADD
+          preferences: profile?.preferences || [],      // ← ADD
         }),
       });
 
@@ -243,58 +260,60 @@ const FocusChatPanel = ({
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+          let data;
           try {
-            const data = JSON.parse(trimmedLine.slice(6));
+            data = JSON.parse(trimmedLine.slice(6));
+          } catch { /* skip malformed lines */ continue; }
 
-            if (data.type === 'tool_start') {
-              currentToolId = `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-              currentToolCallId = data.id || null;
-              currentToolArgs = { query: data.query || '' };
-              setMessages(prev => [...prev, {
-                role: 'tool',
-                id: currentToolId,
-                tool: data.tool,
-                query: data.query || '',
-                status: 'searching',
-                urls: [],
-              }]);
+          if (data.type === 'tool_start') {
+            currentToolId = `tool-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            currentToolCallId = data.id || null;
+            currentToolArgs = { query: data.query || '' };
+            setMessages(prev => [...prev, {
+              role: 'tool',
+              id: currentToolId,
+              tool: data.tool,
+              query: data.query || '',
+              status: 'searching',
+              urls: [],
+            }]);
 
-            } else if (data.type === 'tool_call') {
-              setMessages(prev => prev.map(msg =>
-                msg.id === currentToolId
-                  ? { ...msg, status: 'done', urls: data.urls || [], query: data.query || msg.query }
-                  : msg
-              ));
-              // Full tool output (not just title/url) — for chat_history/model continuity.
-              toolEntriesThisTurn.push({
-                role: 'tool',
-                tool_call_id: data.id || currentToolCallId,
-                name: data.tool,
-                args: currentToolArgs || { query: data.query },
-                content: data.content || JSON.stringify({ query: data.query, results: data.urls || [] }),
-              });
-              currentToolCallId = null;
-              currentToolArgs = null;
+          } else if (data.type === 'tool_call') {
+            setMessages(prev => prev.map(msg =>
+              msg.id === currentToolId
+                ? { ...msg, status: 'done', urls: data.urls || [], query: data.query || msg.query }
+                : msg
+            ));
+            // Full tool output (not just title/url) — for chat_history/model continuity.
+            toolEntriesThisTurn.push({
+              role: 'tool',
+              tool_call_id: data.id || currentToolCallId,
+              name: data.tool,
+              args: currentToolArgs || { query: data.query },
+              content: data.content || JSON.stringify({ query: data.query, results: data.urls || [] }),
+            });
+            currentToolCallId = null;
+            currentToolArgs = null;
 
-            } else if (data.type === 'token') {
-              fullText += data.content;
-              const displayText = stripStreamingJsonBlock(fullText);
+          } else if (data.type === 'token') {
+            fullText += data.content;
+            const displayText = stripStreamingJsonBlock(fullText);
 
-              if (!botMessageId) {
-                botMessageId = `bot-${Date.now()}`;
-                setMessages(prev => [...prev, { role: 'bot', text: displayText, id: botMessageId }]);
-              } else {
-                setMessages(prev =>
-                  prev.map(msg => msg.id === botMessageId ? { ...msg, text: displayText } : msg)
-                );
-              }
-
-            } else if (data.type === 'error') {
-              hadError = true;
-              setEphemeralError(`⚠️ ${data.content}`);
-              break;
+            if (!botMessageId) {
+              botMessageId = `bot-${Date.now()}`;
+              setMessages(prev => [...prev, { role: 'bot', text: displayText, id: botMessageId }]);
+            } else {
+              setMessages(prev =>
+                prev.map(msg => msg.id === botMessageId ? { ...msg, text: displayText } : msg)
+              );
             }
-          } catch { /* skip malformed lines */ }
+
+          } else if (data.type === 'error') {
+            hadError = true;
+            if (botMessageId) setMessages(prev => prev.filter(msg => msg.id !== botMessageId));
+            setEphemeralError(`⚠️An Error Occured. Please try again.`);
+            break;
+          }
         }
         if (hadError) break;
       }
@@ -337,6 +356,7 @@ const FocusChatPanel = ({
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
+        if (botMessageId) setMessages(prev => prev.filter(msg => msg.id !== botMessageId));
         setEphemeralError('⚠️ Failed to get response. Please try again.');
         trackApiError(err, {
           endpoint: '/segment/chat',

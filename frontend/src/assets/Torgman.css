@@ -1177,3 +1177,217 @@
     font-size: 0.8rem;
   }
 }
+
+/* ============================================================
+   TOOLS DRAWER  (Glossary | TM | Translator Profile)
+   ============================================================ */
+
+.tools-drawer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: white;
+  border: 1px solid rgba(107, 125, 92, 0.2);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.9rem;
+  color: var(--olive);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0.75rem 0;
+  direction: rtl;
+}
+
+.tools-drawer-toggle:hover {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  background: rgba(193, 80, 46, 0.02);
+}
+
+.tools-drawer-toggle.is-open {
+  border-color: var(--terracotta);
+  color: var(--terracotta);
+  background: rgba(193, 80, 46, 0.04);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.tools-drawer-toggle-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tools-drawer-toggle-label {
+  flex: 1;
+  text-align: right;
+  font-weight: 600;
+}
+
+.tools-drawer-badge {
+  background: var(--gold);
+  color: #fff;
+  border-radius: 999px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 0.4rem;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(218, 165, 32, 0.35);
+}
+
+.tools-drawer-caret {
+  font-size: 0.7rem;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tools-drawer-toggle.is-open .tools-drawer-caret {
+  transform: rotate(180deg);
+}
+
+/* Collapsible body */
+.tools-drawer-body {
+  background: rgba(245, 241, 232, 0.6);
+  border: 1px solid rgba(107, 125, 92, 0.18);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  padding: 1rem;
+  margin-top: -0.75rem;
+  margin-bottom: 1rem;
+  animation: drawerSlideDown 0.25s ease-out;
+}
+
+@keyframes drawerSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tools-drawer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+}
+
+.tools-drawer-cell {
+  background: white;
+  border: 1px dashed rgba(107, 125, 92, 0.35);
+  border-radius: 8px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  direction: rtl;
+  min-height: 90px;
+}
+
+.tools-drawer-cell.has-content {
+  border-style: solid;
+  border-color: rgba(107, 125, 92, 0.45);
+}
+
+.tools-drawer-cell-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tools-drawer-cell-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.tools-drawer-cell-title {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.tools-drawer-cell-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex: 1;
+  justify-content: center;
+}
+
+/* Profile cell — clickable */
+.tools-drawer-cell.profile-cell {
+  cursor: pointer;
+}
+
+.tools-drawer-cell.profile-cell:hover {
+  border-color: var(--terracotta);
+  background: rgba(193, 80, 46, 0.03);
+  box-shadow: 0 2px 8px rgba(193, 80, 46, 0.08);
+}
+
+.tools-drawer-cell.profile-cell:focus-visible {
+  outline: 2px solid var(--terracotta);
+  outline-offset: 2px;
+}
+
+.tools-drawer-cell.profile-cell.is-active {
+  border-style: solid;
+  border-color: var(--terracotta);
+  background: rgba(193, 80, 46, 0.04);
+}
+
+.tools-drawer-cell-profile-status {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 0.78rem;
+  color: var(--olive);
+  line-height: 1.5;
+}
+
+.tools-drawer-cell.profile-cell.is-active .tools-drawer-cell-profile-status {
+  color: var(--terracotta);
+  font-weight: 600;
+}
+
+/* Inside-drawer glossary chip overrides — tighten things up a bit */
+.tools-drawer-cell .glossary-upload-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.tools-drawer-cell .glossary-chip {
+  width: 100%;
+  max-width: 100%;
+}
+
+.tools-drawer-cell .glossary-chip-name {
+  max-width: none;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ═══ Responsive ═══ */
+@media (max-width: 768px) {
+  .tools-drawer-grid {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .tools-drawer-cell {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .tools-drawer-toggle {
+    padding: 0.65rem 0.85rem;
+    font-size: 0.85rem;
+  }
+
+  .tools-drawer-body {
+    padding: 0.75rem;
+  }
+}

@@ -127,7 +127,9 @@ async def general_chat(request: GeneralChatRequest):
                 doc_context=request.translated_contents,
                 style_guide=request.style_guide or "",
                 review_results=request.review_results or [],
-                model=request.model
+                model=request.model,
+                user_role=request.role,
+                user_preferences=request.preferences,
             ):
                 # Structured events (tool_start / tool_call) come through as dicts,
                 # plain text tokens come through as strings.

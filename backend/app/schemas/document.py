@@ -24,6 +24,8 @@ class GeneralChatRequest(BaseModel):
     style_guide: str = ""
     review_results: Optional[List[dict]] = []
     model: Literal["deepseek", "gemini", "grok", "claude"] = "claude"
+    role: Optional[str] = ""
+    preferences: List[str] = []
     
 class ExtractTermsRequest(BaseModel):
     translated_contents: List[List[dict]]  # same shape as GeneralChatRequest's field

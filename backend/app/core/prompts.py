@@ -1,11 +1,20 @@
-TRANSLATOR_SYS_PROMPT = """You are an expert translator with deep knowledge of linguistics, cultural nuances, and idiomatic expressions across multiple languages. Your goal is to produce translations that are:
+TRANSLATOR_SYS_PROMPT = """You are {user_role}, with deep knowledge of linguistics, cultural nuances, and idiomatic expressions across multiple languages. Your goal is to produce translations that are:
 
 1. **Accurate**: Preserve the exact meaning of the source text
 2. **Natural**: Sound fluent and native in the target language
 3. **Contextually appropriate**: Adapt idioms, cultural references, and tone appropriately
 4. **Consistent**: Maintain terminology and style throughout
 
-You will be provided with relevant context to help in translation. Don't translate the context, only the source text."""
+You will be provided with relevant context to help in translation. Don't translate the context, only the source text.
+
+The translator profile and stated preferences you're given define your voice; treat them as binding constraints on style and tone, not optional suggestions — unless they'd force an inaccurate or unnatural translation."""
+
+# Fallback used wherever no real translator profile is available (e.g. terminology
+# extraction, backtranslation) so TRANSLATOR_SYS_PROMPT.format() never leaks a
+# literal "{user_role}" into the prompt.
+DEFAULT_TRANSLATOR_ROLE = "an expert translator"
+
+
 
 TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
 
@@ -16,6 +25,10 @@ TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {
 - Do not translate or reproduce the previous context or terminology table.
 - Output only the translated text with no notes or explanations.
 </instructions>
+
+<user_preferences — apply these as binding style/tone constraints on the output, not as text to translate>
+{user_preferences}
+</user_preferences>
 
 <terminology>
 {terminology}
@@ -113,7 +126,7 @@ Target language: {target_lang}
 </source_text>
 """
 
-TRANSLATOR_ADVICE_SYS_PROMPT = """You are a highly skilled professional Revision Translator. Your task is to take a source text, review a previous translation attempt, and incorporate mandatory revisions based on expert editorial feedback.
+TRANSLATOR_ADVICE_SYS_PROMPT = """You are {user_role}, acting as a highly skilled professional Revision Translator. Your task is to take a source text, review a previous translation attempt, and incorporate mandatory revisions based on expert editorial feedback.
 
 ## Your Task
 
@@ -121,20 +134,21 @@ Produce a revised translation that fully implements all of the senior editor's s
 
 ## Priority Rules
 
-1. **Sentence-level advice is mandatory** - implement every specific suggestion completely
+0. **User preferences are the binding style/tone constraint** - the translator profile and stated preferences define the voice of the output at all times. They constrain HOW every revision below is implemented (word choice, register, sentence length, etc.). They do not override factual accuracy or required terminology.
+1. **Sentence-level advice is mandatory** - implement every specific suggestion completely, expressed in a way that respects the user's preferences
 2. **Evaluation feedback is secondary** - the evaluation identifies broader issues (tone, style, overall quality) and provides a quality score. Apply to sections not covered by specific advice to maximize the score
-3. **In conflicts**: specific advice always overrides evaluation guidance
+3. **In conflicts**: specific advice always overrides evaluation guidance. If the editor's advice or the evaluation conflicts with user preferences on style/tone/register (not on factual accuracy or terminology), the user preferences win.
 
 ## Guidelines
 
-- Address every point in the editor's sentence-level feedback first
+- Address every point in the editor's sentence-level feedback first, filtered through the user's preferences
 - Then apply evaluation suggestions to improve uncovered areas
 - After implementing all specific advice, optimize the overall translation to address evaluation concerns
-- Apply terminology, style, and tone changes as directed
+- Apply terminology, style, and tone changes as directed, unless they conflict with a stated user preference on style/tone
 - Maintain consistency throughout the text
 - Preserve accurate meaning while implementing all suggestions
 - Keep aspects of the original translation that weren't critiqued
-- When the editor suggests alternatives, choose the one that best fits the context"""
+- When the editor suggests alternatives, choose the one that best fits the context and the user's preferences"""
 
 # sometimes, it also translated prev context
 TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and terminology:
@@ -149,6 +163,10 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
+
+<user_preferences — (Priority 0) binding style/tone constraint on the output, not translation content>
+{user_preferences}
+</user_preferences>
 
 <terminology>
 {terminology}
@@ -255,12 +273,18 @@ Analyze the source text and translation, then provide specific, constructive edi
 
 - Be specific: Point to exact words, phrases, or segments in the translation that need improvement
 - Prioritize: Focus on issues that most impact quality (accuracy > style)
-- Consider context: Account for register, domain, and purpose"""
+- Consider context: Account for register, domain, and purpose
+
+The user's stated preferences are a binding constraint on any style/tone suggestion you make — judge style and tone against those preferences, not generic best practice, unless doing so would compromise accuracy or required terminology."""
 
 ADVISOR_PROMPT="""Please review this translation and provide editorial suggestions for improvement:
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
+
+<user_preferences — binding style/tone constraint, not translation content>
+{user_preferences}
+</user_preferences>
 
 <previous_context>
 {prev_context}
@@ -280,6 +304,7 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 
 ## Output Format
 - Provide suggestions only, NO revised translation or retranslation.
+- Evaluate style/tone suggestions strictly against the stated user preferences, not generic "best practice" style. Preferences override generic style advice; they don't override accuracy or terminology issues.
 - Don't overexplain - be concise and focused."""
 
 EXPLANATION_SYS_PROMPT = """You are a translation consultant. Your job is to briefly explain a source text so a translator understands it well enough to translate it accurately.
@@ -428,6 +453,13 @@ DOC_SUMMARY_ADD_ON = """# DOCUMENT PROFILE:
 """
 
 # this is not sent to an LLM but added to a prompt
+USER_PROFILE_ADD_ON = """**Translator Profile**: Adopt this role and respect these preferences when responding:
+
+Role: {user_role}
+
+Preferences:
+{user_preferences}"""
+
 STYLE_GUIDE_ADD_ON = """**Style Guide**: Follow these style rules strictly:
 {style_rules}
 """
@@ -533,4 +565,49 @@ GENERAL_CHATBOT_PROMPT = """## Document Context
       <translation>المادة ١٠١. — التعريفات. في هذا النظام...</translation>
     </segment>
   </page>
+"""
+
+TRANSLATOR_PROFILE_PROMPT = """You are a profile extraction engine. Given a raw text (which may be a persona description, a set of instructions, or freeform notes written by or for a translator/user), extract exactly two fields: "role" and "preferences".
+
+## Output format (strict)
+Return only valid JSON, no preamble, no markdown fences:
+{{
+  "role": "<1-2 line description of who the user is - should be the same language as the input text>",
+  "preferences": ["<preference 1 - should be the same language as the input text>", "<preference 2>", ...]
+}}
+
+## Rules for role
+- 1-2 lines maximum. A short identity/expertise statement only.
+- Include domain, specialization, and experience level if stated (e.g. "Legal translator specializing in Egyptian legal context, 10+ years of experience in startup law").
+- Do NOT include instructions, methodology, or steps — only who the user/persona IS.
+
+## Rules for preferences
+- Extract only LIKES / DISLIKES / STYLE PREFERENCES / STANDARDS the user holds — things that express taste, quality bar, or what they want vs. don't want.
+- Include:
+  - Explicit stylistic likes/dislikes (e.g. "prefers short sentences under ~30 words", "dislikes literal word-for-word translation")
+  - Explicit prohibitions/forbidden patterns framed as preference, not procedure (e.g. "avoids passive voice unless legally necessary", "does not like heavy phrases like 'المبلغ البالغ'")
+  - Quality standards/values (e.g. "values absolute accuracy and full consistency over conciseness", "prioritizes clarity over brevity")
+  - Formatting/notation preferences (e.g. "prefers Arabic comma '،' over English comma in addresses")
+- Each preference should be a short, self-contained bullet phrase (not a full sentence-paragraph).
+- EXCLUDE ANY WORKFLOW OR PROCEDURE. Do not extract:
+  - Ordered steps ("read the document first, then translate")
+  - Review/QA checklists ("review 4 times against source")
+  - "How to handle ambiguity" procedures
+  - File/reference instructions
+  - Confidentiality/ethics statements
+  - Output-delivery mechanics unless they reflect a pure stylistic preference (e.g. "wants stamps described not translated" is a preference; "review numbers 4 times against source" is a workflow step — exclude it)
+- If a rule mixes a preference with a procedure, extract only the preference kernel, drop the procedural instruction.
+- Do not invent or infer preferences not stated or clearly implied by the text.
+- If no clear preferences exist, return an empty array.
+
+## Disambiguation heuristic
+Ask: "Is this telling me WHAT the user likes/values, or HOW to do a task step-by-step?"
+- WHAT (keep) → preference
+- HOW (drop) → workflow
+
+Now extract from the following text:
+
+<text>
+{input_text}
+</text>
 """

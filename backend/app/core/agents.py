@@ -8,13 +8,12 @@ from rapidfuzz.distance import Levenshtein
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 # the below line is for testing purposes
-from app.config.config import *
+# from app.config.config import *
 from app.core.llms import *
 from app.core.graph_models import *
-from langsmith import traceable
+from lmnr import observe
 
 
-@traceable(run_type="chain")
 def provider_invoke(role, prompt, max_retries=2):
   """
   Returns model response based on available providers with retry logic.
@@ -51,7 +50,6 @@ def provider_invoke(role, prompt, max_retries=2):
         response = provider.invoke(prompt)
 
         print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
-        print(response.response_metadata["model_name"])
         
         return response
         
@@ -75,7 +73,6 @@ def provider_invoke(role, prompt, max_retries=2):
         ) from last_error
 
 
-@traceable(run_type="chain")
 async def provider_ainvoke(role, prompt, max_retries=2):
   """
   Async twin of provider_invoke — identical provider list, retry count,
@@ -105,9 +102,8 @@ async def provider_ainvoke(role, prompt, max_retries=2):
         print(f"[{role}] Attempting provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
 
         response = await provider.ainvoke(prompt)
-
+        
         print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
-        print(response.response_metadata["model_name"])
 
         return response
 
@@ -180,7 +176,8 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
         # roles) don't, so only pass it through for agent-based roles.
         if context is not None and is_agent_role:
           stream_kwargs["context"] = context
-        for chunk in provider.stream(prompt, **stream_kwargs):
+        for chunk in provider.stream(prompt, **stream_kwargs,
+                                     config={"run_name": role}):
           yield chunk
         
         print(f"[{role}] Stream completed successfully with provider {provider_idx + 1}")
@@ -219,10 +216,12 @@ async def translator_agent(state: State) -> dict:
   evaluation = state.current_eval
   terminology = state.terminology
   style_guide = state.style_guide
+  user_role = state.user_role or DEFAULT_TRANSLATOR_ROLE
+  user_preferences = "\n".join(f"- {p}" for p in state.user_preferences if p and p.strip()) if state.user_preferences else ""
 
   # empty string, no advice
   if not advice:
-    sys_prompt_content = TRANSLATOR_SYS_PROMPT
+    sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(user_role=user_role)
     if style_guide:
       sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
     
@@ -235,13 +234,14 @@ async def translator_agent(state: State) -> dict:
                                          target_lang = target_lang,
                                         source_lang = source_lang,
                                         prev_context = prev_context,
-                                        terminology = terminology
+                                        terminology = terminology,
+                                        user_preferences = user_preferences
                                         ),
         agent="TRANSLATOR")
 
   # use advice and current translation
   else:
-    sys_prompt_content = TRANSLATOR_ADVICE_SYS_PROMPT
+    sys_prompt_content = TRANSLATOR_ADVICE_SYS_PROMPT.format(user_role=user_role)
     if style_guide:
       sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
     
@@ -257,7 +257,8 @@ async def translator_agent(state: State) -> dict:
                                                 source_lang = source_lang,
                                                 prev_context = prev_context,
                                                 evaluation = evaluation,
-                                                terminology = terminology
+                                                terminology = terminology,
+                                                user_preferences = user_preferences
 
                                                 ),
         agent="TRANSLATOR")
@@ -351,6 +352,7 @@ async def advisor_agent(state: State):
   target_lang = state.target_lang
   terminology = state.terminology
   style_guide = state.style_guide
+  user_preferences = "\n".join(f"- {p}" for p in state.user_preferences if p and p.strip()) if state.user_preferences else ""
   
   sys_prompt_content = ADVISOR_SYS_PROMPT
   if style_guide:
@@ -369,7 +371,8 @@ async def advisor_agent(state: State):
           target_lang = target_lang,
           source_lang = source_lang,
           prev_context = prev_context,
-          terminology = terminology
+          terminology = terminology,
+          user_preferences = user_preferences
         ),
        agent="ADVISOR")
   

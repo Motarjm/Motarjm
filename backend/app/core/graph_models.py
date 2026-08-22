@@ -16,6 +16,10 @@ class State(BaseModel):
   # the user's provided glossary that is matched against llm's extracted terms and used if there is a match
   glossary: dict = Field(default_factory=dict)
   style_guide: str = ""
+  # translator profile: role the model should adopt, and freeform style/tone
+  # preferences the advisor should weigh suggestions against
+  user_role: str = ""
+  user_preferences: List[str] = Field(default_factory=list)
   messages: Annotated[List[AnyMessage], operator.add] = []
   current_translation: str = ""
   current_advice: str = ""

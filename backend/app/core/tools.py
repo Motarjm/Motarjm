@@ -129,7 +129,7 @@ def extract_terminology(runtime: ToolRuntime) -> str:
         source_lang=ctx.get("source_lang"),
         target_lang=ctx.get("target_lang"),
         style_guide=ctx.get("style_guide") or "",
-        glossary=ctx.get("glossary") or {},
+        glossary= {},
     )
 
     terms = json.loads(result) if isinstance(result, str) else result
