@@ -68,7 +68,7 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
             terminology=terminology or "",
             user_role=user_role or "",
             user_preferences=user_preferences or [],
-            score_threshold=101
+
         )
     
     try:
