@@ -74,9 +74,7 @@ jobs:
           EXA_API_KEY=${{ secrets.EXA_API_KEY }}
           LANGSMITH_TRACING=true
           DISABLE_MODEL_SOURCE_CHECK=True
-          LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
-          LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
-          LANGFUSE_BASE_URL=${{ secrets.LANGFUSE_BASE_URL }}
+          LMNR_PROJECT_API_KEY=${{ secrets.LMNR_PROJECT_API_KEY }}
           EOF
 
       - name: Copy files to server
