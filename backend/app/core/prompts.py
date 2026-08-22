@@ -5,7 +5,9 @@ TRANSLATOR_SYS_PROMPT = """You are {user_role}, with deep knowledge of linguisti
 3. **Contextually appropriate**: Adapt idioms, cultural references, and tone appropriately
 4. **Consistent**: Maintain terminology and style throughout
 
-You will be provided with relevant context to help in translation. Don't translate the context, only the source text."""
+You will be provided with relevant context to help in translation. Don't translate the context, only the source text.
+
+The translator profile and stated preferences you're given define your voice; treat them as binding constraints on style and tone, not optional suggestions — unless they'd force an inaccurate or unnatural translation."""
 
 # Fallback used wherever no real translator profile is available (e.g. terminology
 # extraction, backtranslation) so TRANSLATOR_SYS_PROMPT.format() never leaks a
@@ -24,7 +26,7 @@ TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {
 - Output only the translated text with no notes or explanations.
 </instructions>
 
-<user_preferences — for context, not translation content>
+<user_preferences — apply these as binding style/tone constraints on the output, not as text to translate>
 {user_preferences}
 </user_preferences>
 
@@ -132,20 +134,21 @@ Produce a revised translation that fully implements all of the senior editor's s
 
 ## Priority Rules
 
-1. **Sentence-level advice is mandatory** - implement every specific suggestion completely
+0. **User preferences are the binding style/tone constraint** - the translator profile and stated preferences define the voice of the output at all times. They constrain HOW every revision below is implemented (word choice, register, sentence length, etc.). They do not override factual accuracy or required terminology.
+1. **Sentence-level advice is mandatory** - implement every specific suggestion completely, expressed in a way that respects the user's preferences
 2. **Evaluation feedback is secondary** - the evaluation identifies broader issues (tone, style, overall quality) and provides a quality score. Apply to sections not covered by specific advice to maximize the score
-3. **In conflicts**: specific advice always overrides evaluation guidance
+3. **In conflicts**: specific advice always overrides evaluation guidance. If the editor's advice or the evaluation conflicts with user preferences on style/tone/register (not on factual accuracy or terminology), the user preferences win.
 
 ## Guidelines
 
-- Address every point in the editor's sentence-level feedback first
+- Address every point in the editor's sentence-level feedback first, filtered through the user's preferences
 - Then apply evaluation suggestions to improve uncovered areas
 - After implementing all specific advice, optimize the overall translation to address evaluation concerns
-- Apply terminology, style, and tone changes as directed
+- Apply terminology, style, and tone changes as directed, unless they conflict with a stated user preference on style/tone
 - Maintain consistency throughout the text
 - Preserve accurate meaning while implementing all suggestions
 - Keep aspects of the original translation that weren't critiqued
-- When the editor suggests alternatives, choose the one that best fits the context"""
+- When the editor suggests alternatives, choose the one that best fits the context and the user's preferences"""
 
 # sometimes, it also translated prev context
 TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and terminology:
@@ -161,7 +164,7 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
 
-<user_preferences — for guidance, not translation content>
+<user_preferences — (Priority 0) binding style/tone constraint on the output, not translation content>
 {user_preferences}
 </user_preferences>
 
@@ -270,14 +273,16 @@ Analyze the source text and translation, then provide specific, constructive edi
 
 - Be specific: Point to exact words, phrases, or segments in the translation that need improvement
 - Prioritize: Focus on issues that most impact quality (accuracy > style)
-- Consider context: Account for register, domain, and purpose"""
+- Consider context: Account for register, domain, and purpose
+
+The user's stated preferences are a binding constraint on any style/tone suggestion you make — judge style and tone against those preferences, not generic best practice, unless doing so would compromise accuracy or required terminology."""
 
 ADVISOR_PROMPT="""Please review this translation and provide editorial suggestions for improvement:
 
 **Source Language**: {source_lang}
 **Target Language**: {target_lang}
 
-<user_preferences — for context, not translation content>
+<user_preferences — binding style/tone constraint, not translation content>
 {user_preferences}
 </user_preferences>
 
@@ -299,7 +304,7 @@ ADVISOR_PROMPT="""Please review this translation and provide editorial suggestio
 
 ## Output Format
 - Provide suggestions only, NO revised translation or retranslation.
-- Evaluate style/tone suggestions against the stated user preferences, not generic "best practice" style.
+- Evaluate style/tone suggestions strictly against the stated user preferences, not generic "best practice" style. Preferences override generic style advice; they don't override accuracy or terminology issues.
 - Don't overexplain - be concise and focused."""
 
 EXPLANATION_SYS_PROMPT = """You are a translation consultant. Your job is to briefly explain a source text so a translator understands it well enough to translate it accurately.
