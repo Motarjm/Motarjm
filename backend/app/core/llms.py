@@ -16,7 +16,7 @@ Laminar.initialize(
 
 #ToDo: migrate from google_genai and open_ai langchain packages to langchain openrouter package
 deepseek = ChatOpenAI(
-    model="deepseek/deepseek-v3.2",
+    model="deepseek/deepseek-v4-flash-0731",
     # model="qwen/qwen-2.5-72b-instruct",
     base_url="https://openrouter.ai/api/v1",
     temperature=0.01,  # Gemini 3.0+ defaults to 1.0
@@ -189,7 +189,7 @@ providers = {"translator": [gemini_3_1_flash_lite,
              "chatbot_claude": [agent_claude_haiku_4_5],  # claude
              
              "doc_summary": [gemini_2_5_flash_lite],
-             "reviewer": [claude_haiku_4_5],
+             "reviewer": [claude_haiku_4_5, gemini_3_1_flash_lite],
              
              "general_chatbot_gemini": [agent_gemini_3_1_flash_lite],
              "general_chatbot_deepseek": [agent_deepseek],
