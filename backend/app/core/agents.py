@@ -176,7 +176,8 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
         # roles) don't, so only pass it through for agent-based roles.
         if context is not None and is_agent_role:
           stream_kwargs["context"] = context
-        for chunk in provider.stream(prompt, **stream_kwargs):
+        for chunk in provider.stream(prompt, **stream_kwargs,
+                                     config={"run_name": role}):
           yield chunk
         
         print(f"[{role}] Stream completed successfully with provider {provider_idx + 1}")

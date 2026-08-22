@@ -92,6 +92,7 @@ async def generate_suggestions(source_text: str, source_lang: str, translation: 
 
     return results
 
+@observe(name="generate_backtranslation")
 async def generate_backtranslation(target_text: str, source_lang: str, target_lang: str, page_context: List) -> str:
     """
     Generates a back-translation of the given target text.
@@ -334,7 +335,6 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
                     yield text
 
 
-@observe(name="stream_reviewer")
 def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str):
     """
     Streams reviewer response tokens.
@@ -399,6 +399,7 @@ def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang:
             yield content[0].get("text", "") if isinstance(content[0], dict) else str(content[0])
             
 
+@observe(name="terminology_agent")
 async def terminology_agent(document, source_lang, target_lang, style_guide, glossary):
   """
   Extract key terminology and difficult words from the text
