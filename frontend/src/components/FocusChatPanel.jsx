@@ -226,15 +226,7 @@ const FocusChatPanel = ({
     try {
       abortRef.current = new AbortController();
       const profile = getActiveProfile();
-      const chatParams = new URLSearchParams();
-      if (styleGuideQueryValue) chatParams.set('style_guide', styleGuideQueryValue);
-      if (profile?.role) chatParams.set('role', profile.role);
-      if (profile?.preferences?.length) chatParams.set('preferences', JSON.stringify(profile.preferences));
-      const chatEndpoint = chatParams.toString()
-        ? `${API_URL}/segment/chat?${chatParams.toString()}`
-        : `${API_URL}/segment/chat`;
-
-      const response = await fetch(chatEndpoint, {
+      const response = await fetch(`${API_URL}/segment/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: abortRef.current.signal,
@@ -247,6 +239,9 @@ const FocusChatPanel = ({
           chat_history: chatHistoryRef.current,
           model: selectedModel,
           doc_context: docContext,
+          style_guide: styleGuideQueryValue || '',     // ← ADD
+          role: profile?.role || '',                    // ← ADD
+          preferences: profile?.preferences || [],      // ← ADD
         }),
       });
 

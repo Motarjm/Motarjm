@@ -33,4 +33,4 @@ class ChatRequest(BaseModel):
     doc_context: List[List[str]] = []
     style_guide: str = ""
     role: Optional[str] = ""
-    preferences: List[str] = None
+    preferences: List[str] = []

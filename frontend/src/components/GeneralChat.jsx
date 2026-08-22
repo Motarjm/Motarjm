@@ -314,15 +314,9 @@ const GeneralChat = ({
     }
 
     const profile = getActiveProfile();
-    const chatParams = new URLSearchParams();
-    if (profile?.role) chatParams.set('role', profile.role);
-    if (profile?.preferences?.length) chatParams.set('preferences', JSON.stringify(profile.preferences));
-    const chatUrl = chatParams.toString()
-      ? `${API_URL}/document/chat?${chatParams.toString()}`
-      : `${API_URL}/document/chat`;
-
+    
     try {
-      const response = await fetch(chatUrl, {
+      const response = await fetch(`${API_URL}/document/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,
@@ -332,9 +326,11 @@ const GeneralChat = ({
           translated_contents: translatedContents,
           source_lang: sourceLang,
           target_lang: targetLang,
-          review_results: reviewContextDismissed ? null : (reviewResults || null),
-          glossary: glossary || {},
+          review_results: reviewContextDismissed ? [] : (reviewResults || []),
           model: model,
+          role: profile?.role || '',
+          preferences: profile?.preferences || [],
+
         }),
       });
       if (!response.ok) throw new Error('Chat request failed');
