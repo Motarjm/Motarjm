@@ -8,13 +8,12 @@ from rapidfuzz.distance import Levenshtein
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
 from app.core.prompts import *
 # the below line is for testing purposes
-from app.config.config import *
+# from app.config.config import *
 from app.core.llms import *
 from app.core.graph_models import *
-from langsmith import traceable
+from lmnr import observe
 
 
-@traceable(run_type="chain")
 def provider_invoke(role, prompt, max_retries=2):
   """
   Returns model response based on available providers with retry logic.
@@ -51,7 +50,6 @@ def provider_invoke(role, prompt, max_retries=2):
         response = provider.invoke(prompt)
 
         print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
-        print(response.response_metadata["model_name"])
         
         return response
         
@@ -75,7 +73,6 @@ def provider_invoke(role, prompt, max_retries=2):
         ) from last_error
 
 
-@traceable(run_type="chain")
 async def provider_ainvoke(role, prompt, max_retries=2):
   """
   Async twin of provider_invoke — identical provider list, retry count,
@@ -105,9 +102,8 @@ async def provider_ainvoke(role, prompt, max_retries=2):
         print(f"[{role}] Attempting provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
 
         response = await provider.ainvoke(prompt)
-
+        
         print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
-        print(response.response_metadata["model_name"])
 
         return response
 

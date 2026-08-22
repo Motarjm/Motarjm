@@ -5,7 +5,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
-from app.routers import translation, generation, segment, document, glossary, tm, jobs
+from app.config.config import *
+from app.routers import translation, generation, segment, document, glossary, tm, jobs, translator_profile
 
 
 # 1. Initialize root logging configuration (Change WARNING to INFO or DEBUG)

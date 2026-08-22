@@ -2,12 +2,17 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from app.core.tools import exa_search, extract_terminology, TerminologyContext
 from langchain.agents.middleware import ToolCallLimitMiddleware
-
-
+import os
+from lmnr import Laminar, Instruments
 # Deepseek doesnt always apply instructions  as intended.
 # Even when given explicit instructrions to not translate context, sometimes it translates it.
 
 MAX_TOOL_CALLS = 3
+
+Laminar.initialize(
+    project_api_key=os.environ.get("LMNR_PROJECT_API_KEY"),
+    instruments={Instruments.LANGCHAIN},
+)
 
 #ToDo: migrate from google_genai and open_ai langchain packages to langchain openrouter package
 deepseek = ChatOpenAI(

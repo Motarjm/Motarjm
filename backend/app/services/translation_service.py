@@ -9,6 +9,7 @@ from app.core.workflow import graph
 from app.core.simple_calls import terminology_agent
 from langdetect import detect
 import httpx
+from lmnr import observe
 
 MAX_NUM_SEGMENTS = 200
 
@@ -34,6 +35,7 @@ def is_image_based(pdf_bytes: bytes, sample_pages: int = 5) -> bool:
     return text_found == 0  # True = image-based
 
 
+@observe(name="translate_one")
 async def translate_one(i: int, page: List[dict], no_translation: bool, source_lang: str, 
                         target_lang: str, style_guide: str, glossary: Optional[Dict[str, str]], 
                         terminology: Optional[str]) -> tuple[int, str]:
@@ -73,7 +75,7 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
 
     return i, response["current_translation"]
 
-    
+@observe(name="translate_file_pdf")
 async def translate_file_content_pdf_streaming(
     pdf_bytes: bytes,
     source_lang: str,
@@ -162,6 +164,7 @@ async def translate_file_content_pdf_streaming(
         translated_content.append(translated_blocks)
     yield {"type": "done", "translated_contents": translated_content}
     
+@observe(name="translate_file_xliff")
 async def translate_file_content_xliff_streaming(
     xliff_bytes: bytes,
     source_lang: str,
@@ -237,8 +240,8 @@ async def translate_file_content_xliff_streaming(
         yield {"type": "progress", "completed": completed_segments, "total": total_segments}
 
     yield {"type": "done", "translated_contents": translated_content}
-
-
+    
+@observe(name="translate_file_docx")
 async def translate_file_content_docx_streaming(
     docx_bytes: bytes,
     source_lang: str,

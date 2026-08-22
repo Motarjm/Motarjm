@@ -2,18 +2,20 @@ import asyncio
 import json
 import re
 from functools import lru_cache
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 from langchain.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from app.core.prompts import *
 from app.core.agents import provider_invoke, provider_ainvoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
 from typing import List, Tuple
 from typing import List
-
 from app.core.llms import MAX_TOOL_CALLS
+from lmnr import observe
+
 
 #TODO: terminoloy agent takes as arg 'document' with keys 'text' because the document is coming from the backend
 # but in the frontend the document is coming from the frontend with keys 'original_text' and 'translated_text' so we need to unify this
 # this is apparent in terminology agent and stream_reviewer functions
+@observe(name="generate_explanation")
 async def generate_explanation(source_text: str, page_context: List):
     """
     Generates explanation for the given source text
@@ -38,6 +40,7 @@ async def generate_explanation(source_text: str, page_context: List):
     
     return response
 
+@observe(name="generate_suggestions")
 async def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
     sys_prompt_content = SUGGESTIONS_SYS_PROMPT
     if style_guide:
@@ -128,6 +131,7 @@ def _convert_to_hashable(pages_context: List[List[str]]) -> Tuple:
 
 
 @lru_cache(maxsize=1)
+@observe(name="generate_doc_summary")
 def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
     """
     Internal cached function that generates a summary for the given document text.
@@ -330,6 +334,7 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
                     yield text
 
 
+@observe(name="stream_reviewer")
 def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str):
     """
     Streams reviewer response tokens.
