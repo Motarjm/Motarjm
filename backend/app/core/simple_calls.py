@@ -341,7 +341,8 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
                     yield text
 
 
-def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str):
+def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str,
+                     user_role: str = "", user_preferences: Optional[List[str]] = None):
     """
     Streams reviewer response tokens.
     
@@ -350,6 +351,7 @@ def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang:
     Arguments:
         - source_lang / target_lang: language pair
         - doc_context: list of list of dicts of source and translated blocks for the whole document
+        - user_role / user_preferences: optional translator profile to adopt
     
     Yields:
         - str: text chunks
@@ -379,10 +381,14 @@ def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang:
         
     segments = json.dumps(segments, ensure_ascii=False, indent=2)
     
-    sys_prompt = REVIEWER_SYS_PROMPT.format(source_lang=source_lang, target_lang=target_lang)
-    
+    sys_prompt_content = REVIEWER_SYS_PROMPT.format(source_lang=source_lang, target_lang=target_lang)
+
+    if user_role or user_preferences:
+        user_preferences = "\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else ""
+        sys_prompt_content += f"\n\n{USER_PROFILE_ADD_ON.format(user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=user_preferences)}"
+
     sys_prompt = SystemMessage(
-        content=sys_prompt,
+        content=sys_prompt_content,
         agent="reviewer"
     )
     

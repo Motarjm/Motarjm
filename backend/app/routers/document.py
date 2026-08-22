@@ -23,7 +23,9 @@ async def review_document(request: ReviewDocumentRequest):
             for chunk in stream_reviewer(
                 doc_context=translated_contents,
                 source_lang=source_lang,
-                target_lang=target_lang
+                target_lang=target_lang,
+                user_role=request.role,
+                user_preferences=request.preferences,
             ):
                 yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
             yield f"data: {json.dumps({'type': 'done'})}\n\n"

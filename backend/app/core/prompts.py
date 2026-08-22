@@ -474,6 +474,7 @@ When reviewing, you must:
 - Make The notes language in Arabic.
 - ALL segments that was in the input must be included in the output, even if no changes were made.
 - If a segment doesn't require any changes, you MUST still include it in your output with an empty "notes" field so that the user knows it was reviewed.
+- If a translator profile is provided below, use it to guide the *judgment calls* in your revisions (register, terminology choices, level of formality) — it never overrides the accuracy, consistency, or output-format rules above.
 
 You will receive:
 1. A document profile providing context and domain

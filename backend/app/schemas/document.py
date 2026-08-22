@@ -5,7 +5,9 @@ class ReviewDocumentRequest(BaseModel):
     source_lang: str
     target_lang: str
     translated_contents: List[List[dict]] = []
-    
+    role: Optional[str] = ""
+    preferences: List[str] = []
+
 class ChatMessage(BaseModel):
     role: Literal["user", "bot", "tool"]
     text: Optional[str] = None

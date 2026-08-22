@@ -1162,6 +1162,23 @@ const CompareInterface = () => {
     setReviewSuggestions({});
 
     try {
+      // Translator profile: same session-storage keys and "is it actually
+      // active/non-empty" gating that Torgman.jsx uses before sending role/
+      // preferences on translate — keeps review consistent with translation/chat.
+      let translatorProfile = {};
+      let translatorProfileActive = false;
+      try {
+        translatorProfile = JSON.parse(sessionStorage.getItem('translation_translator_profile') || '{}');
+        translatorProfileActive = JSON.parse(sessionStorage.getItem('translation_translator_profile_active') || 'false');
+      } catch (e) {
+        translatorProfile = {};
+        translatorProfileActive = false;
+      }
+      const profileHasContent = !!(
+        translatorProfileActive &&
+        (translatorProfile.role?.trim() || (translatorProfile.preferences && translatorProfile.preferences.length > 0))
+      );
+
       const response = await fetch(`${API_URL}/document/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1169,6 +1186,8 @@ const CompareInterface = () => {
           translated_contents: translatedContents,
           source_lang: sourceLang,
           target_lang: targetLang,
+          role: profileHasContent && translatorProfile.role?.trim() ? translatorProfile.role.trim() : '',
+          preferences: profileHasContent && translatorProfile.preferences?.length > 0 ? translatorProfile.preferences : [],
         }),
       });
       if (!response.ok) throw new Error('Review failed');
