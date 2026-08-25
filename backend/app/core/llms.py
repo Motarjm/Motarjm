@@ -57,7 +57,16 @@ gemini_3_1_flash_lite = ChatOpenAI(
     reasoning = {
         "effort": "none",
     }
-    
+)
+
+gemini_3_7_flash = ChatOpenAI(
+    model="google/gemini-3.7-flash",
+    base_url="https://openrouter.ai/api/v1",
+    max_tokens = 2048,
+    temperature=0.01,
+    reasoning = {
+        "effort": "none",
+    }
 )
 
 claude_haiku_4_5 = ChatOpenAI(
@@ -149,7 +158,7 @@ agent_deepseek = create_agent(deepseek,
 
 
 
-providers = {"translator": [gemini_3_1_flash_lite,
+providers = {"translator": [gemini_3_7_flash,
                             deepseek],
                                 # deepseek,
              
