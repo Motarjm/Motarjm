@@ -158,7 +158,7 @@ agent_deepseek = create_agent(deepseek,
 
 
 
-providers = {"translator": [gemini_3_7_flash,
+providers = {"translator": [gemini_3_1_flash_lite,
                             deepseek],
                                 # deepseek,
              
