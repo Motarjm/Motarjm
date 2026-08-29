@@ -13,6 +13,19 @@ from app.core.llms import *
 from app.core.graph_models import *
 from lmnr import observe
 
+logger = logging.getLogger(__name__)
+
+def _extract_text(message) -> str:
+  """Join all 'text' content_blocks from a message, skipping reasoning/other blocks."""
+  text = "".join(
+    block["text"] for block in message.content_blocks if block["type"] == "text"
+  )
+  if not text:
+    raise ValueError(
+      f"No text content_blocks found in response: {message.content_blocks!r}"
+    )
+  return text
+
 
 def provider_invoke(role, prompt, max_retries=2):
   """
@@ -45,17 +58,20 @@ def provider_invoke(role, prompt, max_retries=2):
   for provider_idx, provider in enumerate(provider_list):
     for attempt in range(max_retries + 1):
       try:
-        print(f"[{role}] Attempting provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
+        logger.debug(f"[%s] Attempting provider %d/%d, attempt %d/%d",
+                     role, provider_idx + 1, len(provider_list), attempt + 1, max_retries + 1)
 
         response = provider.invoke(prompt)
 
-        print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
+        logger.debug("[%s] Success with provider %d: %s",
+                     role, provider_idx + 1, response.response_metadata.get('model_name', 'unknown'))
         
         return response
         
       except Exception as e:
         last_error = e
-        print(f"[{role}] Provider {provider_idx + 1} attempt {attempt + 1} failed: {str(e)}")
+        logger.warning("[%s] Provider %d attempt %d failed: %s",
+                       role, provider_idx + 1, attempt + 1, e, exc_info=True)
 
         # If this is not the last attempt for this provider, retry
         if attempt < max_retries:
@@ -63,10 +79,12 @@ def provider_invoke(role, prompt, max_retries=2):
         
         # If this is not the last provider, try the next one
         if provider_idx < len(provider_list) - 1:
-          print(f"[{role}] Falling back to next provider...")
+          logger.warning("[%s] Falling back to next provider...", role)
           break
         
         # If we've exhausted all providers and attempts, raise the error
+        logger.error("[%s] All %d providers failed after %d attempts each. Last error: %s",
+                     role, len(provider_list), max_retries + 1, last_error)
         raise RuntimeError(
           f"All {len(provider_list)} providers failed for role '{role}' after {max_retries + 1} attempts each. "
           f"Last error: {str(last_error)}"
@@ -99,25 +117,30 @@ async def provider_ainvoke(role, prompt, max_retries=2):
   for provider_idx, provider in enumerate(provider_list):
     for attempt in range(max_retries + 1):
       try:
-        print(f"[{role}] Attempting provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
+        logger.debug("[%s] Attempting provider %d/%d, attempt %d/%d",
+                     role, provider_idx + 1, len(provider_list), attempt + 1, max_retries + 1)
 
         response = await provider.ainvoke(prompt)
         
-        print(f"[{role}] Success with provider {provider_idx + 1}: {response.response_metadata.get('model_name', 'unknown')}")
+        logger.debug("[%s] Success with provider %d: %s",
+                     role, provider_idx + 1, response.response_metadata.get('model_name', 'unknown'))
 
         return response
 
       except Exception as e:
         last_error = e
-        print(f"[{role}] Provider {provider_idx + 1} attempt {attempt + 1} failed: {str(e)}")
+        logger.warning("[%s] Provider %d attempt %d failed: %s",
+                       role, provider_idx + 1, attempt + 1, e, exc_info=True)
 
         if attempt < max_retries:
           continue
 
         if provider_idx < len(provider_list) - 1:
-          print(f"[{role}] Falling back to next provider...")
+          logger.warning("[%s] Falling back to next provider...", role)
           break
 
+        logger.error("[%s] All %d providers failed after %d attempts each. Last error: %s",
+                     role, len(provider_list), max_retries + 1, last_error)
         raise RuntimeError(
           f"All {len(provider_list)} providers failed for role '{role}' after {max_retries + 1} attempts each. "
           f"Last error: {str(last_error)}"
@@ -168,11 +191,12 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
   for provider_idx, provider in enumerate(provider_list):
     for attempt in range(max_retries + 1):
       try:
-        print(f"[{role}] Streaming attempt with provider {provider_idx + 1}/{len(provider_list)}, attempt {attempt + 1}/{max_retries + 1}")
+        logger.debug("[%s] Streaming attempt with provider %d/%d, attempt %d/%d",
+                     role, provider_idx + 1, len(provider_list), attempt + 1, max_retries + 1)
         
         stream_kwargs = {"stream_mode": stream_mode} if stream_mode is not None else {}
         # Only compiled graphs (agents) accept `context=` — plain
-        # ChatOpenAI providers (e.g. grok, used directly for the *_grok
+        # chat-model providers (e.g. grok, used directly for the *_grok
         # roles) don't, so only pass it through for agent-based roles.
         if context is not None and is_agent_role:
           stream_kwargs["context"] = context
@@ -180,12 +204,13 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
                                      config={"run_name": role}):
           yield chunk
         
-        print(f"[{role}] Stream completed successfully with provider {provider_idx + 1}")
+        logger.debug("[%s] Stream completed successfully with provider %d", role, provider_idx + 1)
         return
         
       except Exception as e:
         last_error = e
-        print(f"[{role}] Provider {provider_idx + 1} stream attempt {attempt + 1} failed: {str(e)}")
+        logger.warning("[%s] Provider %d stream attempt %d failed: %s",
+                       role, provider_idx + 1, attempt + 1, e, exc_info=True)
 
         # If this is not the last attempt for this provider, retry
         if attempt < max_retries:
@@ -193,10 +218,12 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
         
         # If this is not the last provider, try the next one
         if provider_idx < len(provider_list) - 1:
-          print(f"[{role}] Stream failed, falling back to next provider...")
+          logger.warning("[%s] Stream failed, falling back to next provider...", role)
           break
         
         # If we've exhausted all providers and attempts, raise the error
+        logger.error("[%s] All %d providers failed (stream) after %d attempts each. Last error: %s",
+                     role, len(provider_list), max_retries + 1, last_error)
         raise RuntimeError(
           f"All {len(provider_list)} providers failed for role '{role}' (stream) after {max_retries + 1} attempts each. "
           f"Last error: {str(last_error)}"
@@ -266,10 +293,7 @@ async def translator_agent(state: State) -> dict:
 
   prompt = [sys_prompt, user_prompt]
 
-#  translation = translator.invoke(prompt).content
-  translation = (await provider_ainvoke("translator", prompt)).content
-  if not isinstance(translation, str):
-    translation = translation[0]["text"]
+  translation = _extract_text(await provider_ainvoke("translator", prompt))
 
   return {"messages": prompt + [AIMessage(content=translation, agent="TRANSLATOR")],
           "current_translation": translation}
@@ -311,17 +335,8 @@ async def evaluator_agent(state: State):
 
   prompt = [sys_prompt, user_prompt]
 
-  # response = evaluator.invoke(prompt).content
-  response = (await provider_ainvoke("evaluator", prompt)).content
+  response = _extract_text(await provider_ainvoke("evaluator", prompt))
   
-  if not isinstance(response, str):
-    if len(response) > 1:
-      print(response)
-      response = response[1].get("text", "")
-      
-    else:
-      response = response[0].get("text", "")
-    
   # transform response string into json, we should later use 'with_structued_output'
   
   try:
@@ -385,12 +400,7 @@ async def advisor_agent(state: State):
 
   prompt = [sys_prompt] + history + [user_prompt]
 
-  # advice = advisor.invoke(prompt).content
-  advice = (await provider_ainvoke("advisor", prompt)).content
-  
-  # grok output is in a list of dicts format, we need to extract the text from it
-  if not isinstance(advice, str):
-    advice = advice[0]["text"]
+  advice = _extract_text(await provider_ainvoke("advisor", prompt))
 
   return {"messages": [sys_prompt, user_prompt] + [AIMessage(content= advice, agent="ADVISOR")],
           "current_advice": advice}
