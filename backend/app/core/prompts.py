@@ -517,6 +517,7 @@ GENERAL_CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expert
 - **Cultural/contextual guidance**: Explain nuances, connotations, or cultural references
 - **Grammar & style**: Answer questions about grammar, register, and tone
 - **Search Web**: Look up information online to assist with translation decisions. You have max of {MAX_TOOL_CALLS} tool calls per session. Use them wisely.
+- **Extract Terminology**: You can extract terminology from the text.
 
 # Rules
 - When the user asks you to change the translation of a segment, respond with your message AND include a JSON block at the very end in this exact format:
@@ -543,6 +544,10 @@ GENERAL_CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expert
 - Budget your {MAX_TOOL_CALLS} tool calls: one focused search is usually enough for a single terminology/fact check. Only use multiple calls if the first result is ambiguous, conflicting, or insufficient — don't burn calls re-searching the same thing with slightly different wording.
 - If sources conflict, briefly note the disagreement rather than silently picking one.
 
+# Terminology Extraction Rules
+- The output of the 'extract_terminology' tool is the actual terms extracted.
+- if the terms extracted is empty, tell the user that there is no key terms to be extracted. 
+
 # Notes
 - Keep responses concise and focused
 - You have full document context — use it to give accurate, context-aware answers
@@ -553,19 +558,6 @@ GENERAL_CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expert
 
 GENERAL_CHATBOT_PROMPT = """## Document Context
 {doc_context}
-"""
-
-"""
- <page n="1">
-    <segment id="1">
-      <source>ARTICLE I</source>
-      <translation>المادة الأولى</translation>
-    </segment>
-    <segment id="2">
-      <source>Section 101. — Definitions. As used in this Ordinance...</source>
-      <translation>المادة ١٠١. — التعريفات. في هذا النظام...</translation>
-    </segment>
-  </page>
 """
 
 TRANSLATOR_PROFILE_PROMPT = """You are a profile extraction engine. Given a raw text (which may be a persona description, a set of instructions, or freeform notes written by or for a translator/user), extract exactly two fields: "role" and "preferences".
