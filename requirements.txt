@@ -61,6 +61,7 @@ langgraph==1.0.4
 langgraph-checkpoint==3.0.1
 langgraph-prebuilt==1.0.5
 langgraph-sdk==0.2.15
+langchain-openrouter==0.2.8
 langdetect==1.0.9
 lxml==6.0.2
 lmnr[all]==0.7.42
