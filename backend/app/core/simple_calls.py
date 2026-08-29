@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional, Union
 from langchain.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from app.core.prompts import *
-from app.core.agents import provider_invoke, provider_ainvoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches
+from app.core.agents import provider_invoke, provider_ainvoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches, _extract_text
 from typing import List, Tuple
 from typing import List
 from app.core.llms import MAX_TOOL_CALLS
@@ -34,9 +34,8 @@ async def generate_explanation(source_text: str, page_context: List):
     
     prompt = [sys_prompt, user_prompt]
     
-    response = (await provider_ainvoke("explanator", prompt)).content
-    if not isinstance(response, str):
-        response = response[0]["text"]
+    response = (await provider_ainvoke("explanator", prompt))
+    response = _extract_text(response)
     
     return response
 
@@ -63,14 +62,8 @@ async def generate_suggestions(source_text: str, source_lang: str, translation: 
 
     async def _fetch(role: str, label: str):
         """Wrapper that calls provider_ainvoke and normalizes the response."""
-        response = (await provider_ainvoke(role, prompt)).content
-        
-        if not isinstance(response, str):
-            # Keep the special GPT-5 nano handling for suggestions3
-            if role == "suggestions3" and len(response) > 1:
-                response = response[1]["text"]
-            else:
-                response = response[0]["text"]
+        response = (await provider_ainvoke(role, prompt))
+        response = _extract_text(response)
         return label, response
 
     jobs = [
@@ -118,9 +111,8 @@ async def generate_backtranslation(target_text: str, source_lang: str, target_la
 
     prompt = [sys_prompt, user_prompt]
 
-    response = (await provider_ainvoke("backtranslation", prompt)).content
-    if not isinstance(response, str):
-        response = response[0]["text"]
+    response = (await provider_ainvoke("backtranslation", prompt))
+    response = _extract_text(response)
 
     return response
 
@@ -159,9 +151,8 @@ def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
 
     prompt = [sys_prompt, user_prompt]
 
-    response = provider_invoke("doc_summary", prompt).content
-    if not isinstance(response, str):
-        response = response[0]["text"]
+    response = provider_invoke("doc_summary", prompt)
+    response = _extract_text(response)
 
     return response
 
@@ -453,9 +444,8 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
 
   prompt = [sys_prompt, user_prompt]
 
-  response = (await provider_ainvoke("terminology", prompt)).content
-  if not isinstance(response, str):
-    response = response[0]["text"]
+  response = (await provider_ainvoke("terminology", prompt))
+  response = _extract_text(response)
 
   parsed_terms = _safe_parse_terminology_json(response)
   if parsed_terms is None:
@@ -714,9 +704,8 @@ def extract_translator_profile(text: str) -> dict[str, Union[str, List]]:
         agent="translator_profile"
     )
     prompt = [prompt]
-    response = provider_invoke("translator_profile", prompt).content
-    if not isinstance(response, str):
-        response = response[0]["text"]
+    response = provider_invoke("translator_profile", prompt)
+    response = _extract_text(response)
         
     try:
         if matched := re.search(r'\{.*\}', response, re.DOTALL):
