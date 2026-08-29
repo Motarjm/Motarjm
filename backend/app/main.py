@@ -8,7 +8,10 @@ import logging
 from app.config.config import *
 from app.routers import translation, generation, segment, document, glossary, tm, jobs, translator_profile
 
-
+for noisy_logger in ("httpx", "httpcore", "opentelemetry", 
+                     "fontTools", "urllib3"):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+    
 # 1. Initialize root logging configuration (Change WARNING to INFO or DEBUG)
 logging.basicConfig(
     level=logging.INFO, 

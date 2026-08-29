@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import AsyncGenerator, Dict, List, Optional
 import pymupdf
 from app.services.pdf_service import extract_text_from_pdf
@@ -10,6 +11,8 @@ from app.core.simple_calls import terminology_agent
 from langdetect import detect
 import httpx
 from lmnr import observe
+
+logger = logging.getLogger(__name__)
 
 MAX_NUM_SEGMENTS = 200
 
@@ -76,7 +79,7 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
     except httpx.HTTPError as e:
         raise RuntimeError(f"Network or HTTP error during translation: {e}")
     except ValueError as e:
-        raise RuntimeError(f"Failed to parse API response: {e}")
+        raise RuntimeError(f"Value error during translation: {e}")
 
     return i, response["current_translation"]
 
@@ -144,7 +147,7 @@ async def translate_file_content_pdf_streaming(
                 try:
                     return await translate_one(i, _page, no_translation, source_lang, target_lang, style_guide, glossary, terminology, user_role, user_preferences)
                 except Exception as e:
-                    print(f"Page {page_num} | Block {i} failed: {e}")
+                    logger.warning("Page %d | Block %d failed: %s", page_num, i, e, exc_info=True)
                     return i, ""
 
         tasks = [asyncio.ensure_future(_bounded_translate_one(i)) for i, _ in enumerate(page)]
@@ -229,7 +232,8 @@ async def translate_file_content_xliff_streaming(
         async with semaphore:
             try:
                 return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology, user_role, user_preferences)
-            except Exception:
+            except Exception as e:
+                logger.warning("XLIFF segment %d (id=%s) failed: %s", i, segments[i].get("id"), e, exc_info=True)
                 return i, ""
 
     tasks = [asyncio.ensure_future(_bounded_translate_one(i)) for i, _ in enumerate(segments)]
@@ -310,7 +314,8 @@ async def translate_file_content_docx_streaming(
         async with semaphore:
             try:
                 return await translate_one(i, segments, no_translation, source_lang, target_lang, style_guide, glossary, terminology, user_role, user_preferences)
-            except Exception:
+            except Exception as e:
+                logger.warning("DOCX segment %d (id=%s) failed: %s", i, segments[i].get("id"), e, exc_info=True)
                 return i, ""
 
     tasks = [asyncio.ensure_future(_bounded_translate_one(i)) for i, _ in enumerate(segments)]
