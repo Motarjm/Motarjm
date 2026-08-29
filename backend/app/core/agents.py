@@ -21,7 +21,7 @@ def _extract_text(message) -> str:
     block["text"] for block in message.content_blocks if block["type"] == "text"
   )
   if not text:
-    raise EmptyModelResponseError(
+    raise ValueError(
       f"No text content_blocks found in response: {message.content_blocks!r}"
     )
   return text
