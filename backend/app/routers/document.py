@@ -18,9 +18,9 @@ async def review_document(request: ReviewDocumentRequest):
     translated_contents = request.translated_contents
     source_lang = request.source_lang
     target_lang = request.target_lang
-    def event_stream():
+    async def event_stream():
         try:
-            for chunk in stream_reviewer(
+            async for chunk in stream_reviewer(
                 doc_context=translated_contents,
                 source_lang=source_lang,
                 target_lang=target_lang,
@@ -120,9 +120,9 @@ async def download_terms(file_id: str):
 async def general_chat(request: GeneralChatRequest):
     chat_history = [msg.model_dump() for msg in request.chat_history]
 
-    def event_stream():
+    async def event_stream():
         try:
-            for chunk in stream_general_chatbot(
+            async for chunk in stream_general_chatbot(
                 source_lang=request.source_lang,
                 target_lang=request.target_lang,
                 chat_history=chat_history,

@@ -105,7 +105,7 @@ class TerminologyContext(TypedDict):
 
 
 @tool
-def extract_terminology(runtime: ToolRuntime) -> str:
+async def extract_terminology(runtime: ToolRuntime) -> str:
     """Extract key terminology/glossary terms from the current document
     and prepare them as a downloadable Source/Target spreadsheet. Call
     this when the user asks to extract, pull out, or list key terms,
@@ -124,7 +124,7 @@ def extract_terminology(runtime: ToolRuntime) -> str:
         for page in translated_contents
     ]
 
-    result = terminology_agent(
+    result = await terminology_agent(
         document=document,
         source_lang=ctx.get("source_lang"),
         target_lang=ctx.get("target_lang"),

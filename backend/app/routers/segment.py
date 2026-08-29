@@ -67,9 +67,9 @@ async def backtranslation(request: BacktranslationRequest):
 async def chat(request: ChatRequest):
     chat_history = [msg.model_dump() for msg in request.chat_history]
 
-    def event_stream():
+    async def event_stream():
         try:
-            for chunk in stream_chat_response(
+            async for chunk in stream_chat_response(
                 source_text=request.source_text,
                 translation=request.translation,
                 source_lang=request.source_lang,

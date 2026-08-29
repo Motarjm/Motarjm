@@ -21,7 +21,7 @@ def _extract_text(message) -> str:
     block["text"] for block in message.content_blocks if block["type"] == "text"
   )
   if not text:
-    raise ValueError(
+    raise EmptyModelResponseError(
       f"No text content_blocks found in response: {message.content_blocks!r}"
     )
   return text
@@ -58,7 +58,7 @@ def provider_invoke(role, prompt, max_retries=2):
   for provider_idx, provider in enumerate(provider_list):
     for attempt in range(max_retries + 1):
       try:
-        logger.debug(f"[%s] Attempting provider %d/%d, attempt %d/%d",
+        logger.debug("[%s] Attempting provider %d/%d, attempt %d/%d",
                      role, provider_idx + 1, len(provider_list), attempt + 1, max_retries + 1)
 
         response = provider.invoke(prompt)
@@ -147,7 +147,7 @@ async def provider_ainvoke(role, prompt, max_retries=2):
         ) from last_error
 
 
-def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None):
+async def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None):
   """
   Streams model response tokens based on available providers with retry logic.
   Falls back to next provider in the list on failure.
@@ -157,12 +157,12 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
     - prompt, list: list of langchain messages
     - max_retries, int: number of retry attempts per provider (default: 2)
     - stream_mode, str | list | None: forwarded to the underlying LangGraph
-      .stream() call when the provider is a compiled graph (e.g. an agent
+      .astream() call when the provider is a compiled graph (e.g. an agent
       with tools). Pass a list like ["updates", "messages"] to get both
       step-level (node-level) updates (for tool-call detection) and token-level message
       chunks (for real streaming) in the same stream. Ignored (None) for
       plain chat-model providers.
-    - context, dict | None: forwarded as `context=` to `.stream()`. This is
+    - context, dict | None: forwarded as `context=` to `.astream()`. This is
       how per-request data (e.g. document contents for extract_terminology)
       reaches tools bound to an agent via `runtime: ToolRuntime` — the tool
       itself is bound once at import time (see llms.py), and this context
@@ -200,7 +200,7 @@ def provider_stream(role, prompt, max_retries=2, stream_mode=None, context=None)
         # roles) don't, so only pass it through for agent-based roles.
         if context is not None and is_agent_role:
           stream_kwargs["context"] = context
-        for chunk in provider.stream(prompt, **stream_kwargs,
+        async for chunk in provider.astream(prompt, **stream_kwargs,
                                      config={"run_name": role}):
           yield chunk
         

@@ -184,7 +184,7 @@ def clear_doc_summary_cache():
     _generate_doc_summary_cached.cache_clear()
 
 
-def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
+async def stream_chatbot(source_text: str, translation: str, source_lang: str, target_lang: str, 
                    page_context: List, chat_history: List[dict], model: str, doc_context: List[List[str]], style_guide: str = "",
                    user_role: str = "", user_preferences: Optional[List[str]] = None):
     """
@@ -277,7 +277,7 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
         else:
             messages.append(AIMessage(content=msg["text"]))
 
-    for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"]):
+    async for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"]):
         mode, payload = event
 
         if mode == "updates":
@@ -341,7 +341,7 @@ def stream_chatbot(source_text: str, translation: str, source_lang: str, target_
                     yield text
 
 
-def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str,
+async def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang: str,
                      user_role: str = "", user_preferences: Optional[List[str]] = None):
     """
     Streams reviewer response tokens.
@@ -403,7 +403,7 @@ def stream_reviewer(doc_context: List[List[str]], source_lang: str, target_lang:
     # Build message list: system + context + history
     messages = [sys_prompt, user_message]
     
-    for chunk in provider_stream("reviewer", messages):
+    async for chunk in provider_stream("reviewer", messages):
         content = chunk.content
         if isinstance(content, str):
             yield content
@@ -467,7 +467,7 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
   
   return matched_terms_json
 
-def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
+async def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
                            chat_history: List[dict],  doc_context: List[List[dict]], 
                            style_guide: str = "", review_results: List[dict] = [],
                            user_role: str = "", user_preferences: Optional[List[str]] = None):
@@ -603,7 +603,7 @@ def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
         "style_guide": style_guide,
     }
 
-    for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"],
+    async for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"],
                                   context=terminology_context):
         mode, payload = event
 
