@@ -20,15 +20,17 @@ async def generate_explanation(source_text: str, page_context: List):
     """
     Generates explanation for the given source text
     """
+    page_context = "\n\n".join(page_context)
+
     sys_prompt = SystemMessage(
-        content = EXPLANATION_SYS_PROMPT,
+        content = EXPLANATION_SYS_PROMPT.format(
+            page_context=page_context
+        ),
         agent="explanator"
     )
     
-    page_context = "\n\n".join(page_context)
-    
     user_prompt = HumanMessage(
-        content = EXPLANATION_PROMPT.format(source_text=source_text, page_context=page_context),
+        content = EXPLANATION_PROMPT.format(source_text=source_text),
         agent="explanator"
     )
     
@@ -41,18 +43,21 @@ async def generate_explanation(source_text: str, page_context: List):
 
 @observe(name="generate_suggestions")
 async def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
-    sys_prompt_content = SUGGESTIONS_SYS_PROMPT
+    page_context = "\n\n".join(page_context)    
+
+    sys_prompt_content = SUGGESTIONS_SYS_PROMPT.format(
+        page_context = page_context,
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
+    
     if style_guide:
         sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
     
     sys_prompt = SystemMessage(content=sys_prompt_content, agent="suggestions")
-    page_context = "\n\n".join(page_context)    
     
     user_prompt = HumanMessage(
         content=SUGGESTIONS_PROMPT.format(
-            source_lang=source_lang,
-            target_lang=target_lang,
-            page_context=page_context, 
             source_text=source_text, 
             translation=translation
         ),

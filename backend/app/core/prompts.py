@@ -313,13 +313,14 @@ Cover only what directly affects translation:
 - Tone and register
 - Any nuance, ambiguity, or cultural reference that could be mistranslated
 
-Be concise. Skip any point that is obvious or irrelevant. Plain text only, no markdown."""
+Be concise. Skip any point that is obvious or irrelevant. Plain text only, no markdown.
 
-EXPLANATION_PROMPT = """<context for_reference_only — DO NOT TRANSLATE>
+<context for_reference_only — DO NOT TRANSLATE>
 {page_context}
 </context>
+"""
 
-Source text to explain:
+EXPLANATION_PROMPT = """Source text to explain:
 {source_text}"""
 
 SUGGESTIONS_SYS_PROMPT = """You are a professional translator specializing in {source_lang} to {target_lang} translation.
@@ -328,16 +329,15 @@ Given a source text and an existing translation, produce one alternative transla
 
 Do not produce a superficially tweaked version of the existing translation.
 Do not explain your translation.
-Output the alternative translation only."""
-
-SUGGESTIONS_PROMPT = """You are a translator from {source_lang} to {target_lang}.
-
-TASK: Improve the existing translation of the text inside <source_text> tags.
-Do NOT translate anything outside those tags.
+Output the alternative translation only.
 
 <context for_reference_only — DO NOT TRANSLATE>
 {page_context}
 </context>
+"""
+
+SUGGESTIONS_PROMPT = """TASK: Improve the existing translation of the text inside <source_text> tags.
+Do NOT translate anything outside those tags.
 
 <source_text>
 {source_text}
@@ -347,7 +347,7 @@ Do NOT translate anything outside those tags.
 {translation}
 </existing_translation>
 
-Output the improved {target_lang} translation of the source text only, nothing else:"""
+Output the improved translation of the source text only, nothing else:"""
 
 # the blueprint of the doc should be added with the below prompt
 CHATBOT_SYS_PROMPT = """You are a translation assistant with deep expertise in linguistics and translation from {source_lang} to {target_lang}. You help translators refine their work by answering questions about terminology, meaning, style, and context.
