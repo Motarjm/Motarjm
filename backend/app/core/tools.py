@@ -102,6 +102,7 @@ class TerminologyContext(TypedDict):
     target_lang: str
     style_guide: str
     glossary: Optional[dict]
+    user_preferences: Optional[list[str]]
 
 
 @tool

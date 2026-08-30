@@ -7,22 +7,15 @@ TRANSLATOR_SYS_PROMPT = """You are {user_role}, with deep knowledge of linguisti
 
 You will be provided with relevant context to help in translation. Don't translate the context, only the source text.
 
-The translator profile and stated preferences you're given define your voice; treat them as binding constraints on style and tone, not optional suggestions — unless they'd force an inaccurate or unnatural translation."""
+The translator profile and stated preferences you're given define your voice; treat them as binding constraints on style and tone, not optional suggestions — unless they'd force an inaccurate or unnatural translation.
 
-# Fallback used wherever no real translator profile is available (e.g. terminology
-# extraction, backtranslation) so TRANSLATOR_SYS_PROMPT.format() never leaks a
-# literal "{user_role}" into the prompt.
-DEFAULT_TRANSLATOR_ROLE = "an expert translator"
-
-
-
-TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {target_lang} without any explanations using the available terminology and context:
+You are translating from {source_lang} to {target_lang}.
 
 <instructions>
-- Translate ONLY the source text.
+- Translate ONLY the source text provided in the user message.
 - Use the provided terminology as the preferred translation for the listed terms.
 - You MAY slightly inflect, reorder, or grammatically adapt terminology entries (e.g., adding prefixes like بـ/الـ/وـ, changing case endings, adjusting verb forms) so they fit naturally into the Arabic sentence — but do NOT replace or paraphrase them with unrelated words.
-- Do not translate or reproduce the previous context or terminology table.
+- Do not translate or reproduce any previous context or this terminology table.
 - Output only the translated text with no notes or explanations.
 </instructions>
 
@@ -33,8 +26,16 @@ TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {
 <terminology>
 {terminology}
 </terminology>
+"""
 
-<previous_context  — DO NOT TRANSLATE>
+# Fallback used wherever no real translator profile is available (e.g. terminology
+# extraction, backtranslation) so TRANSLATOR_SYS_PROMPT.format() never leaks a
+# literal "{user_role}" into the prompt.
+DEFAULT_TRANSLATOR_ROLE = "an expert translator"
+
+
+
+TRANSLATOR_PROMPT = """<previous_context — DO NOT TRANSLATE>
 {prev_context}
 </previous_context>
 
@@ -42,8 +43,7 @@ TRANSLATOR_PROMPT="""Translate the following source text from {source_lang} to {
 {source_text}
 </source_text>
 
-
-ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context or terminology. Provide only the translated text without any explanations or notes."""
+ONLY TRANSLATE THE SOURCE TEXT. Do not translate the context. Provide only the translated text without any explanations or notes."""
 
 # for now, backtranslation uses page context
 
@@ -64,7 +64,7 @@ Do NOT translate anything outside those tags.
 
 Output the {target_lang} translation of the source text only, nothing else:"""
 
-TERMINOLOGY_PROMPT = """Extract key terminology and named entities from the {source_lang} text below, to serve as a consistent translation glossary.
+TERMINOLOGY_PROMPT = """Extract key terminology and named entities from the text below, to serve as a consistent translation glossary.
 
 Extract ONLY these TWO categories:
 
@@ -94,8 +94,8 @@ STRICT EXCLUSIONS — NEVER extract any of the following, even if they appear in
 RULES:
 - Maximum 5 words per entry. If a phrase is longer, it is a clause, not a term; SKIP it.
 - ONE translation per entry — choose the meaning that fits this context.
-- Named entities with no standard {target_lang} translation should be transliterated or kept in original form.
-- Named entities that have a well-known {target_lang} equivalent should use that equivalent.
+- Named entities with no standard translation should be transliterated or kept in original form.
+- Named entities that have a well-known equivalent should use that equivalent.
 - A multi-word entry must be a FIXED technical or named expression. If the words are merely adjacent in the sentence but do not form a recognized term, extract the single important word only or skip entirely.
 - WHEN IN DOUBT, SKIP. It is better to return too few terms than too many.
 
@@ -118,8 +118,6 @@ Return ONLY a JSON object — no preamble, no markdown, no explanation:
   "term1": "translation1",
   "term2": "translation2"
 }}
-
-Target language: {target_lang}
 
 <source_text>
 {source_text}
@@ -148,21 +146,17 @@ Produce a revised translation that fully implements all of the senior editor's s
 - Maintain consistency throughout the text
 - Preserve accurate meaning while implementing all suggestions
 - Keep aspects of the original translation that weren't critiqued
-- When the editor suggests alternatives, choose the one that best fits the context and the user's preferences"""
+- When the editor suggests alternatives, choose the one that best fits the context and the user's preferences
 
-# sometimes, it also translated prev context
-TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and terminology:
+You are revising a translation from {source_lang} to {target_lang}.
 
 <instructions>
-- Translate ONLY the source text.
+- Translate ONLY the source text provided in the user message.
 - Use the provided terminology as the preferred translation for the listed terms.
 - You MAY slightly inflect, reorder, or grammatically adapt terminology entries (e.g., adding prefixes like بـ/الـ/وـ, changing case endings, adjusting verb forms) so they fit naturally into the Arabic sentence — but do NOT replace or paraphrase them with unrelated words.
-- Do not translate or reproduce the previous context or terminology table.
+- Do not translate or reproduce any previous context or this terminology table.
 - Output only the translated text with no notes or explanations.
 </instructions>
-
-**Source Language**: {source_lang}
-**Target Language**: {target_lang}
 
 <user_preferences — (Priority 0) binding style/tone constraint on the output, not translation content>
 {user_preferences}
@@ -171,6 +165,9 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 <terminology>
 {terminology}
 </terminology>
+"""
+
+TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on the senior editor's feedback, an evaluation score, and the terminology and previous context below.
 
 <previous_context - DO NOT TRANSLATE>
 {prev_context}
@@ -194,7 +191,7 @@ TRANSLATOR_ADVICE_PROMPT = """Please revise the following translation based on t
 
 Provide ONLY the revised translation text. No explanations, notes, or commentary."""
 
-EVALUATOR_SYS_PROMPT ="""You are an expert translation evaluator using the Error Span Annotation (ESA) framework. Evaluate translations by combining error span marking with holistic scoring.
+EVALUATOR_SYS_PROMPT = """You are an expert translation evaluator using the Error Span Annotation (ESA) framework. Evaluate translations by combining error span marking with holistic scoring.
 
 ## ESA Evaluation Process
 
@@ -216,22 +213,22 @@ After marking all errors, assign a holistic score from 0-100 considering all mar
 **30-39**: Very poor. Multiple critical errors or pervasive major errors.
 **20-29**: Severely deficient. Major portions wrong or incomprehensible.
 **10-19**: Critically flawed. Most content incorrect.
-**0-9**: Unusable. Wrong language or gibberish."""
+**0-9**: Unusable. Wrong language or gibberish.
 
-# if you used with_sturcture_output, remove the "Only" in the evaluator prompt below so that the model can output freely and i only parse the json
-
-EVALUATOR_PROMPT= """Evaluate this translation and provide a JSON response with reason and score:
-
-**Source Language**: {source_lang}
-**Target Language**: {target_lang}
-
-<previous_context>
-{prev_context}
-</previous_context>
+You are evaluating a translation from {source_lang} to {target_lang}.
 
 <terminology>
 {terminology}
 </terminology>
+"""
+
+# if you used with_structure_output, remove the "Only" in the evaluator prompt below so that the model can output freely and i only parse the json
+
+EVALUATOR_PROMPT = """Evaluate this translation and provide a JSON response with reason and score:
+
+<previous_context>
+{prev_context}
+</previous_context>
 
 <original_source_text>
 {source_text}
@@ -275,24 +272,24 @@ Analyze the source text and translation, then provide specific, constructive edi
 - Prioritize: Focus on issues that most impact quality (accuracy > style)
 - Consider context: Account for register, domain, and purpose
 
-The user's stated preferences are a binding constraint on any style/tone suggestion you make — judge style and tone against those preferences, not generic best practice, unless doing so would compromise accuracy or required terminology."""
+The user's stated preferences are a binding constraint on any style/tone suggestion you make — judge style and tone against those preferences, not generic best practice, unless doing so would compromise accuracy or required terminology.
 
-ADVISOR_PROMPT="""Please review this translation and provide editorial suggestions for improvement:
-
-**Source Language**: {source_lang}
-**Target Language**: {target_lang}
+You are reviewing a translation from {source_lang} to {target_lang}.
 
 <user_preferences — binding style/tone constraint, not translation content>
 {user_preferences}
 </user_preferences>
 
-<previous_context>
-{prev_context}
-</previous_context>
-
 <terminology>
 {terminology}
 </terminology>
+"""
+
+ADVISOR_PROMPT = """Please review this translation and provide editorial suggestions for improvement:
+
+<previous_context>
+{prev_context}
+</previous_context>
 
 <source_text>
 {source_text}

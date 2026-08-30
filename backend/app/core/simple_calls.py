@@ -403,12 +403,18 @@ async def stream_reviewer(doc_context: List[List[str]], source_lang: str, target
             
 
 @observe(name="terminology_agent")
-async def terminology_agent(document, source_lang, target_lang, style_guide, glossary):
+async def terminology_agent(document, source_lang, target_lang, style_guide, glossary, user_preferences):
   """
   Extract key terminology and difficult words from the text
   """
   
-  sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(user_role=DEFAULT_TRANSLATOR_ROLE)
+  sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(
+      user_role=DEFAULT_TRANSLATOR_ROLE,                                              
+          target_lang=target_lang,
+          source_lang=source_lang,
+          user_preferences="\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else "",
+          terminology = ""
+  )
   if style_guide:
     sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
 
@@ -436,8 +442,6 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
   user_prompt = HumanMessage(
       content=TERMINOLOGY_PROMPT.format(
           source_text=context,
-          target_lang=target_lang,
-          source_lang=source_lang
       ),
       agent="TERMINOLOGY"
   )
@@ -591,6 +595,7 @@ async def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
         "source_lang": source_lang,
         "target_lang": target_lang,
         "style_guide": style_guide,
+        "user_preferences": user_preferences,
     }
 
     async for event in provider_stream(provider_key, messages, stream_mode=["updates", "messages"],

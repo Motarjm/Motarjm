@@ -248,7 +248,12 @@ async def translator_agent(state: State) -> dict:
 
   # empty string, no advice
   if not advice:
-    sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(user_role=user_role)
+    sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(
+                                        user_role=user_role,
+                                        target_lang = target_lang,
+                                        source_lang = source_lang,
+                                        terminology = terminology,
+                                        user_preferences = user_preferences)
     if style_guide:
       sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
     
@@ -257,18 +262,20 @@ async def translator_agent(state: State) -> dict:
         agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
-        content=TRANSLATOR_PROMPT.format(source_text = source_text,
-                                         target_lang = target_lang,
-                                        source_lang = source_lang,
+        content=TRANSLATOR_PROMPT.format(
+                                        source_text = source_text,
                                         prev_context = prev_context,
-                                        terminology = terminology,
-                                        user_preferences = user_preferences
                                         ),
         agent="TRANSLATOR")
 
   # use advice and current translation
   else:
-    sys_prompt_content = TRANSLATOR_ADVICE_SYS_PROMPT.format(user_role=user_role)
+    sys_prompt_content = TRANSLATOR_ADVICE_SYS_PROMPT.format(
+                                                user_role=user_role,             
+                                                target_lang = target_lang,
+                                                source_lang = source_lang,
+                                                terminology = terminology,
+                                                user_preferences = user_preferences)
     if style_guide:
       sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
     
@@ -280,13 +287,8 @@ async def translator_agent(state: State) -> dict:
         content=TRANSLATOR_ADVICE_PROMPT.format(source_text = source_text,
                                                 translation = translation,
                                                 advice = advice,
-                                                target_lang = target_lang,
-                                                source_lang = source_lang,
                                                 prev_context = prev_context,
                                                 evaluation = evaluation,
-                                                terminology = terminology,
-                                                user_preferences = user_preferences
-
                                                 ),
         agent="TRANSLATOR")
 
@@ -312,7 +314,11 @@ async def evaluator_agent(state: State):
   terminology = state.terminology
   style_guide = state.style_guide
   
-  sys_prompt_content = EVALUATOR_SYS_PROMPT
+  sys_prompt_content = EVALUATOR_SYS_PROMPT.format(  
+          terminology = terminology,
+          target_lang = target_lang,
+          source_lang = source_lang)
+  
   if style_guide:
     sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
   
@@ -325,10 +331,7 @@ async def evaluator_agent(state: State):
        (
           source_text = source_text,
           translation= translation,
-          target_lang = target_lang,
-          source_lang = source_lang,
-          prev_context = prev_context,
-          terminology = terminology
+          prev_context = prev_context
         ),
        agent="EVALUATOR")
 
@@ -369,7 +372,13 @@ async def advisor_agent(state: State):
   style_guide = state.style_guide
   user_preferences = "\n".join(f"- {p}" for p in state.user_preferences if p and p.strip()) if state.user_preferences else ""
   
-  sys_prompt_content = ADVISOR_SYS_PROMPT
+  sys_prompt_content = ADVISOR_SYS_PROMPT.format(
+    target_lang = target_lang,
+    source_lang = source_lang,
+    terminology = terminology,
+    user_preferences = user_preferences
+  )
+  
   if style_guide:
     sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
   
@@ -383,11 +392,7 @@ async def advisor_agent(state: State):
        (
           source_text = source_text,
           translation= translation,
-          target_lang = target_lang,
-          source_lang = source_lang,
-          prev_context = prev_context,
-          terminology = terminology,
-          user_preferences = user_preferences
+          prev_context = prev_context
         ),
        agent="ADVISOR")
   

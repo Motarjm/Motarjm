@@ -133,7 +133,8 @@ async def translate_file_content_pdf_streaming(
                                     source_lang=source_lang, 
                                     target_lang=target_lang,
                                     style_guide=style_guide, 
-                                    glossary=glossary)
+                                    glossary=glossary,
+                                    user_preferences=user_preferences)
 
     for page_num, page in enumerate(content):
         translated_blocks = [None] * len(page)
@@ -224,7 +225,8 @@ async def translate_file_content_xliff_streaming(
                                         source_lang=source_lang,
                                         target_lang=target_lang,
                                         style_guide=style_guide,
-                                        glossary=glossary)
+                                        glossary=glossary,
+                                        user_preferences=user_preferences)
 
     semaphore = asyncio.Semaphore(TRANSLATE_CONCURRENCY)
 
@@ -306,7 +308,8 @@ async def translate_file_content_docx_streaming(
                                         source_lang=source_lang,
                                         target_lang=target_lang,
                                         style_guide=style_guide,
-                                        glossary=glossary)
+                                        glossary=glossary,
+                                        user_preferences=user_preferences)
 
     semaphore = asyncio.Semaphore(TRANSLATE_CONCURRENCY)
 
