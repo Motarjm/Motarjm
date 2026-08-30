@@ -64,7 +64,7 @@ async def translate_one(i: int, page: List[dict], no_translation: bool, source_l
             source_text=page[i]["text"],
             source_lang=source_lang,
             target_lang=target_lang,
-            max_iterations=2,
+            max_iterations=1,
             prev_context=prev_text,
             style_guide=style_guide,
             glossary=glossary or {},
