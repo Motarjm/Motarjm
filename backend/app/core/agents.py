@@ -6,12 +6,9 @@ from typing import Dict, Optional
 from rapidfuzz import process as rf_process
 from rapidfuzz.distance import Levenshtein
 from langchain.messages import AIMessage, HumanMessage, SystemMessage
-from app.core.prompts import *
-# the below line is for testing purposes
-# from app.config.config import *
+from app.core.prompts import get_prompt, DEFAULT_TRANSLATOR_ROLE
 from app.core.llms import *
 from app.core.graph_models import *
-from lmnr import observe
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +88,8 @@ def provider_invoke(role, prompt, max_retries=2):
         ) from last_error
 
 
-async def provider_ainvoke(role, prompt, max_retries=2):
+
+async def provider_ainvoke(role, prompt, config=None, max_retries=2):
   """
   Async twin of provider_invoke — identical provider list, retry count,
   fallback order, and exception behavior. Only .invoke() -> .ainvoke() differs.
@@ -120,7 +118,7 @@ async def provider_ainvoke(role, prompt, max_retries=2):
         logger.debug("[%s] Attempting provider %d/%d, attempt %d/%d",
                      role, provider_idx + 1, len(provider_list), attempt + 1, max_retries + 1)
 
-        response = await provider.ainvoke(prompt)
+        response = await provider.ainvoke(prompt, config=config) if config else await provider.ainvoke(prompt)
         
         logger.debug("[%s] Success with provider %d: %s",
                      role, provider_idx + 1, response.response_metadata.get('model_name', 'unknown'))
@@ -248,48 +246,52 @@ async def translator_agent(state: State) -> dict:
 
   # empty string, no advice
   if not advice:
-    sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(
-                                        user_role=user_role,
-                                        target_lang = target_lang,
-                                        source_lang = source_lang,
-                                        terminology = terminology,
-                                        user_preferences = user_preferences)
+    sys_prompt_content = get_prompt(
+        "translator-system",
+        user_role=user_role,
+        target_lang=target_lang,
+        source_lang=source_lang,
+        terminology=terminology,
+        user_preferences=user_preferences,
+    )
     if style_guide:
-      sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+      sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
     
     sys_prompt = SystemMessage(
         content=sys_prompt_content,
         agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
-        content=TRANSLATOR_PROMPT.format(
-                                        source_text = source_text,
-                                        prev_context = prev_context,
-                                        ),
+        content=get_prompt('translator-user',
+                           source_text=source_text
+                           , prev_context=prev_context),
         agent="TRANSLATOR")
 
   # use advice and current translation
   else:
-    sys_prompt_content = TRANSLATOR_ADVICE_SYS_PROMPT.format(
-                                                user_role=user_role,             
-                                                target_lang = target_lang,
-                                                source_lang = source_lang,
-                                                terminology = terminology,
-                                                user_preferences = user_preferences)
+    sys_prompt_content = get_prompt(
+        "translator-advisor-system",
+        user_role=user_role,
+        target_lang=target_lang,
+        source_lang=source_lang,
+        terminology=terminology,
+        user_preferences=user_preferences
+    )
     if style_guide:
-      sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+      sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
     
     sys_prompt = SystemMessage(
         content=sys_prompt_content,
         agent="TRANSLATOR")
 
     user_prompt = HumanMessage(
-        content=TRANSLATOR_ADVICE_PROMPT.format(source_text = source_text,
-                                                translation = translation,
-                                                advice = advice,
-                                                prev_context = prev_context,
-                                                evaluation = evaluation,
-                                                ),
+        content=get_prompt('translator-advisor-user',
+                           source_text=source_text,
+                           translation=translation,
+                           advice=advice,
+                           prev_context=prev_context,
+                           evaluation=evaluation
+                           ),
         agent="TRANSLATOR")
 
 
@@ -314,26 +316,27 @@ async def evaluator_agent(state: State):
   terminology = state.terminology
   style_guide = state.style_guide
   
-  sys_prompt_content = EVALUATOR_SYS_PROMPT.format(  
-          terminology = terminology,
-          target_lang = target_lang,
-          source_lang = source_lang)
+  sys_prompt_content = get_prompt(
+      "evaluator-system",
+      target_lang = target_lang,
+      source_lang = source_lang,
+      terminology = terminology
+  )  
   
   if style_guide:
-    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
   
   sys_prompt = SystemMessage(
       content= sys_prompt_content,
       agent="EVALUATOR")
 
   user_prompt = HumanMessage(
-      content=EVALUATOR_PROMPT.format
-       (
-          source_text = source_text,
-          translation= translation,
-          prev_context = prev_context
-        ),
+      content= get_prompt('evaluator-user',
+                            source_text=source_text,
+                            translation=translation,
+                            prev_context=prev_context),
        agent="EVALUATOR")
+  
 
 
   prompt = [sys_prompt, user_prompt]
@@ -372,7 +375,8 @@ async def advisor_agent(state: State):
   style_guide = state.style_guide
   user_preferences = "\n".join(f"- {p}" for p in state.user_preferences if p and p.strip()) if state.user_preferences else ""
   
-  sys_prompt_content = ADVISOR_SYS_PROMPT.format(
+  sys_prompt_content = get_prompt(
+    "advisor-system",
     target_lang = target_lang,
     source_lang = source_lang,
     terminology = terminology,
@@ -380,7 +384,7 @@ async def advisor_agent(state: State):
   )
   
   if style_guide:
-    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
   
   sys_prompt = SystemMessage(
       content= sys_prompt_content,
@@ -388,12 +392,10 @@ async def advisor_agent(state: State):
 
 
   user_prompt = HumanMessage(
-      content=ADVISOR_PROMPT.format
-       (
-          source_text = source_text,
-          translation= translation,
-          prev_context = prev_context
-        ),
+      content=get_prompt('advisor-user',
+                         source_text=source_text,
+                          translation=translation,
+                          prev_context=prev_context),
        agent="ADVISOR")
   
   # get past messages of advisor agent

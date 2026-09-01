@@ -130,6 +130,7 @@ async def extract_terminology(runtime: ToolRuntime) -> str:
         source_lang=ctx.get("source_lang"),
         target_lang=ctx.get("target_lang"),
         style_guide=ctx.get("style_guide") or "",
+        user_preferences = ctx.get("user_preferences") or [],
         glossary= {},
     )
 

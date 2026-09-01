@@ -4,7 +4,7 @@ import re
 from functools import lru_cache
 from typing import Any, Dict, Optional, Union
 from langchain.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
-from app.core.prompts import *
+from app.core.prompts import get_prompt, DEFAULT_TRANSLATOR_ROLE
 from app.core.agents import provider_invoke, provider_ainvoke, provider_stream, _safe_parse_terminology_json, _apply_glossary_matches, _extract_text
 from typing import List, Tuple
 from typing import List
@@ -23,14 +23,14 @@ async def generate_explanation(source_text: str, page_context: List):
     page_context = "\n\n".join(page_context)
 
     sys_prompt = SystemMessage(
-        content = EXPLANATION_SYS_PROMPT.format(
-            page_context=page_context
-        ),
+        content = get_prompt('explanator-system',
+                                page_context=page_context),
         agent="explanator"
     )
     
     user_prompt = HumanMessage(
-        content = EXPLANATION_PROMPT.format(source_text=source_text),
+        content = get_prompt('explanator-user',
+                                source_text=source_text),
         agent="explanator"
     )
     
@@ -45,21 +45,21 @@ async def generate_explanation(source_text: str, page_context: List):
 async def generate_suggestions(source_text: str, source_lang: str, translation: str, target_lang: str, page_context: List, style_guide: str = ""):
     page_context = "\n\n".join(page_context)    
 
-    sys_prompt_content = SUGGESTIONS_SYS_PROMPT.format(
+    sys_prompt_content = get_prompt('suggestions-system',
         page_context = page_context,
         source_lang=source_lang,
         target_lang=target_lang,
     )
     
     if style_guide:
-        sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+        sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
     
     sys_prompt = SystemMessage(content=sys_prompt_content, agent="suggestions")
     
     user_prompt = HumanMessage(
-        content=SUGGESTIONS_PROMPT.format(
-            source_text=source_text, 
-            translation=translation
+        content=get_prompt('suggestions-user',
+            source_text=source_text,
+            translation=translation,
         ),
         agent="suggestions"
     )
@@ -90,36 +90,38 @@ async def generate_suggestions(source_text: str, source_lang: str, translation: 
 
     return results
 
-@observe(name="generate_backtranslation")
+# NOT USED
+# @observe(name="generate_backtranslation")
 async def generate_backtranslation(target_text: str, source_lang: str, target_lang: str, page_context: List) -> str:
     """
     Generates a back-translation of the given target text.
     Translates from target_lang back to source_lang.
     """
-    sys_prompt = SystemMessage(
-        content=TRANSLATOR_SYS_PROMPT.format(user_role=DEFAULT_TRANSLATOR_ROLE),
-        agent="backtranslation"
-    )
+    pass
+    # sys_prompt = SystemMessage(
+    #     content=TRANSLATOR_SYS_PROMPT.format(user_role=DEFAULT_TRANSLATOR_ROLE),
+    #     agent="backtranslation"
+    # )
     
-    page_context = "\n\n".join(page_context)    
+    # page_context = "\n\n".join(page_context)    
 
-    user_prompt = HumanMessage(
-        content=BACKTRANSLATION_PROMPT.format(
-            source_text=target_text,
-            source_lang=target_lang,
-            target_lang=source_lang,
-            prev_context=page_context,
-            terminology = ""
-        ),
-        agent="backtranslation"
-    )
+    # user_prompt = HumanMessage(
+    #     content=BACKTRANSLATION_PROMPT.format(
+    #         source_text=target_text,
+    #         source_lang=target_lang,
+    #         target_lang=source_lang,
+    #         prev_context=page_context,
+    #         terminology = ""
+    #     ),
+    #     agent="backtranslation"
+    # )
 
-    prompt = [sys_prompt, user_prompt]
+    # prompt = [sys_prompt, user_prompt]
 
-    response = (await provider_ainvoke("backtranslation", prompt))
-    response = _extract_text(response)
+    # response = (await provider_ainvoke("backtranslation", prompt))
+    # response = _extract_text(response)
 
-    return response
+    # return response
 
 def _convert_to_hashable(pages_context: List[List[str]]) -> Tuple:
     """
@@ -136,7 +138,7 @@ def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
     Uses tuple format for hashability.
     """
     sys_prompt = SystemMessage(
-        content=DOC_SUMMARY_SYS_PROMPT,
+        content=get_prompt('doc-summary-system'),
         agent="doc_summary"
     )
     
@@ -148,7 +150,7 @@ def _generate_doc_summary_cached(pages_context_tuple: Tuple) -> str:
             doc_text += block + "\n\n"
     
     user_prompt = HumanMessage(
-        content=DOC_SUMMARY_PROMPT.format(document_text=doc_text),
+        content=get_prompt('doc-summary-user', document_text=doc_text),
         agent="doc_summary"
     )
     
@@ -203,7 +205,7 @@ async def stream_chatbot(source_text: str, translation: str, source_lang: str, t
     page_context_str = "\n\n".join(page_context)
     
     
-    sys_prompt_content = CHATBOT_SYS_PROMPT.format(
+    sys_prompt_content = get_prompt('chatbot-system',
         source_lang=source_lang,
         target_lang=target_lang,
         MAX_TOOL_CALLS=MAX_TOOL_CALLS
@@ -211,15 +213,15 @@ async def stream_chatbot(source_text: str, translation: str, source_lang: str, t
     
     # if there is style guide, dont use doc summary
     if style_guide:
-        sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+        sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
 
     else:
         doc_summary = generate_doc_summary(doc_context)
-        sys_prompt_content += f"\n\n{DOC_SUMMARY_ADD_ON.format(doc_summary=doc_summary)}"
+        sys_prompt_content += f"\n\n{get_prompt('doc-summary-user-add-on', doc_summary=doc_summary)}"
 
     if user_role or user_preferences:
         user_preferences = "\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else ""
-        sys_prompt_content += f"\n\n{USER_PROFILE_ADD_ON.format(user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=user_preferences)}"
+        sys_prompt_content += f"\n\n{get_prompt('user-profile-user-add-on', user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=user_preferences)}"
 
     
     sys_prompt = SystemMessage(
@@ -228,15 +230,14 @@ async def stream_chatbot(source_text: str, translation: str, source_lang: str, t
     )
     
     context_msg = HumanMessage(
-        content=CHATBOT_PAGE_CONTEXT_PROMPT.format(
+        content=get_prompt('chatbot-user-page-context',
             page_text=page_context_str,
-            
         ),
         agent="chatbot"
     )
     
     user_message = HumanMessage(
-        content=CHATBOT_PROMPT.format(
+        content= get_prompt('chatbot-user',
             source_text=source_text,
             translation=translation
         ),
@@ -377,11 +378,14 @@ async def stream_reviewer(doc_context: List[List[str]], source_lang: str, target
         
     segments = json.dumps(segments, ensure_ascii=False, indent=2)
     
-    sys_prompt_content = REVIEWER_SYS_PROMPT.format(source_lang=source_lang, target_lang=target_lang)
+    sys_prompt_content = get_prompt('reviewer-system',
+        source_lang=source_lang,
+        target_lang=target_lang,
+    )
 
     if user_role or user_preferences:
         user_preferences = "\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else ""
-        sys_prompt_content += f"\n\n{USER_PROFILE_ADD_ON.format(user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=user_preferences)}"
+        sys_prompt_content += f"\n\n{get_prompt('user-profile-user-add-on', user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=user_preferences)}"
 
     sys_prompt = SystemMessage(
         content=sys_prompt_content,
@@ -391,7 +395,7 @@ async def stream_reviewer(doc_context: List[List[str]], source_lang: str, target
     doc_profile = generate_doc_summary(doc_source)
     
     user_message = HumanMessage(
-        content=REVIEWER_PROMPT.format(doc_profile=doc_profile, segments=segments),
+        content=get_prompt('reviewer-user', doc_profile=doc_profile, segments=segments),
         agent="reviewer"
         )
         
@@ -413,7 +417,7 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
   Extract key terminology and difficult words from the text
   """
   
-  sys_prompt_content = TRANSLATOR_SYS_PROMPT.format(
+  sys_prompt_content = get_prompt('translator-system',
       user_role=DEFAULT_TRANSLATOR_ROLE,                                              
           target_lang=target_lang,
           source_lang=source_lang,
@@ -421,7 +425,7 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
           terminology = ""
   )
   if style_guide:
-    sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+    sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
 
   sys_prompt = SystemMessage(
       content=sys_prompt_content,
@@ -445,9 +449,7 @@ async def terminology_agent(document, source_lang, target_lang, style_guide, glo
       
  
   user_prompt = HumanMessage(
-      content=TERMINOLOGY_PROMPT.format(
-          source_text=context,
-      ),
+      content=get_prompt('terminology-user', source_text=context),
       agent="TERMINOLOGY"
   )
 
@@ -486,7 +488,7 @@ async def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
     """
     provider_key = f"general_chatbot_{model}"
 
-    sys_prompt_content = GENERAL_CHATBOT_SYS_PROMPT.format(
+    sys_prompt_content = get_prompt('general-chatbot-system',
         source_lang=source_lang,
         target_lang=target_lang,
         MAX_TOOL_CALLS=MAX_TOOL_CALLS
@@ -501,17 +503,16 @@ async def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
     
     # if there is style guide, dont use doc summary
     if style_guide:
-        sys_prompt_content += f"\n\n{STYLE_GUIDE_ADD_ON.format(style_rules=style_guide)}"
+        sys_prompt_content += f"\n\n{get_prompt('style-guide-user-add-on', style_rules=style_guide)}"
 
     else:
         doc_summary = generate_doc_summary(doc_source)
-        sys_prompt_content += f"\n\n{DOC_SUMMARY_ADD_ON.format(doc_summary=doc_summary)}"
+        sys_prompt_content += f"\n\n{get_prompt('doc-summary-user-add-on', doc_summary=doc_summary)}"
 
     if user_role or user_preferences:
         user_preferences = "\n".join(f"- {p}" for p in user_preferences if p and p.strip()) if user_preferences else ""
-        sys_prompt_content += f"\n\n{USER_PROFILE_ADD_ON.format(user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=(user_preferences))}"
+        sys_prompt_content += f"\n\n{get_prompt('user-profile-user-add-on', user_role=user_role or DEFAULT_TRANSLATOR_ROLE, user_preferences=(user_preferences))}"
 
-    
     sys_prompt = SystemMessage(
         content=sys_prompt_content,
         agent="general_chatbot"
@@ -537,9 +538,7 @@ async def stream_general_chatbot(source_lang: str, target_lang: str, model:str,
             context += "</page>\n"
     
     context_msg = HumanMessage(
-        content=GENERAL_CHATBOT_PROMPT.format(
-            doc_context=context
-        ),
+        content=get_prompt('general-chatbot-user', doc_context=context),
         agent="general_chatbot"
     )
     
@@ -708,9 +707,7 @@ def extract_translator_profile(text: str) -> dict[str, Union[str, List]]:
         "preferences": List[str].
     """
     prompt = SystemMessage(
-        content=TRANSLATOR_PROFILE_PROMPT.format(
-                    input_text=text
-                ),
+            content=get_prompt('translator-profile-user', input_text=text),
         agent="translator_profile"
     )
     prompt = [prompt]
