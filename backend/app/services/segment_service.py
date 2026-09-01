@@ -1,4 +1,4 @@
-from typing import List, Generator, Optional
+from typing import List, AsyncGenerator, Optional, Union
 
 from app.core.simple_calls import (
     generate_explanation,
@@ -32,7 +32,7 @@ async def get_backtranslation(
     return await generate_backtranslation(target_text, source_lang, target_lang, page_context)
 
 
-def stream_chat_response(
+async def stream_chat_response(
     source_text: str,
     translation: str,
     source_lang: str,
@@ -44,8 +44,8 @@ def stream_chat_response(
     style_guide: str = "",
     user_role: str = "",
     user_preferences: Optional[List[str]] = None,
-) -> Generator[str, None, None]:
-    return stream_chatbot(
+) -> AsyncGenerator[Union[str, dict], None]:
+    async for chunk in stream_chatbot(
         source_text=source_text,
         translation=translation,
         source_lang=source_lang,
@@ -58,4 +58,5 @@ def stream_chat_response(
         user_role =user_role,
         user_preferences=user_preferences,
         
-    )
+    ):
+        yield chunk

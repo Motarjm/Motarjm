@@ -13,25 +13,20 @@ def build_graph():
     
     workflow.add_edge(START, "translator_agent")
     
-
-    # workflow.add_edge("translator_agent", "increment_iteration")
-    workflow.add_edge("translator_agent", "evaluator_agent")
-    
-    workflow.add_edge("evaluator_agent", "increment_iteration")
-    
+    workflow.add_edge("translator_agent", "increment_iteration")
 
     # whether to continue the loop or exit cuz of max iterations
     workflow.add_conditional_edges(
         "increment_iteration",
-        lambda state: "END" if state.exit else "check_score",
+        lambda state: "END" if state.exit else "evaluator",
         {
 
             "END": END,
-            "check_score": "check_score",
+            "evaluator": "evaluator_agent",
         },
     )
 
-    # workflow.add_edge("evaluator_agent", "check_score")
+    workflow.add_edge("evaluator_agent", "check_score")
 
     # whether to continue the loop or exit cuz of a good enough score from evaluator
     workflow.add_conditional_edges(

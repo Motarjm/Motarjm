@@ -75,6 +75,9 @@ jobs:
           LANGSMITH_TRACING=true
           DISABLE_MODEL_SOURCE_CHECK=True
           LMNR_PROJECT_API_KEY=${{ secrets.LMNR_PROJECT_API_KEY }}
+          LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_BASE_URL=${{ secrets.LANGFUSE_BASE_URL }}
           EOF
 
       - name: Copy files to server

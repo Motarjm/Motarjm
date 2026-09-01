@@ -1,4 +1,4 @@
-from langchain_openai import ChatOpenAI
+from langchain_openrouter import ChatOpenRouter
 from langchain.agents import create_agent
 from app.core.tools import exa_search, extract_terminology, TerminologyContext
 from langchain.agents.middleware import ToolCallLimitMiddleware
@@ -14,11 +14,11 @@ Laminar.initialize(
     instruments={Instruments.LANGCHAIN},
 )
 
-#ToDo: migrate from google_genai and open_ai langchain packages to langchain openrouter package
-deepseek = ChatOpenAI(
+# Migrated to langchain-openrouter (from langchain_openai's ChatOpenAI + base_url override).
+# Requires OPENROUTER_API_KEY in env (read automatically by ChatOpenRouter) instead of base_url.
+deepseek = ChatOpenRouter(
     model="deepseek/deepseek-v4-flash-0731",
     # model="qwen/qwen-2.5-72b-instruct",
-    base_url="https://openrouter.ai/api/v1",
     temperature=0.01,  # Gemini 3.0+ defaults to 1.0
     max_tokens = 1024,
     reasoning = {
@@ -27,9 +27,8 @@ deepseek = ChatOpenAI(
 
 )
 
-gemini_2_5_flash_lite = ChatOpenAI(
+gemini_2_5_flash_lite = ChatOpenRouter(
     model="google/gemini-2.5-flash-lite",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 4096,
     temperature=0.01,
     reasoning = {
@@ -38,9 +37,8 @@ gemini_2_5_flash_lite = ChatOpenAI(
     
 )
 
-gemini_2_5_flash_lite_low_tokens = ChatOpenAI(
+gemini_2_5_flash_lite_low_tokens = ChatOpenRouter(
     model="google/gemini-2.5-flash-lite",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 100,
     temperature=0.01,
     reasoning = {
@@ -49,9 +47,8 @@ gemini_2_5_flash_lite_low_tokens = ChatOpenAI(
     
 )
 
-gemini_3_1_flash_lite = ChatOpenAI(
+gemini_3_1_flash_lite = ChatOpenRouter(
     model="google/gemini-3.1-flash-lite",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 2048,
     temperature=0.01,
     reasoning = {
@@ -59,19 +56,17 @@ gemini_3_1_flash_lite = ChatOpenAI(
     }
 )
 
-gemini_3_7_flash = ChatOpenAI(
+gemini_3_7_flash = ChatOpenRouter(
     model="google/gemini-3.7-flash",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 2048,
     temperature=0.01,
     reasoning = {
-        "effort": "none",
+        "effort": "minimal",
     }
 )
 
-claude_haiku_4_5 = ChatOpenAI(
+claude_haiku_4_5 = ChatOpenRouter(
     model="anthropic/claude-haiku-4.5",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 16348,
     temperature=0.01,
     reasoning = {
@@ -79,18 +74,16 @@ claude_haiku_4_5 = ChatOpenAI(
     }
 )
 
-claude_sonnet_4_6 = ChatOpenAI(
+claude_sonnet_4_6 = ChatOpenRouter(
     model="anthropic/claude-sonnet-4.6",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 2048,
     temperature=0.01,
     reasoning = {
         "effort": "none",
     }
 )
-grok = ChatOpenAI(
+grok = ChatOpenRouter(
     model="x-ai/grok-4.1-fast",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 1024,
     # max_retries=0,
     temperature=0.6,  # Gemini 3.0+ defaults to 1.0,
@@ -100,9 +93,8 @@ grok = ChatOpenAI(
 )
 
 
-gpt_5_nano  = ChatOpenAI(
+gpt_5_nano  = ChatOpenRouter(
     model="openai/gpt-5-nano",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 1024,
     # max_retries=0,
     temperature=0.01,  # Gemini 3.0+ defaults to 1.0,
@@ -116,9 +108,8 @@ limiter = ToolCallLimitMiddleware(
     exit_behavior="end"   # "end" = stop gracefully, "error" = raise exception
 )
 
-gpt_4o_mini = ChatOpenAI(
+gpt_4o_mini = ChatOpenRouter(
     model="openai/gpt-4o-mini",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 100,
     # max_retries=0,
     temperature=0.01,  # Gemini 3.0+ defaults to 1.0,
@@ -127,9 +118,8 @@ gpt_4o_mini = ChatOpenAI(
     }
 )
 
-claude_haiku_4_5_low_tokens = ChatOpenAI(
+claude_haiku_4_5_low_tokens = ChatOpenRouter(
     model="anthropic/claude-haiku-4.5",
-    base_url="https://openrouter.ai/api/v1",
     max_tokens = 100,
     temperature=0.01,
     reasoning = {
