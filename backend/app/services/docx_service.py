@@ -245,23 +245,24 @@ def add_paragraph_blocks(blocks, paragraph, para_idx):
 
 
 def add_table_blocks(blocks, table, table_num, table_idx):
-    """Same as before, but keeps a _cell_ref instead of only row/col indices —
-    table.style, borders, shading, and merges are never re-extracted because
-    the table itself is never rebuilt."""
     for row_idx, col_idx, cell in iter_unique_cells_table(table):
         text = cell.text.strip()
         if not text:
             continue
         cell_para = cell.paragraphs[0] if cell.paragraphs else None
         cell_fmt = extract_run_format(cell_para) if cell_para else {}
-        blocks.append({
-            "id": f"{table_idx}_{row_idx}_{col_idx}",      # ← NEW
-            "text": text,
-            "type": "Table",
-            "bbox": [],
-            "info": {"num": table_num, "row": row_idx, "col": col_idx, **cell_fmt},
-            "_cell_ref": cell,
-        })
+
+        sentences = split_sentences(text)
+        for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):
+            group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
+            blocks.append({
+                "id": f"{table_idx}_{row_idx}_{col_idx}_{i}",   # add sentence index
+                "text": group,
+                "type": "Table",
+                "bbox": [],
+                "info": {"num": table_num, "row": row_idx, "col": col_idx, **cell_fmt},
+                "_cell_ref": cell,
+            })
 
 
 def get_docx_blocks(docx_bytes: bytes):
