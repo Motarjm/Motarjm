@@ -9,6 +9,9 @@ RUN npm run build
 
 FROM python:3.13-slim-bookworm
 
+# Container timezone (used by Python's logging %(asctime)s, datetime.now(), etc.)
+ENV TZ=Africa/Cairo
+
 # Install system dependencies used by OCR, rendering and runtime tools,
 # plus Arabic-capable fonts for DOCX/PDF rendering (RTL/complex script support)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -20,6 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgdk-pixbuf-2.0-0 \
     libffi8 \
     shared-mime-info \
+    tzdata \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,7 +34,7 @@ WORKDIR /app
 COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# Copy backend code (includes backend/log_config.json)
 COPY backend ./backend
 
 # Copy built frontend assets from the frontend-build stage.
@@ -47,4 +52,4 @@ WORKDIR /app/backend
 EXPOSE 8000
 
 # Start the backend that serves both API and frontend dist
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--log-config", "log_config.json"]
