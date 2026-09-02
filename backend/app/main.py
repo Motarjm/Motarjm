@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 import logging
 from app.config.config import *
-from app.routers import translation, generation, segment, document, glossary, tm, jobs, translator_profile
 
 for noisy_logger in ("httpx", "httpcore", "opentelemetry", 
                      "fontTools", "urllib3"):
@@ -19,6 +18,7 @@ logging.basicConfig(
     force=True
 )
 
+from app.routers import translation, generation, segment, document, glossary, tm, jobs, translator_profile
 
 app = FastAPI()
 
