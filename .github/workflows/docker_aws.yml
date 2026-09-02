@@ -124,4 +124,7 @@ jobs:
             docker compose up -d --force-recreate
 
             # Clean up old images
-            docker image prune -f
+            docker image prune -af --filter "until=24h"
+            
+            # Check disk usage
+            df -h /
