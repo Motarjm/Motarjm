@@ -74,6 +74,7 @@ REACT_ROUTES = {
 }
 
 
+
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
     """
