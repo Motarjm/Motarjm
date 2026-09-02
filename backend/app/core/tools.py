@@ -125,6 +125,7 @@ async def extract_terminology(runtime: ToolRuntime) -> str:
         for page in translated_contents
     ]
 
+    
     result = await terminology_agent(
         document=document,
         source_lang=ctx.get("source_lang"),
@@ -136,6 +137,8 @@ async def extract_terminology(runtime: ToolRuntime) -> str:
 
     terms = json.loads(result) if isinstance(result, str) else result
     if not isinstance(terms, dict):
+        print(terms)
+        print(result)
         return "Term extraction failed: the terminology agent returned an unexpected format."
 
     xlsx_bytes = build_terminology_xlsx(terms)
