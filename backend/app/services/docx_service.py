@@ -313,14 +313,77 @@ def apply_complex_script_font(run, font_name: str = "Arial"):
     if the font lacks full Arabic coverage, unsupported glyphs render as
     the placeholder .notdef box, which looks exactly like words being
     replaced with dots. w:hint tells Word to actually prefer the cs slot
-    for this run instead of guessing based on the first character."""
+    for this run instead of guessing based on the first character.
+
+    NOTE: w:rFonts is created via get_or_add_rFonts() so it lands at its
+    schema-correct position inside w:rPr (right after w:rStyle, before
+    b/i/color/sz/...). Appending it at the END of rPr violates the CT_RPr
+    element sequence and Word may silently ignore it."""
     rPr = run._element.get_or_add_rPr()
-    rFonts = rPr.find(qn('w:rFonts'))
-    if rFonts is None:
-        rFonts = OxmlElement('w:rFonts')
-        rPr.append(rFonts)
+    rFonts = rPr.get_or_add_rFonts()
     rFonts.set(qn('w:cs'), font_name)
     rFonts.set(qn('w:hint'), 'cs')
+
+def _set_paragraph_bidi(pPr):
+    """Ensure w:pPr/w:bidi w:val="1" exists, inserted at its schema-correct
+    position (before spacing/ind/jc/... — never appended at the end)."""
+    
+    _PPR_BIDI_SUCCESSORS = (
+    # every element that must come AFTER w:bidi inside w:pPr
+    'w:adjustRightInd', 'w:snapToGrid', 'w:spacing', 'w:ind',
+    'w:contextualSpacing', 'w:mirrorIndents', 'w:suppressOverlap',
+    'w:jc', 'w:textDirection', 'w:textAlignment', 'w:textboxTightWrap',
+    'w:outlineLvl', 'w:divId', 'w:cnfStyle', 'w:rPr', 'w:sectPr', 'w:pPrChange',
+    )
+
+    bidi = pPr.find(qn('w:bidi'))
+    if bidi is None:
+        bidi = OxmlElement('w:bidi')
+        pPr.insert_element_before(bidi, *_PPR_BIDI_SUCCESSORS)
+    bidi.set(qn('w:val'), '1')
+    return bidi
+
+
+def _ensure_run_rtl(run):
+    
+    _RPR_RTL_SUCCESSORS = (
+        # every element that must come AFTER w:rtl inside w:rPr
+        'w:cs', 'w:em', 'w:lang', 'w:eastAsianLayout', 'w:specVanish', 'w:oMath',
+    )
+    
+    """Ensure w:rPr/w:rtl w:val="1" exists, inserted at its schema-correct
+    position (before cs/em/lang/...)."""
+    rPr = run._element.get_or_add_rPr()
+    rtl = rPr.find(qn('w:rtl'))
+    if rtl is None:
+        rtl = OxmlElement('w:rtl')
+        rPr.insert_element_before(rtl, *_RPR_RTL_SUCCESSORS)
+    rtl.set(qn('w:val'), '1')
+    return rtl
+
+
+def _mirror_sz_to_szcs(run):
+    """Copy w:sz into w:szCs when the run carries an explicit Latin size but
+    no complex-script size. Word renders Arabic (complex script) using
+    w:szCs; without the mirror the translation silently renders at the
+    style's default cs size instead of the original run's size."""
+    
+    _RPR_SZCS_SUCCESSORS = (
+        # every element that must come AFTER w:szCs inside w:rPr
+        'w:highlight', 'w:u', 'w:effect', 'w:bdr', 'w:shd', 'w:fitText',
+        'w:vertAlign', 'w:rtl', 'w:cs', 'w:em', 'w:lang', 'w:eastAsianLayout',
+        'w:specVanish', 'w:oMath',
+    )
+    
+    rPr = run._element.get_or_add_rPr()
+    sz = rPr.find(qn('w:sz'))
+    if sz is None:
+        return
+    szCs = rPr.find(qn('w:szCs'))
+    if szCs is None:
+        szCs = OxmlElement('w:szCs')
+        rPr.insert_element_before(szCs, *_RPR_SZCS_SUCCESSORS)
+    szCs.set(qn('w:val'), sz.get(qn('w:val')))
 
 
 def _write_translation_into_paragraph(paragraph, translated_text, complex_font: str = "Arial"):
@@ -338,30 +401,26 @@ def _write_translation_into_paragraph(paragraph, translated_text, complex_font: 
 
     # ── 1. Paragraph-level RTL (w:pPr/w:bidi) ──
     pPr = paragraph._element.get_or_add_pPr()
-    if pPr.find(qn('w:bidi')) is None:
-        bidi = OxmlElement('w:bidi')
-        bidi.set(qn('w:val'), '1')
-        pPr.append(bidi)
+    _set_paragraph_bidi(pPr)
 
     # ── 2. Mirror alignment: left ↔ right ──
     # Uses resolve_effective_alignment instead of reading paragraph.alignment
     effective_align = resolve_effective_alignment(paragraph)
     if effective_align in (WD_ALIGN_PARAGRAPH.LEFT, None):
-        # None means no explicit alignment anywhere in the chain, which is
-        # Word's true rendered default (left) — treat it the same as LEFT.
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    elif effective_align == WD_ALIGN_PARAGRAPH.RIGHT:
+        # None means no explicit alignment anywhere in the chain — Word's
+        # LTR default renders left. Store explicit LEFT so the bidi swap
+        # deterministically renders it on the RIGHT margin.
         paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    # CENTER / JUSTIFY — leave as-is, no mirroring needed.
+    elif effective_align == WD_ALIGN_PARAGRAPH.RIGHT:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    # CENTER / JUSTIFY — flow-neutral, leave as-is, no mirroring needed.
 
     # ── 3. Ensure at least one run exists ──
     runs = paragraph.runs
     if not runs:
         new_run = paragraph.add_run(translated_text)
-        rPr = new_run._element.get_or_add_rPr()
-        rtl = OxmlElement('w:rtl')
-        rtl.set(qn('w:val'), '1')
-        rPr.append(rtl)
+        _ensure_run_rtl(new_run)
+        _mirror_sz_to_szcs(new_run)
         apply_complex_script_font(new_run, complex_font)
         return
 
@@ -371,11 +430,8 @@ def _write_translation_into_paragraph(paragraph, translated_text, complex_font: 
         run.text = ""
 
     # ── 5. Run-level RTL (w:rPr/w:rtl) + complex-script font ──
-    rPr = runs[0]._element.get_or_add_rPr()
-    if rPr.find(qn('w:rtl')) is None:
-        rtl = OxmlElement('w:rtl')
-        rtl.set(qn('w:val'), '1')
-        rPr.append(rtl)
+    _ensure_run_rtl(runs[0])
+    _mirror_sz_to_szcs(runs[0])
     apply_complex_script_font(runs[0], complex_font)
 
 
@@ -514,10 +570,8 @@ def build_docx_from_scratch(pages):
     styles = doc.styles
     
     def set_style_rtl(style):
-        pPr = style.element.get_or_add_pPr()
-        bidi = OxmlElement('w:bidi')
-        bidi.set(qn('w:val'), '1')
-        pPr.append(bidi)
+        # insert w:bidi at its schema-correct position inside the style pPr
+        _set_paragraph_bidi(style.element.get_or_add_pPr())
 
     set_style_rtl(doc.styles['Normal'])
     footer_flag = False
