@@ -244,26 +244,41 @@ def add_paragraph_blocks(blocks, paragraph, para_idx):
         })
 
 
-def add_table_blocks(blocks, table, table_num, table_idx):
+def add_table_blocks(blocks, table, table_num, table_idx, _counter=None):
+    """
+    _counter is a mutable single-element list used as a shared nested-table
+    counter across the whole recursion tree, so IDs stay unique even when
+    tables are nested several levels deep.
+    """
+    if _counter is None:
+        _counter = [table_num]
+
     for row_idx, col_idx, cell in iter_unique_cells_table(table):
+        # Only take the cell's OWN paragraph text, not nested tables' text —
+        # otherwise the nested table's sentences would get double-counted
+        # once here (flattened) and once again below (structured).
         text = cell.text.strip()
-        if not text:
-            continue
         cell_para = cell.paragraphs[0] if cell.paragraphs else None
         cell_fmt = extract_run_format(cell_para) if cell_para else {}
 
-        sentences = split_sentences(text)
-        for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):
-            group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
-            blocks.append({
-                "id": f"{table_idx}_{row_idx}_{col_idx}_{i}",   # add sentence index
-                "text": group,
-                "type": "Table",
-                "bbox": [],
-                "info": {"num": table_num, "row": row_idx, "col": col_idx, **cell_fmt},
-                "_cell_ref": cell,
-            })
+        if text:
+            sentences = split_sentences(text)
+            for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):
+                group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
+                blocks.append({
+                    "id": f"{table_idx}_{row_idx}_{col_idx}_{i}",
+                    "text": group,
+                    "type": "Table",
+                    "bbox": [],
+                    "info": {"num": table_num, "row": row_idx, "col": col_idx, **cell_fmt},
+                    "_cell_ref": cell,
+                })
 
+        # Recurse into any table(s) nested directly inside this cell.
+        for nested_i, nested_table in enumerate(cell.tables):
+            _counter[0] += 1
+            nested_table_idx = f"{table_idx}_{row_idx}_{col_idx}_nt{nested_i}"
+            add_table_blocks(blocks, nested_table, _counter[0], nested_table_idx, _counter)
 
 def get_docx_blocks(docx_bytes: bytes):
     """Returns (doc, blocks) instead of just blocks — the caller must keep
@@ -280,8 +295,9 @@ def get_docx_blocks(docx_bytes: bytes):
             if element.tag.endswith('p'):
                 add_paragraph_blocks(blocks, Paragraph(element, doc), i)
             elif element.tag.endswith('tbl'):
-                add_table_blocks(blocks, Table(element, doc), table_num, i)
-                table_num += 1
+                counter = [table_num]
+                add_table_blocks(blocks, Table(element, doc), table_num, i, counter)
+                table_num = counter[0] + 1
 
     if doc.sections and doc.sections[0].header:
         walk(doc.sections[0].header._element)
@@ -416,7 +432,6 @@ def build_docx(original_docx_bytes: bytes, translated_contents: list[list[dict]]
         if tid is not None and tid in translation_by_id:
             block["translated_text"] = translation_by_id[tid]
         # If ID not found (e.g. merged away), apply_translations falls back to original text
-    print(translation_by_id)
     return apply_translations(doc, blocks)
 
 """
@@ -506,7 +521,6 @@ def build_docx_from_scratch(pages):
 
     set_style_rtl(doc.styles['Normal'])
     footer_flag = False
-    print(pages)
     for page_idx, blocks in enumerate(pages):
         footnotes_buffer = []
         page_table = []
