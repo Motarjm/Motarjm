@@ -3,7 +3,7 @@ import ChatInterface from './ChatInterface';
 import { diffWords } from 'diff';
 import '../assets/focus_chat.css';
 import { API_URL } from '../apiConfig';
-import { trackFocusPanelSession, trackAISuggestionApplied, trackChatInteraction, trackArabicTextCopied } from '../analytics';
+import { trackAISuggestionApplied, trackArabicTextCopied, trackSuggestionDecision, trackEvent } from '../analytics';
 import { trackApiError } from '../errorTracking';
 import { loadSegmentChat, saveSegmentChat } from '../utils/indexedDbPersistence';
 
@@ -123,7 +123,6 @@ const FocusChatPanel = ({
   const messagesEndRef = useRef(null);
   const abortRef = useRef(null);
   const chatHistoryRef = useRef([]); // full raw history sent to backend
-  const focusStartTimeRef = useRef(Date.now());
 
   // Load persisted chat history for this document segment.
   useEffect(() => {
@@ -157,15 +156,6 @@ const FocusChatPanel = ({
     };
   }, [documentId, segmentId]);
 
-  // Track focus panel session on unmount (panel closes)
-  useEffect(() => {
-    const startTime = focusStartTimeRef.current;
-    return () => {
-      const sessionDuration = Date.now() - startTime;
-      trackFocusPanelSession(sessionDuration, segmentId, messages.length, !!pendingEdit);
-    };
-  }, [segmentId, messages.length, pendingEdit]);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -195,6 +185,7 @@ const FocusChatPanel = ({
 
 
   const handleClear = () => {
+    trackEvent('chat_cleared', { context: 'focus_chat', message_count: messages.length });
     setEphemeralError(null);
     setMessages([]);
     chatHistoryRef.current = [];
@@ -212,7 +203,6 @@ const FocusChatPanel = ({
     const userMsg = { role: 'user', text };
     setMessages(prev => [...prev, userMsg]);
     chatHistoryRef.current = [...chatHistoryRef.current, userMsg];
-    trackChatInteraction('user');
     setIsStreaming(true);
 
     let botMessageId = null;   // only set when first token arrives
@@ -327,7 +317,13 @@ const FocusChatPanel = ({
           ...toolEntriesThisTurn,
           { role: 'bot', text: fullText },
         ];
-        trackChatInteraction('bot', selectedModel);
+        trackEvent('segment_chat_message', {
+          message_length: text.length,
+          response_length: fullText.length,
+          document_id: documentId,
+          segment_id: segmentId,
+          model: selectedModel,
+        });
 
         const action = parseAction(fullText);
         // Raw fullText may still have the JSON block in it (parseAction and
@@ -440,10 +436,14 @@ const FocusChatPanel = ({
           newText={pendingEdit.newText}
           onApply={() => {
             trackAISuggestionApplied(selectedModel, pendingEdit.newText.length, true);
+            trackSuggestionDecision('focus_chat_diff', 'applied', { model: selectedModel, text_length: pendingEdit.newText.length });
             onEditTranslation(pendingEdit.newText);
             setPendingEdit(null);
           }}
-          onDiscard={() => setPendingEdit(null)}
+          onDiscard={() => {
+            trackSuggestionDecision('focus_chat_diff', 'discarded', { model: selectedModel, text_length: pendingEdit.newText.length });
+            setPendingEdit(null);
+          }}
         />
       ) : null}
       messagesEndRef={messagesEndRef}

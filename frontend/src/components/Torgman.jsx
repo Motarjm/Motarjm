@@ -12,6 +12,8 @@ import {
   trackTranslationCompleted,
   trackTranslationError,
   trackWrongFileUploaded,
+  trackAttachmentUploadFailed,
+  trackEvent,
 } from '../analytics';
 import { trackNetworkError } from '../errorTracking';
 import {
@@ -93,6 +95,10 @@ const Torgman = () => {
   const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
   const [profileData, setProfileData] = useState({});
   const [isProfileActive, setIsProfileActive] = useState(false);
+  // Once the user has manually clicked the profile activate/deactivate
+  // toggle even once, auto-activation-on-typing must never fire again —
+  // from then on, only that manual toggle controls isProfileActive.
+  const profileManuallyToggledRef = useRef(false);
   const fileInputRef = useRef();
   const glossaryInputRef = useRef();
   const tmInputRef = useRef();
@@ -150,6 +156,7 @@ const Torgman = () => {
     useEffect(() => {
     const savedProfile = sessionStorage.getItem('translation_translator_profile');
     const savedProfileActive = sessionStorage.getItem('translation_translator_profile_active');
+    const savedProfileManuallyToggled = sessionStorage.getItem('translation_translator_profile_manually_toggled');
     if (savedProfile) {
       try {
         setProfileData(JSON.parse(savedProfile));
@@ -159,6 +166,9 @@ const Torgman = () => {
     }
     if (savedProfileActive) {
       setIsProfileActive(JSON.parse(savedProfileActive));
+    }
+    if (savedProfileManuallyToggled) {
+      profileManuallyToggledRef.current = JSON.parse(savedProfileManuallyToggled);
     }
   }, []);
   
@@ -300,7 +310,9 @@ const Torgman = () => {
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+        const uploadError = new Error(err.detail || 'Upload failed');
+        uploadError.status = res.status;
+        throw uploadError;
       }
       const data = await res.json();
 
@@ -308,6 +320,10 @@ const Torgman = () => {
       glossaryRef.current = { id: data.glossary_id, fileName: file.name, fileSize: file.size, base64 };
       glossaryTouchedRef.current = true;
       setGlossaryFileBase64(base64);
+      trackEvent("glossary uploaded sucessfully", {
+      glossaryID: data.glossary_id,
+      fileName: file.name
+    });
       await setPendingUpload('glossary', {
         id: data.glossary_id, fileName: file.name, fileSize: file.size, base64,
       });
@@ -322,7 +338,13 @@ const Torgman = () => {
       }
     } catch (e) {
       console.error('Glossary upload failed:', e);
-      alert('فشل رفع ملف المصطلحات');
+      if (e.status === 422) {
+        trackWrongFileUploaded(file.name, 'glossary');
+        alert('نوع الملف غير صحيح. يجب أن يكون الملف بصيغة .tbx');
+      } else {
+        trackAttachmentUploadFailed('glossary', file.name, file.size, e);
+        alert('فشل رفع ملف المصطلحات');
+      }
       setGlossaryFile(null);
       setGlossaryFileName('');
       setGlossaryFileSize(null);
@@ -358,7 +380,9 @@ const Torgman = () => {
       );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+        const uploadError = new Error(err.detail || 'Upload failed');
+        uploadError.status = res.status;
+        throw uploadError;
       }
       const data = await res.json();
 
@@ -366,6 +390,11 @@ const Torgman = () => {
       tmRef.current = { id: data.tm_id, fileName: file.name, fileSize: file.size, base64 };
       tmTouchedRef.current = true;
       setTmFileBase64(base64);
+      trackEvent("TM uploaded sucessfully", {
+              tmId: data.tm_id,
+              fileName: file.name
+              
+            })
       await setPendingUpload('tm', {
         id: data.tm_id, fileName: file.name, fileSize: file.size, base64,
       });
@@ -380,7 +409,13 @@ const Torgman = () => {
       }
     } catch (e) {
       console.error('TM upload failed:', e);
-      alert('فشل رفع ملف ذاكرة الترجمة');
+      if (e.status === 422) {
+        trackWrongFileUploaded(file.name, 'translation_memory');
+        alert('نوع الملف غير صحيح. يجب أن يكون الملف بصيغة .tmx');
+      } else {
+        trackAttachmentUploadFailed('translation_memory', file.name, file.size, e);
+        alert('فشل رفع ملف ذاكرة الترجمة');
+      }
       setTmFile(null);
       setTmFileName('');
       setTmFileSize(null);
@@ -1170,7 +1205,10 @@ const Torgman = () => {
     sessionStorage.setItem('translation_style_guide_active', JSON.stringify(true));
     setIsStyleGuideActive(true);
     setIsStyleGuideOpen(false);
-    
+    trackEvent('style_guide_saved', {
+      fields_filled: Object.values(data || {}).filter(v => (Array.isArray(v) ? v.length > 0 : !!v?.toString?.().trim())).length,
+    });
+
     console.log('%c=== STYLE GUIDE DATA ===', 'color: #1D9E75; font-weight: bold; font-size: 14px;');
     console.log('Form Data:', data);
     const styleGuideXML = formatStyleGuideToXML(data);
@@ -1182,7 +1220,8 @@ const Torgman = () => {
     const newActiveState = !isStyleGuideActive;
     setIsStyleGuideActive(newActiveState);
     sessionStorage.setItem('translation_style_guide_active', JSON.stringify(newActiveState));
-    
+    trackEvent('style_guide_toggled', { active: newActiveState });
+
     console.log(`%c=== STYLE GUIDE ${newActiveState ? 'ACTIVATED' : 'DEACTIVATED'} ===`, 'color: #FF9500; font-weight: bold; font-size: 14px;');
   };
 
@@ -1191,19 +1230,30 @@ const Torgman = () => {
   };
 
   // Autosave callback from TranslatorProfilePanel — fires debounced on every
-  // edit. Deliberately does NOT touch isProfileActive or close the panel:
-  // saving text and activating it for use in translations are separate
-  // decisions (see handleProfileToggle), and the panel now closes only via
-  // the drawer cell, not as a side effect of saving.
+  // edit. Auto-activates the profile the very first time it gets any content
+  // (role or preferences), so the user doesn't have to remember to flip the
+  // toggle separately from typing. But this only ever applies before the
+  // user has manually touched the toggle even once — after that, activation
+  // is entirely up to them, and typing more must never override a manual
+  // deactivation (see profileManuallyToggledRef).
     const handleProfileSave = (data) => {
     setProfileData(data);
     sessionStorage.setItem('translation_translator_profile', JSON.stringify(data));
+
+    const hasContent = !!(data.role?.trim() || (data.preferences && data.preferences.length > 0));
+    if (hasContent && !isProfileActive && !profileManuallyToggledRef.current) {
+      setIsProfileActive(true);
+      sessionStorage.setItem('translation_translator_profile_active', JSON.stringify(true));
+    }
   };
 
   const handleProfileToggle = () => {
+    profileManuallyToggledRef.current = true;
+    sessionStorage.setItem('translation_translator_profile_manually_toggled', JSON.stringify(true));
     setIsProfileActive(prev => {
       const next = !prev;
       sessionStorage.setItem('translation_translator_profile_active', JSON.stringify(next));
+      trackEvent('translator_profile_toggled', { active: next });
       return next;
     });
   };
@@ -1385,7 +1435,11 @@ const Torgman = () => {
           <button
             type="button"
             className={`tools-drawer-toggle ${isToolsDrawerOpen ? 'is-open' : ''}`}
-            onClick={() => setIsToolsDrawerOpen(v => !v)}
+            onClick={() => setIsToolsDrawerOpen(v => {
+              const next = !v;
+              if (next) trackEvent('tools_drawer_opened', { active_tools_count: activeToolsCount });
+              return next;
+            })}
           >
             <span className="tools-drawer-toggle-icon">🛠</span>
             <span className="tools-drawer-toggle-label">أدوات الترجمة</span>
@@ -1426,6 +1480,7 @@ const Torgman = () => {
                           className="glossary-chip-remove"
                           onClick={async (e) => {
                             e.stopPropagation();
+                            trackEvent('attachment_removed', { attachment_type: 'glossary' });
                             setGlossaryFileName('');
                             setGlossaryFile(null);
                             setGlossaryFileSize(null);
@@ -1481,6 +1536,7 @@ const Torgman = () => {
                           className="glossary-chip-remove"
                           onClick={async (e) => {
                             e.stopPropagation();
+                            trackEvent('attachment_removed', { attachment_type: 'translation_memory' });
                             setTmFileName('');
                             setTmFile(null);
                             setTmFileSize(null);
@@ -1543,8 +1599,10 @@ const Torgman = () => {
             accept=".tmx,.csv,.xlsx"
           />
 
-          {/* Translator Profile Panel */}
-          {isProfilePanelOpen && (
+          {/* Translator Profile Panel — only ever visible while the tools
+              drawer itself is open; closing the drawer should hide it even
+              if the profile cell was left toggled open. */}
+          {isToolsDrawerOpen && isProfilePanelOpen && (
             <TranslatorProfilePanel
               onSave={handleProfileSave}
               initialData={profileData}

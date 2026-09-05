@@ -3,7 +3,7 @@ import {useLocation } from 'react-router-dom';
 import '../assets/compare_interface.css';
 import { API_URL } from '../apiConfig';
 import FocusChatPanel from './FocusChatPanel';
-import { trackNavigation, trackEvent } from '../analytics';
+import { trackNavigation, trackEvent, trackShortcutUsed, trackSuggestionDecision, trackDocumentReview, trackSegmentSplit, trackArabicTextCopied, trackAttachmentUploadFailed, trackWrongFileUploaded } from '../analytics';
 import { trackApiError } from '../errorTracking';
 import { formatStyleGuideToXML, hasStyleGuideData } from '../utils/formatStyleGuideToXML';
 import GeneralChat from './GeneralChat';
@@ -195,7 +195,15 @@ const CompareInterface = () => {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+        if (res.status === 422) {
+          trackWrongFileUploaded(file.name, 'glossary');
+          alert('نوع الملف غير صحيح. يجب أن يكون الملف بصيغة .tbx');
+        } else {
+          trackAttachmentUploadFailed('glossary', file.name, file.size, new Error(err.detail || 'Upload failed'));
+          alert('فشل رفع ملف المصطلحات');
+        }
+        setGlossaryUploading(false);
+        return;
       }
       const data = await res.json();
       setGlossaryId(data.glossary_id);
@@ -206,9 +214,15 @@ const CompareInterface = () => {
       if (termsRes.ok) {
         const termsData = await termsRes.json();
         setGlossary(termsData.terms);
+        trackEvent("glossary uploaded sucessfully", {
+        glossaryID: data.glossary_id,
+        fileName: file.name
+        
+      })
       }
     } catch (e) {
       console.error('Glossary upload failed:', e);
+      trackAttachmentUploadFailed('glossary', file.name, file.size, e);
       alert('فشل رفع ملف المصطلحات');
     } finally {
       setGlossaryUploading(false);
@@ -229,14 +243,28 @@ const CompareInterface = () => {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+        if (res.status === 422) {
+          trackWrongFileUploaded(file.name, 'translation_memory');
+          alert('نوع الملف غير صحيح. يجب أن يكون الملف بصيغة .tmx');
+        } else {
+          trackAttachmentUploadFailed('translation_memory', file.name, file.size, new Error(err.detail || 'Upload failed'));
+          alert('فشل رفع ملف ذاكرة الترجمة');
+        }
+        setTmUploading(false);
+        return;
       }
       const data = await res.json();
       setTmId(data.tm_id);
       setTmFileBase64(base64);
       setTmFileName(file.name);
+      trackEvent("TM uploaded sucessfully", {
+        tmId: data.tm_id,
+        fileName: file.name
+        
+      })
     } catch (e) {
       console.error('TM upload failed:', e);
+      trackAttachmentUploadFailed('translation_memory', file.name, file.size, e);
       alert('فشل رفع ملف ذاكرة الترجمة');
     } finally {
       setTmUploading(false);
@@ -462,6 +490,7 @@ const CompareInterface = () => {
   };
 
   const handleBatchApply = () => {
+    trackSuggestionDecision('batch', 'applied', { count: pendingReviewIds.length });
     setTranslatedContents(prevContents => {
       const newContents = JSON.parse(JSON.stringify(prevContents));
       pendingReviewIds.forEach(id => {
@@ -496,6 +525,7 @@ const CompareInterface = () => {
   };
 
   const handleBatchDismiss = () => {
+    trackSuggestionDecision('batch', 'discarded', { count: pendingReviewIds.length });
     setReviewSuggestions(prev => {
       const updated = { ...prev };
       pendingReviewIds.forEach(id => {
@@ -532,7 +562,7 @@ const CompareInterface = () => {
   };
 
   // Split a segment into two parts based strictly on cursor position in the SOURCE text
-  const handleSplitSegment = (pageIndex, blockIndex, sourceCaretOffset) => {
+  const handleSplitSegment = (pageIndex, blockIndex, sourceCaretOffset, via = 'button') => {
     // Validate that we have a valid split point before mutating state
     const block = translatedContents[pageIndex][blockIndex];
     const srcTextForValidation = block.original_text || '';
@@ -541,6 +571,8 @@ const CompareInterface = () => {
       alert("يرجى وضع المؤشر في المكان المراد التقسيم عنده داخل النص الإنجليزي (المصدر).");
       return;
     }
+
+    trackSegmentSplit(via, { page_index: pageIndex, block_index: blockIndex });
 
     setTranslatedContents(prevContents => {
       const newContents = JSON.parse(JSON.stringify(prevContents));
@@ -856,6 +888,7 @@ const CompareInterface = () => {
     // Ctrl/Cmd + Enter: confirm segment and jump to the next one
     if (isCmd && !e.shiftKey && e.key === 'Enter') {
       e.preventDefault();
+      trackShortcutUsed('ctrl+enter', 'confirm_segment', 'compare_interface');
       handleConfirmSegment(pageIndex, blockIndex, e.currentTarget.textContent);
       return;
     }
@@ -863,6 +896,7 @@ const CompareInterface = () => {
     // Ctrl/Cmd + Shift + S: copy source to target
     if (isCmd && (e.key === 'i' || e.key === 'I')) {
       e.preventDefault();
+      trackShortcutUsed('ctrl+i', 'copy_source_to_target', 'compare_interface');
       handleCopySourceToTarget(pageIndex, blockIndex);
       return;
     }
@@ -870,6 +904,7 @@ const CompareInterface = () => {
     // Escape: leave the field and clear focus state
     if (e.key === 'Escape') {
       e.preventDefault();
+      trackShortcutUsed('escape', 'blur_field', 'compare_interface');
       e.currentTarget.blur();
       setActiveSegment(null);
     }
@@ -892,7 +927,8 @@ const CompareInterface = () => {
         return;
       }
 
-      handleSplitSegment(pageIndex, blockIndex, sourceOffset);
+      trackShortcutUsed('ctrl+s', 'split_segment', 'compare_interface');
+      handleSplitSegment(pageIndex, blockIndex, sourceOffset, 'shortcut');
       return;
     }
 
@@ -1041,6 +1077,7 @@ const CompareInterface = () => {
   // Handle copy to clipboard
   const handleCopyToClipboard = (text, segmentId) => {
     navigator.clipboard.writeText(text).then(() => {
+      trackArabicTextCopied(text.length, 'compare_interface', false);
       setCopiedSegment(segmentId);
       // Reset the copied state after 2 seconds
       setTimeout(() => setCopiedSegment(null), 2000);
@@ -1160,6 +1197,8 @@ const CompareInterface = () => {
     // Clear any previous highlight
     setReviewingSegmentId(null);
     setReviewSuggestions({});
+    const reviewStartTs = Date.now();
+    trackDocumentReview('started', { total_segments: totalSegments, source_lang: sourceLang, target_lang: targetLang });
 
     try {
       // Translator profile: same session-storage keys and "is it actually
@@ -1258,9 +1297,19 @@ const CompareInterface = () => {
         }).filter(Boolean)
       );
       setReviewResults(results);
+      trackDocumentReview('completed', {
+        total_segments: totalSegments,
+        revised_segments: results.filter(r => r.changed).length,
+        duration_ms: Date.now() - reviewStartTs,
+      });
 
     } catch (error) {
       console.error('Review error:', error);
+      trackDocumentReview('error', {
+        total_segments: totalSegments,
+        duration_ms: Date.now() - reviewStartTs,
+        error_message: error?.message,
+      });
       alert('Failed to review document. Please check the console or try again.');
     } finally {
       setReviewLoading(false);
@@ -1567,6 +1616,7 @@ const CompareInterface = () => {
                                   <button
                                     className="revision-apply-btn"
                                     onClick={() => {
+                                      trackSuggestionDecision('review_banner', 'applied', { segment_id: segmentId });
                                       handleArabicEdit(pageIndex, blockIndex, reviewSuggestions[segmentId].suggestion);
                                       setReviewSuggestions(prev => ({
                                         ...prev,
@@ -1579,6 +1629,7 @@ const CompareInterface = () => {
                                   <button
                                     className="revision-dismiss-btn"
                                     onClick={() => {
+                                      trackSuggestionDecision('review_banner', 'discarded', { segment_id: segmentId });
                                       setReviewSuggestions(prev => ({
                                         ...prev,
                                         [segmentId]: { ...prev[segmentId], dismissed: true }
@@ -1600,6 +1651,7 @@ const CompareInterface = () => {
                                  <button
                                    className="revision-apply-btn"
                                    onClick={() => {
+                                    trackSuggestionDecision('chat_suggestion_banner', 'applied', { segment_id: segmentId });
                                     handleArabicEdit(pageIndex, blockIndex, chatSuggestions[segmentId].suggestion);
                                      setChatSuggestions(prev => ({
                                        ...prev,
@@ -1612,6 +1664,7 @@ const CompareInterface = () => {
                                  <button
                                    className="revision-dismiss-btn"
                                    onClick={() => {
+                                     trackSuggestionDecision('chat_suggestion_banner', 'discarded', { segment_id: segmentId });
                                      setChatSuggestions(prev => ({
                                        ...prev,
                                        [segmentId]: { ...prev[segmentId], dismissed: true }

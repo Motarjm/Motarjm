@@ -18,7 +18,7 @@ async def upload_tm(
 ):
     if not tm_file.filename.lower().endswith(".tmx"):
         logger.warning(f"rejected translation memory upload with invalid extension: {tm_file.filename}")
-        raise HTTPException(status_code=400, detail="Only .tmx translation memory files are allowed")
+        raise HTTPException(status_code=422, detail="Only .tmx translation memory files are allowed")
     try:
         tmx_bytes = await tm_file.read()
     except Exception:
@@ -66,4 +66,3 @@ async def fetch_tm(tm_id: str,
         logger.warning(f"unknown tm_id: {tm_id}")
         raise HTTPException(status_code=404, detail="Unknown or expired tm_id")
     return {"tm_id": tm_id, "entries": [{"source": s, "target": t} for s, t in entries]}
-

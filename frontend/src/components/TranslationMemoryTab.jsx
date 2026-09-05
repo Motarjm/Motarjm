@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_URL } from '../apiConfig';
+import { trackEvent } from '../analytics';
 import '../assets/translation_memory.css';
 
 const scoreClass = (score) => {
@@ -27,6 +28,11 @@ const TranslationMemoryTab = ({ tmId, activeSegmentSource, segmentMatches, loadi
       if (!res.ok) throw new Error('TM search failed');
       const data = await res.json();
       setter(data.matches || []);
+      trackEvent('tm_manual_search', {
+        query_length: query.length,
+        mode,
+        result_count: (data.matches || []).length,
+      });
     } catch (e) {
       console.warn('TM search error:', e);
       setter([]);

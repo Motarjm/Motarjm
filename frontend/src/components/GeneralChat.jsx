@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import '../assets/general_chat.css';
 import ChatInterface from './ChatInterface';
 import { API_URL } from '../apiConfig';
-import { trackEvent } from '../analytics';
+import { trackEvent, trackShortcutUsed } from '../analytics';
 import TermbaseTab from './TermbaseTab';
 import TranslationMemoryTab from './TranslationMemoryTab';
 import FocusChatPanel from './FocusChatPanel';
@@ -173,6 +173,7 @@ const GeneralChat = ({
       if ((e.ctrlKey && e.key === 'e') || ((e.ctrlKey && e.key === 'E') || (e.ctrlKey && e.key === 'ث') )) {
         e.preventDefault();
         if (!suggestionsLoading?.[activeSegmentId]) {
+          trackShortcutUsed('ctrl+e', 'regenerate_suggestions', 'general_chat');
           onEnsureSuggestions && onEnsureSuggestions(true);
         }
         return;
@@ -185,6 +186,7 @@ const GeneralChat = ({
         const index = parseInt(e.key, 10) - 1;
         if (list[index]) {
           e.preventDefault();
+          trackShortcutUsed(`ctrl+${e.key}`, 'apply_suggestion', 'general_chat');
           onApplySuggestion && onApplySuggestion(list[index].text);
         }
       }
@@ -459,6 +461,7 @@ const GeneralChat = ({
           message_length: userText.length,
           response_length: fullText.length,
           document_id: documentId,
+          model: model,
         });
       }
 
@@ -532,6 +535,7 @@ const GeneralChat = ({
   };
 
   const handleClear = () => {
+  trackEvent('chat_cleared', { context: 'general_chat', message_count: messages.length });
   // Cancel any in-flight response (e.g. the auto-triggered "review just
   // finished" summary) so it can't land after the clear and repopulate
   // the chat or plant a suggestion on a segment.
@@ -859,7 +863,10 @@ const GeneralChat = ({
                   <div className="suggestions-header" style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 12px', borderBottom: '1px solid #e5e7eb' }}>
                     <button
                       className="regenerate-btn"
-                      onClick={() => onEnsureSuggestions && onEnsureSuggestions(true)}
+                      onClick={() => {
+                        trackEvent('regenerate_suggestions', { via: 'button' });
+                        onEnsureSuggestions && onEnsureSuggestions(true);
+                      }}
                       disabled={suggestionsLoading?.[activeSegmentId] || !activeSegmentId}
                       title="Regenerate suggestions (Ctrl + E)"
 

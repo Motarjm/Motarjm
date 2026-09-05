@@ -116,24 +116,6 @@ export const trackSessionStarted = (entryPoint = '/') => {
 };
 
 /**
- * Track session end / focus panel session
- * @param {number} durationMs - Time spent in focus panel
- * @param {number} segmentId - Segment ID being edited
- * @param {number} messagesSent - Number of chat messages sent
- * @param {boolean} hadPendingEdits - Whether there were pending edits
- */
-export const trackFocusPanelSession = (durationMs, segmentId, messagesSent = 0, hadPendingEdits = false) => {
-  posthog.capture('focus_panel_session', {
-    duration_ms: durationMs,
-    duration_minutes: Math.round(durationMs / 1000 / 60),
-    segment_id: segmentId,
-    messages_sent: messagesSent,
-    had_pending_edits: hadPendingEdits,
-    timestamp: new Date().toISOString(),
-  });
-};
-
-/**
  * Track editing interface session
  * @param {number} durationMs - Time spent in editing interface
  * @param {boolean} pagesEdited - Whether any pages were edited
@@ -264,6 +246,83 @@ export const trackSegmentError = (error, operation = 'unknown') => {
   });
 };
 
+/**
+ * Track keyboard shortcut usage
+ * @param {string} shortcut - e.g. 'ctrl+enter', 'ctrl+s', 'ctrl+i', 'escape', 'ctrl+e', 'ctrl+digit'
+ * @param {string} action - What the shortcut did, e.g. 'confirm_segment', 'split_segment'
+ * @param {string} context - Where it was used, e.g. 'compare_interface', 'general_chat'
+ */
+export const trackShortcutUsed = (shortcut, action, context) => {
+  posthog.capture('shortcut_used', {
+    shortcut,
+    action,
+    context,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+/**
+ * Track a glossary/TM upload that failed after passing the file-type check
+ * (network error, backend rejection, malformed file, etc) — distinct from
+ * trackWrongFileUploaded, which covers picking the wrong file type.
+ * @param {string} uploadTarget - 'glossary' | 'translation_memory'
+ * @param {string} fileName
+ * @param {number} fileSize
+ * @param {Error} error - The error object
+ */
+export const trackAttachmentUploadFailed = (uploadTarget, fileName, fileSize, error) => {
+  trackFileError(error, {
+    upload_target: uploadTarget,
+    file_name: fileName,
+    file_size: fileSize,
+  });
+};
+
+/**
+ * Track a decision made on an AI-generated suggestion, across every place a
+ * suggestion can be shown (focus chat diff, document review banner, chat
+ * suggestion banner, batch apply/dismiss all). Use alongside trackAISuggestionApplied
+ * where that already exists — this covers the "discarded/dismissed" half that
+ * was previously untracked, so acceptance rate can actually be computed.
+ * @param {string} source - 'focus_chat_diff' | 'review_banner' | 'chat_suggestion_banner' | 'batch'
+ * @param {string} decision - 'applied' | 'discarded'
+ * @param {object} extra - additional context (count, segment_id, model, etc)
+ */
+export const trackSuggestionDecision = (source, decision, extra = {}) => {
+  posthog.capture('suggestion_decision', {
+    source,
+    decision,
+    ...extra,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+/**
+ * Track the full-document AI review lifecycle (handleReviewDocument)
+ * @param {string} phase - 'started' | 'completed' | 'error'
+ * @param {object} extra - e.g. total_segments, revised_segments, duration_ms
+ */
+export const trackDocumentReview = (phase, extra = {}) => {
+  posthog.capture('document_review', {
+    phase,
+    ...extra,
+    timestamp: new Date().toISOString(),
+  });
+};
+
+/**
+ * Track a segment being split into two
+ * @param {string} via - 'shortcut' | 'button'
+ * @param {object} extra - e.g. page_index, block_index
+ */
+export const trackSegmentSplit = (via, extra = {}) => {
+  posthog.capture('segment_split', {
+    via,
+    ...extra,
+    timestamp: new Date().toISOString(),
+  });
+};
+
 export default {
   trackFileSelected,
   trackWrongFileUploaded,
@@ -272,7 +331,6 @@ export default {
   trackDocumentDownloaded,
   trackNavigation,
   trackSessionStarted,
-  trackFocusPanelSession,
   trackEditingInterfaceSession,
   trackAISuggestionApplied,
   trackArabicTextCopied,
@@ -283,4 +341,9 @@ export default {
   trackTranslationError,
   trackFileProcessingError,
   trackSegmentError,
+  trackShortcutUsed,
+  trackAttachmentUploadFailed,
+  trackSuggestionDecision,
+  trackDocumentReview,
+  trackSegmentSplit,
 };

@@ -20,7 +20,7 @@ async def upload_glossary(
 ):
     if not glossary.filename.endswith(".tbx"):
         logger.warning(f"rejected glossary upload with invalid extension: {glossary.filename}")
-        raise HTTPException(status_code=400, detail="Only .tbx glossary files are allowed")
+        raise HTTPException(status_code=422, detail="Only .tbx glossary files are allowed")
     try:
         tbx_bytes = await glossary.read()
     except Exception:
