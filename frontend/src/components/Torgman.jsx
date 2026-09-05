@@ -82,8 +82,8 @@ const Torgman = () => {
   const [fileContent, setFileContent] = useState(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [activeAction, setActiveAction] = useState(null); // 'translate' | 'segment' | null
-  const [sourceLang, setSourceLang] = useState('English');
-  const [targetLang, setTargetLang] = useState('Arabic');
+  const [sourceLang, setSourceLang] = useState('en');
+  const [targetLang, setTargetLang] = useState('ar');
   const [progress, setProgress] = useState(0);
   const [totalBlocks, setTotalBlocks] = useState(0);
   const [isStyleGuideOpen, setIsStyleGuideOpen] = useState(false);
@@ -181,6 +181,16 @@ const Torgman = () => {
     { code: 'ar_eg', name: 'العربية المصرية', englishName: 'Egyptian Arabic' },
     { code: 'ar_sa', name: 'العربية السعودية', englishName: 'Saudi Arabic' },
   ];
+
+  // Older saved jobs/documents may still hold English names (e.g. 'English',
+  // 'Arabic') from before language values were switched to codes. This maps
+  // any such legacy value back to its code so old IndexedDB data keeps working.
+  const toLangCode = (value, list, fallback) => {
+    if (!value) return fallback;
+    if (list.some((l) => l.code === value)) return value;
+    const match = list.find((l) => l.englishName === value);
+    return match?.code || fallback;
+  };
 
   const getFileType = (fileName) => {
     const ext = fileName.toLowerCase().split('.').pop();
@@ -296,10 +306,8 @@ const Torgman = () => {
     setGlossaryUploading(true);
     try {
       const base64 = await fileToBase64(file);
-      const sourceLangObj = Sourcelanguages.find((l) => l.englishName === sourceLang);
-      const targetLangObj = Targetlanguages.find((l) => l.englishName === targetLang);
-      const src = sourceLangObj?.code || 'en';
-      const tgt = targetLangObj?.code || 'ar';
+      const src = sourceLang || 'en';
+      const tgt = targetLang || 'ar';
 
       const formData = new FormData();
       formData.append('glossary', file);
@@ -366,10 +374,8 @@ const Torgman = () => {
     setTmUploading(true);
     try {
       const base64 = await fileToBase64(file);
-      const sourceLangObj = Sourcelanguages.find((l) => l.englishName === sourceLang);
-      const targetLangObj = Targetlanguages.find((l) => l.englishName === targetLang);
-      const src = sourceLangObj?.code || 'en';
-      const tgt = targetLangObj?.code || 'ar';
+      const src = sourceLang || 'en';
+      const tgt = targetLang || 'ar';
 
       const formData = new FormData();
       formData.append('tm_file', file);
@@ -908,8 +914,8 @@ const Torgman = () => {
 
           setSelectedFile(null);
           setFileName(savedJob.fileName || '');
-          setSourceLang(savedJob.sourceLang || 'English');
-          setTargetLang(savedJob.targetLang || 'Arabic');
+          setSourceLang(toLangCode(savedJob.sourceLang, Sourcelanguages, 'en'));
+          setTargetLang(toLangCode(savedJob.targetLang, Targetlanguages, 'ar'));
           setGlossaryFileName(savedJob.glossaryFileName || '');
           setGlossaryFileSize(savedJob.glossaryFileSize || null);
           setGlossaryId(savedJob.glossaryId || null);
@@ -960,8 +966,8 @@ const Torgman = () => {
           setActiveDocumentId(documentId);
           setTranslatedContents(savedDocument.translatedContents);
           setFileContent(savedDocument.originalFile || null);
-          setSourceLang(savedDocument.sourceLang || 'English');
-          setTargetLang(savedDocument.targetLang || 'Arabic');
+          setSourceLang(toLangCode(savedDocument.sourceLang, Sourcelanguages, 'en'));
+          setTargetLang(toLangCode(savedDocument.targetLang, Targetlanguages, 'ar'));
           setFileName(savedDocument.fileName || '');
           setGlossaryFileName(savedDocument.glossaryFileName || '');
           setGlossaryFileSize(savedDocument.glossaryFileSize || null);
@@ -1057,10 +1063,8 @@ const Torgman = () => {
         'xliff': '/translation/xliff'
       };
       const endpoint = endpoints[fileType];
-      const sourceLangObj = Sourcelanguages.find(lang => lang.englishName === sourceLang);
-      const targetLangObj = Targetlanguages.find(lang => lang.englishName === targetLang);
-      const sourceLangCode = sourceLangObj?.code || 'en';
-      const targetLangCode = targetLangObj?.code || 'ar';
+      const sourceLangCode = toLangCode(sourceLang, Sourcelanguages, 'en');
+      const targetLangCode = toLangCode(targetLang, Targetlanguages, 'ar');
 
       // let queryParams = `source_lang=${sourceLangCode}&target_lang=${targetLangCode}`;
       // if (segmentOnly) {
@@ -1328,7 +1332,7 @@ const Torgman = () => {
                 className="lang-select"
               >
                 {Targetlanguages.map(lang => (
-                  <option key={lang.code} value={lang.englishName}>
+                  <option key={lang.code} value={lang.code}>
                     {lang.name} ({lang.englishName})
                   </option>
                 ))}
@@ -1345,7 +1349,7 @@ const Torgman = () => {
                 className="lang-select"
               >
                 {Sourcelanguages.map(lang => (
-                  <option key={lang.code} value={lang.englishName}>
+                  <option key={lang.code} value={lang.code}>
                     {lang.name} ({lang.englishName})
                   </option>
                 ))}

@@ -17,6 +17,20 @@ import {
   fileToBase64,
 } from '../utils/indexedDbPersistence';
 
+// Older saved documents (and nav state passed from an older Torgman.jsx)
+// may still hold English names instead of codes. Map those back to codes so
+// existing IndexedDB data and API calls keep working.
+const LEGACY_LANG_NAME_TO_CODE = {
+  English: 'en',
+  Arabic: 'ar',
+  'Egyptian Arabic': 'ar_eg',
+  'Saudi Arabic': 'ar_sa',
+};
+const toLangCode = (value, fallback) => {
+  if (!value) return fallback;
+  return LEGACY_LANG_NAME_TO_CODE[value] || value;
+};
+
 // Helper to get exact cursor position in contentEditable
 const getCaretCharacterOffsetWithin = (element) => {
   let caretOffset = 0;
@@ -60,8 +74,8 @@ const CompareInterface = () => {
   const [translatedContents, setTranslatedContents] = useState(null);
   const [originalFile, setOriginalFile] = useState(null);
   const [originalFileName, setOriginalFileName] = useState(null);
-  const [sourceLang, setSourceLang] = useState('English');
-  const [targetLang, setTargetLang] = useState('Arabic');
+  const [sourceLang, setSourceLang] = useState('en');
+  const [targetLang, setTargetLang] = useState('ar');
   const [fileType, setFileType] = useState(null); // Track whether original was PDF or XLIFF
   const [checkedBlocks, setCheckedBlocks] = useState({});
   const [suggestions, setSuggestions] = useState({});
@@ -284,8 +298,8 @@ const CompareInterface = () => {
           resolvedDocumentId = await createDocument({
             translatedContents: location.state.translatedContents,
             originalFile: location.state.originalFile || null,
-            sourceLang: location.state.sourceLang || 'English',
-            targetLang: location.state.targetLang || 'Arabic',
+            sourceLang: toLangCode(location.state.sourceLang, 'en'),
+            targetLang: toLangCode(location.state.targetLang, 'ar'),
             fileType: location.state.fileType || null,
             fileName: location.state.fileName || null,
               glossaryId: location.state.glossaryId || null,
@@ -308,12 +322,34 @@ const CompareInterface = () => {
 
         await setActiveDocumentId(documentRecord.id);
 
+        // NEW: languages passed from Torgman.jsx via navigate('/compare', { state })
+        // take priority over the values stored on the document record.
+        // Without this, the fresh selection made in Torgman is ignored whenever
+        // the document record already exists in IndexedDB.
+        const stateSourceLang = location.state?.sourceLang ? toLangCode(location.state.sourceLang, null) : null;
+        const stateTargetLang = location.state?.targetLang ? toLangCode(location.state.targetLang, null) : null;
+
+        if (
+          (stateSourceLang && stateSourceLang !== documentRecord.sourceLang) ||
+          (stateTargetLang && stateTargetLang !== documentRecord.targetLang)
+        ) {
+          const langPatch = {};
+          if (stateSourceLang) langPatch.sourceLang = stateSourceLang;
+          if (stateTargetLang) langPatch.targetLang = stateTargetLang;
+          documentRecord = { ...documentRecord, ...langPatch };
+          // Keep IndexedDB in sync so a page refresh (no router state)
+          // still shows the correct languages.
+          saveDocumentState(documentRecord.id, langPatch).catch((e) => {
+            console.warn('Failed to persist languages from navigation state:', e);
+          });
+        }
+
         setDocumentId(documentRecord.id);
         setTranslatedContents(documentRecord.translatedContents || null);
         setOriginalFile(documentRecord.originalFile || null);
         setOriginalFileName(documentRecord.fileName || null);
-        setSourceLang(documentRecord.sourceLang || 'English');
-        setTargetLang(documentRecord.targetLang || 'Arabic');
+        setSourceLang(toLangCode(documentRecord.sourceLang, 'en'));
+        setTargetLang(toLangCode(documentRecord.targetLang, 'ar'));
         setFileType(documentRecord.fileType || null);
         setCheckedBlocks(documentRecord.checkedBlocks || {});
         setSuggestions(documentRecord.suggestions || {});
