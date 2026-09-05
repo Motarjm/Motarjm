@@ -1,7 +1,8 @@
 from io import BytesIO
 import os
+import logging
 from threading import Lock
-from typing import Dict
+from typing import Dict, List, Optional
 import pymupdf
 from ultralytics import YOLO
 from huggingface_hub import hf_hub_download
@@ -13,10 +14,17 @@ from PIL import Image, ImageDraw
 import numpy as np
 import cv2
 from itertools import groupby
+from collections import Counter
+import copy
 import json
 import tempfile
 import re
 from pdf2docx import Converter
+import pdfplumber
+from docx import Document as DocxDocument
+from docx.oxml.ns import qn
+
+logger = logging.getLogger(__name__)
 
 _yolo_models: Dict[str, YOLO] = {}
 _ocr_models: Dict[str, PaddleOCR] = {}
@@ -349,7 +357,6 @@ def extract_text_from_image(image, pdf_bytes, doc, c):
         sentences = split_sentences(block_text)
         for i in range(0, len(sentences), NUM_OF_SENTENCES_PER_SEGMENT):            
             group = " ".join(sentences[i:i + NUM_OF_SENTENCES_PER_SEGMENT])
-            print(group)
             ocr_text.append(
             {
                 "text": group,
@@ -416,8 +423,275 @@ def extract_text_from_pdf(pdf_bytes: bytes):
     
     return all_content
 
+def _cell_is_empty(value) -> bool:
+    """True if a pdfplumber cell has no real text content."""
+    return value is None or str(value).strip() == ""
+
+
+def _clean_pdfplumber_rows(rows: List[List[Optional[str]]]) -> List[List[Optional[str]]]:
+    """
+    Post-process a raw pdfplumber table.extract() result.
+
+    - A row where every cell is empty/None is a blank grid-line artifact -> dropped.
+    - A row with exactly one non-empty cell is a wrapped continuation line of a
+      multi-line cell -> its text is appended (with a space) to the same-index
+      cell of the row above, and the row itself is dropped.
+    - Any other row (2+ non-empty cells) is a genuine row (header or data) and is
+      kept as-is.
+    """
+    cleaned: List[List[Optional[str]]] = []
+
+    for row in rows:
+        non_empty_idx = [i for i, v in enumerate(row) if not _cell_is_empty(v)]
+
+        if not non_empty_idx:
+            # fully blank separator row
+            continue
+
+        if len(non_empty_idx) == 1 and cleaned:
+            idx = non_empty_idx[0]
+            text = str(row[idx]).strip()
+            prev_row = cleaned[-1]
+            if idx < len(prev_row):
+                prev_val = prev_row[idx]
+                if _cell_is_empty(prev_val):
+                    prev_row[idx] = text
+                else:
+                    prev_row[idx] = f"{str(prev_val).rstrip()} {text}"
+            else:
+                # defensive: shouldn't normally happen, same table = same width
+                continue
+            continue
+
+        cleaned.append(list(row))
+
+    return cleaned
+
+
+def _compact_table(cleaned_rows: List[List[Optional[str]]]) -> Optional[List[List[str]]]:
+    """
+    Drop the empty/spacer cells out of each cleaned row so that only the real
+    column values remain (pdfplumber's grid detection produces several empty
+    "filler" columns around each real column due to merged-cell borders).
+
+    The resulting column count is taken as the most common compacted row
+    length across the table; rows that disagree are padded/truncated to fit.
+    Returns None if no consistent column count can be determined.
+    """
+    if not cleaned_rows:
+        return None
+
+    compacted_rows = [
+        [str(v).strip() for v in row if not _cell_is_empty(v)] for row in cleaned_rows
+    ]
+
+    lengths = [len(r) for r in compacted_rows if r]
+    if not lengths:
+        return None
+    target_len = Counter(lengths).most_common(1)[0][0]
+    if target_len == 0:
+        return None
+
+    fitted_rows = []
+    for row in compacted_rows:
+        if len(row) < target_len:
+            row = row + [""] * (target_len - len(row))
+        elif len(row) > target_len:
+            row = row[:target_len]
+        fitted_rows.append(row)
+
+    return fitted_rows
+
+
+def _extract_pdfplumber_tables_by_page(pdf_bytes: bytes) -> List[List[List[List[str]]]]:
+    """
+    Returns, per page, a list of cleaned+compacted tables in document order.
+    tables_by_page[page_index][table_index] -> List[List[str]] rows
+    """
+    tables_by_page: List[List[List[List[str]]]] = []
+    with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
+        for page in pdf.pages:
+            page_tables = []
+            for table in page.find_tables():
+                raw_rows = table.extract()
+                cleaned = _clean_pdfplumber_rows(raw_rows)
+                compacted = _compact_table(cleaned)
+                page_tables.append(compacted if compacted is not None else [])
+            tables_by_page.append(page_tables)
+    return tables_by_page
+
+
+def _get_column_templates(table):
+    """
+    For each column, find a 'known good' paragraph template: a cell (any row)
+    whose first paragraph already has a real run with explicit font
+    properties. pdf2docx sometimes leaves a cell as an empty placeholder
+    paragraph (no run, and a squashed `lineRule="exact"` 1pt line height)
+    that originally just sat above a nested sub-table holding the real text.
+    If we later drop text straight into that placeholder without fixing its
+    paragraph properties, the text gets squashed into that ~1pt line box
+    and rendered in Word's raw default font instead of the table's Arial.
+
+    Returns a list (one entry per column) of (pPr_element_or_None,
+    rPr_element_or_None) deep copies to use as a fallback for such cells.
+    """
+    num_cols = len(table.columns)
+    templates = [None] * num_cols
+    for row in table.rows:
+        for j, cell in enumerate(row.cells):
+            if j >= num_cols or templates[j] is not None:
+                continue
+            para = cell.paragraphs[0]
+            if para.runs and para.runs[0]._r.find(qn("w:rPr")) is not None:
+                pPr = para._p.find(qn("w:pPr"))
+                rPr = para.runs[0]._r.find(qn("w:rPr"))
+                templates[j] = (
+                    copy.deepcopy(pPr) if pPr is not None else None,
+                    copy.deepcopy(rPr) if rPr is not None else None,
+                )
+    return templates
+
+
+def _set_cell_text(cell, text: str, fallback_template=None) -> None:
+    """
+    Replace a docx table cell's text with `text`, reusing the formatting
+    (font name/size/bold/italic) of the first existing run if there is one,
+    so the cell keeps looking like the rest of the (pdf2docx-styled) table.
+
+    pdf2docx sometimes represents a wrapped/stacked group of cells as a
+    NESTED sub-table inside a single outer cell, rather than as separate
+    outer rows (e.g. a "Product" header cell can contain a nested table
+    holding "Verto Workspace"). cell.text/cell.paragraphs only see the
+    outer paragraph text, so leaving those nested tables in place after we
+    rewrite the outer text would leave stale, duplicated content behind.
+    Since we're fully replacing this cell's content, any nested tables are
+    removed too.
+
+    If this cell's own paragraph has no run to copy formatting from (a sign
+    it was previously an empty placeholder paragraph - see
+    `_get_column_templates`), `fallback_template` - a (pPr, rPr) pair sourced
+    from a known-good cell in the same column - is applied instead of
+    leaving Word's raw defaults, which would otherwise squash the text into
+    a ~1pt line box in the wrong font.
+    """
+    first_para = cell.paragraphs[0]
+    template_run = first_para.runs[0] if first_para.runs else None
+
+    # drop any nested sub-tables pdf2docx stashed inside this cell
+    for nested_table in list(cell.tables):
+        nested_table._tbl.getparent().remove(nested_table._tbl)
+
+    # wipe all paragraphs except the first, and all runs within the first
+    for para in cell.paragraphs[1:]:
+        para._element.getparent().remove(para._element)
+    for run in list(first_para.runs):
+        run._element.getparent().remove(run._element)
+
+    if template_run is None and fallback_template is not None:
+        fallback_pPr, fallback_rPr = fallback_template
+        existing_pPr = first_para._p.find(qn("w:pPr"))
+        if existing_pPr is not None:
+            first_para._p.remove(existing_pPr)
+        if fallback_pPr is not None:
+            first_para._p.insert(0, copy.deepcopy(fallback_pPr))
+
+    new_run = first_para.add_run(text)
+    if template_run is not None:
+        new_run.font.name = template_run.font.name
+        new_run.font.size = template_run.font.size
+        new_run.font.bold = template_run.font.bold
+        new_run.font.italic = template_run.font.italic
+    elif fallback_template is not None and fallback_template[1] is not None:
+        new_run._r.insert(0, copy.deepcopy(fallback_template[1]))
+
+
+def _ensure_row_count(table, needed_rows: int) -> None:
+    """Grow a docx table to `needed_rows` by cloning the last row's XML (and
+    therefore its cell styling/borders/widths) as many times as needed."""
+    last_tr = table.rows[-1]._tr
+    while len(table.rows) < needed_rows:
+        new_tr = copy.deepcopy(last_tr)
+        table._tbl.append(new_tr)
+
+
+def _rebuild_docx_table(table, new_rows: List[List[str]]) -> bool:
+    """
+    Overwrite `table`'s content with `new_rows`, reusing the table's existing
+    style/borders/column widths. Returns False (no-op) if the column counts
+    don't line up, since we can't safely "imitate the style" in that case.
+    """
+    if not new_rows:
+        return False
+
+    existing_cols = len(table.columns)
+    new_cols = len(new_rows[0])
+    if new_cols != existing_cols:
+        return False
+
+    # capture known-good per-column formatting BEFORE we start growing/
+    # overwriting rows, so a placeholder cell's replacement text can borrow
+    # sane formatting from a genuine cell elsewhere in the same column.
+    column_templates = _get_column_templates(table)
+
+    _ensure_row_count(table, len(new_rows))
+
+    for i, row_data in enumerate(new_rows):
+        for j, text in enumerate(row_data):
+            _set_cell_text(table.rows[i].cells[j], text, fallback_template=column_templates[j])
+
+    return True
+
+
+def _replace_lossy_tables_with_pdfplumber(docx_bytes: bytes, pdf_bytes: bytes) -> bytes:
+    """
+    Compare every table pdf2docx produced against the equivalent table
+    extracted (and cleaned) via pdfplumber, matched by page. Where
+    pdfplumber recovered more rows (i.e. pdf2docx silently dropped/merged
+    content), rebuild that table in the docx using the pdfplumber data.
+    """
+    tables_by_page = _extract_pdfplumber_tables_by_page(pdf_bytes)
+    tables_per_page_counts = [len(page_tables) for page_tables in tables_by_page]
+
+    document = DocxDocument(BytesIO(docx_bytes))
+    docx_tables = document.tables
+
+    if sum(tables_per_page_counts) != len(docx_tables):
+        # Table counts between the two extraction methods don't line up, so we
+        # can't safely match tables by page position. Bail out and keep the
+        # original pdf2docx output untouched rather than risk touching the
+        # wrong table.
+        return docx_bytes
+
+    docx_table_idx = 0
+    for page_tables in tables_by_page:
+        for pdfplumber_rows in page_tables:
+            docx_table = docx_tables[docx_table_idx]
+            docx_table_idx += 1
+
+            docx_row_count = len(docx_table.rows)
+            plumber_row_count = len(pdfplumber_rows)
+            if plumber_row_count > docx_row_count:
+                try:
+                    _rebuild_docx_table(docx_table, pdfplumber_rows)
+                except Exception:
+                    # Never let a single bad table take down the whole
+                    # conversion - just leave pdf2docx's version in place.
+                    logger.exception(
+                        "Failed to rebuild docx table %d from pdfplumber data; "
+                        "keeping the original pdf2docx table instead.",
+                        docx_table_idx - 1,
+                    )
+                    continue
+
+    out = BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
 def _convert_pdf_to_docx_bytes(pdf_bytes: bytes) -> bytes:
-    """Convert PDF bytes to DOCX bytes using pdf2docx."""
+    """Convert PDF bytes to DOCX bytes using pdf2docx, then patch up any
+    tables where pdf2docx dropped/merged rows by re-extracting them with
+    pdfplumber."""
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as pdf_tmp:
         pdf_tmp.write(pdf_bytes)
         pdf_path = pdf_tmp.name
@@ -428,9 +702,20 @@ def _convert_pdf_to_docx_bytes(pdf_bytes: bytes) -> bytes:
         cv.convert(docx_path, start=0, end=None)
         cv.close()
         with open(docx_path, "rb") as f:
-            return f.read()
+            docx_bytes = f.read()
     finally:
         os.unlink(pdf_path)
         if os.path.exists(docx_path):
             os.unlink(docx_path)
 
+    try:
+        docx_bytes = _replace_lossy_tables_with_pdfplumber(docx_bytes, pdf_bytes)
+    except Exception:
+        # Table touch-up is a best-effort improvement; never let it break the
+        # base conversion.
+        logger.exception(
+            "pdfplumber table touch-up failed; returning the unmodified "
+            "pdf2docx output instead."
+        )
+
+    return docx_bytes
