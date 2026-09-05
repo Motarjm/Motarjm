@@ -218,6 +218,7 @@ PyJWT==2.13.0
 pymupdf==1.28.0
 pypandoc==1.17
 pyparsing==3.2.5
+pdfplumber
 pypdfium2==5.1.0
 pyperclip==1.11.0
 pyphen==0.17.2
