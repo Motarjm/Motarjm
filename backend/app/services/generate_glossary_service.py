@@ -2,7 +2,13 @@ import io
 import time
 import uuid
 from openpyxl import Workbook
+import csv
+import io
+import time
+import uuid
+from xml.sax.saxutils import escape
 
+from openpyxl import Workbook
 # ─────────────────────────────────────────────────────────────────────────
 # In-memory store for generated files (e.g. the terminology .xlsx).
 # A tool can't return binary data to the model, so it stashes the file here
@@ -59,3 +65,52 @@ def build_terminology_xlsx(terms: dict) -> bytes:
     wb.save(buffer)
     return buffer.getvalue()
 
+def build_terminology_csv(terms: dict) -> bytes:
+    """
+    Builds a two-column (Source,Target) CSV from the parsed
+    terminology_agent output and returns the raw file bytes.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["Source", "Target"])
+    for source, target in terms.items():
+        writer.writerow([source, target])
+
+    # Encode as utf-8-sig so Excel/Word correctly detect UTF-8 (important for Arabic).
+    return buffer.getvalue().encode("utf-8-sig")
+
+
+def build_terminology_tbx(terms: dict, source_lang: str = "", target_lang: str = "") -> bytes:
+    """
+    Builds a minimal TBX-Basic (Term Base eXchange) document from the parsed
+    terminology_agent output and returns the raw file bytes.
+    """
+    src_lang = source_lang or "src"
+    tgt_lang = target_lang or "tgt"
+
+    entries = []
+    for i, (source, target) in enumerate(terms.items(), start=1):
+        entries.append(f"""    <termEntry id="tE{i}">
+      <langSet xml:lang="{escape(src_lang)}">
+        <tig>
+          <term>{escape(str(source))}</term>
+        </tig>
+      </langSet>
+      <langSet xml:lang="{escape(tgt_lang)}">
+        <tig>
+          <term>{escape(str(target))}</term>
+        </tig>
+      </langSet>
+    </termEntry>""")
+
+    body = "\n".join(entries)
+    tbx = f"""<?xml version="1.0" encoding="UTF-8"?>
+<tbx type="TBX-Basic" xml:lang="en">
+  <text>
+    <body>
+{body}
+    </body>
+  </text>
+</tbx>"""
+
+    return tbx.encode("utf-8")
